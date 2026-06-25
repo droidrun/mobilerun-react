@@ -1,0 +1,126 @@
+/*
+ * @mobilerun/react — prebuilt stylesheet.
+ *
+ * Ships only the design tokens, the Tailwind utilities actually used by the
+ * components, the animation utilities, and the structural component CSS. The
+ * Tailwind *preflight/reset* is intentionally NOT imported, so dropping this
+ * file into an app will not reset the host's base styles.
+ *
+ * Consumers import it once:
+ *   import '@mobilerun/react/styles.css';
+ *
+ * All colors resolve through CSS custom properties, so a host app can override
+ * any token by redefining e.g. `--background` on `:root` (or scope a `.dark`).
+ */
+
+@layer theme, base, components, utilities;
+
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+@import 'tw-animate-css';
+
+/* Scan the component source so only used utilities are emitted. */
+@source './components/**/*.{ts,tsx}';
+
+/* Map semantic color utilities (bg-background, text-muted-foreground, ...) onto
+ * overridable CSS variables. `inline` keeps the var() reference so host apps can
+ * restyle by setting the variables below. */
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-border: var(--border);
+  --color-ring: var(--ring);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+}
+
+/* Default token values (light). Override on the host's :root to retheme. */
+:root {
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.145 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.145 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.556 0 0);
+  --border: oklch(0.922 0 0);
+  --ring: oklch(0.708 0 0);
+  --primary: oklch(0.205 0 0);
+  --primary-foreground: oklch(0.985 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.205 0 0);
+}
+
+.dark {
+  --background: oklch(0.145 0 0);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.205 0 0);
+  --card-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.269 0 0);
+  --muted-foreground: oklch(0.708 0 0);
+  --border: oklch(1 0 0 / 10%);
+  --ring: oklch(0.556 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.205 0 0);
+  --accent: oklch(0.269 0 0);
+  --accent-foreground: oklch(0.985 0 0);
+}
+
+/* ---- Structural component CSS (not utility-based) ---- */
+
+.rc-container {
+  position: relative;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  isolation: isolate;
+  background-color: rgba(0, 0, 0, 0.05);
+  touch-action: none;
+  overflow: hidden;
+}
+
+.rc-video {
+  max-height: 100%;
+  max-width: 100%;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+  outline: none;
+  pointer-events: none;
+  cursor: none;
+}
+
+/* DeviceStream wrapper: force the RemoteControl video to fill the container
+ * while preserving aspect ratio (replaces the original styled-jsx block). */
+.device-stream-wrapper {
+  width: 100% !important;
+  height: 100% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  overflow: hidden !important;
+}
+
+.device-stream-wrapper .rc-container {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+}
+
+.device-stream-wrapper .rc-video {
+  width: 100% !important;
+  height: 100% !important;
+  max-width: 100% !important;
+  max-height: 100% !important;
+  object-fit: contain !important;
+  display: block !important;
+}

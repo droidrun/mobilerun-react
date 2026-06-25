@@ -1,0 +1,11 @@
+node_modules
+dist
+*.tgz
+.DS_Store
+.turbo
+# local secrets — never commit; .env.example is the tracked placeholder
+.env
+.env.*
+!.env.example
+# local screenshots (favicons under example/ are intentionally tracked)
+example/_*.png
