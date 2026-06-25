@@ -76,9 +76,22 @@ export interface ImperativeKeyboardEvent {
   metaKey?: boolean;
 }
 
+// Android system navigation buttons → keycodes. These have no browser
+// KeyboardEvent.code, so they can't ride the codeMap path used by sendKeyEvent;
+// they're addressed by name and injected as a down+up keycode pair instead.
+const SYSTEM_KEYCODES = {
+  BACK: ANDROID_KEYS.KEYCODE_BACK,
+  HOME: ANDROID_KEYS.KEYCODE_HOME,
+  RECENT: ANDROID_KEYS.KEYCODE_APP_SWITCH,
+} as const;
+
+export type SystemButton = keyof typeof SYSTEM_KEYCODES;
+
 export interface RemoteControlHandle {
   openUrl: (url: string) => void;
   sendKeyEvent: (event: ImperativeKeyboardEvent) => void;
+  // Press an Android system navigation button (Back / Home / Recents).
+  sendSystemKey: (button: SystemButton) => void;
   screenshot: () => Promise<ScreenshotData>;
 }
 
@@ -231,6 +244,25 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
         if (message) {
           dataChannelRef.current.send(message);
         }
+      },
+
+      sendSystemKey: (button: SystemButton) => {
+        if (!dataChannelRef.current || dataChannelRef.current.readyState !== 'open') {
+          debugWarn(
+            'Data channel not ready for system key command:',
+            dataChannelRef.current?.readyState,
+          );
+          return;
+        }
+
+        const keycode = SYSTEM_KEYCODES[button];
+        debugLog(`Sending System Key Command: button=${button}, keycode=${keycode}`);
+
+        // A button press is a full down + up cycle.
+        const down = createInjectKeycodeMessage(ANDROID_KEYS.ACTION_DOWN, keycode);
+        const up = createInjectKeycodeMessage(ANDROID_KEYS.ACTION_UP, keycode);
+        if (down) dataChannelRef.current.send(down);
+        if (up) dataChannelRef.current.send(up);
       },
       screenshot: (): Promise<ScreenshotData> => {
         return new Promise<ScreenshotData>((resolve, reject) => {

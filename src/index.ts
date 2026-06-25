@@ -7,6 +7,7 @@ export {
   RemoteControl,
   type RemoteControlHandle,
   type ImperativeKeyboardEvent,
+  type SystemButton,
 } from './components/remote-control';
 export { StreamStatusPill } from './components/stream-status-pill';
 export { NavigationBar } from './components/navigation-bar';

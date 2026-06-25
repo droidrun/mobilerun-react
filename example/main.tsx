@@ -2,11 +2,11 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Mobilerun from '@mobilerun/sdk';
-import React, { useCallback, useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
 // Import straight from source so Bun transpiles + HMRs the package as you edit.
-import { DeviceStream, NavigationBar, useDeviceStream } from '../src/index';
+import { DeviceStream, NavigationBar, useDeviceStream, type RemoteControlHandle } from '../src/index';
 // Prebuilt themed stylesheet (run `bun run build:css` once to generate it).
 import '../dist/styles.css';
 // Brand mark (black) — inverted to white in dark mode via CSS.
@@ -200,9 +200,12 @@ function SdkStream({
 
   React.useEffect(() => onStatus({ state, error, isLoading }), [state, error, isLoading, onStatus]);
 
+  const streamRef = useRef<RemoteControlHandle>(null);
+
   return (
-    <DeviceChrome onNav={() => {}}>
+    <DeviceChrome onNav={(a) => streamRef.current?.sendSystemKey(a)}>
       <DeviceStream
+        ref={streamRef}
         streamUrl={streamUrl}
         streamToken={streamToken}
         hasControl={hasControl}
@@ -259,6 +262,7 @@ function App() {
   const [streamUrl, setStreamUrl] = useState('');
   const [streamToken, setStreamToken] = useState('');
   const [applied, setApplied] = useState<{ url?: string; token?: string }>({});
+  const manualStreamRef = useRef<RemoteControlHandle>(null);
 
   // Shared controls
   const [hasControl, setHasControl] = useState(true);
@@ -282,8 +286,9 @@ function App() {
         </DeviceChrome>
       )
     ) : (
-      <DeviceChrome onNav={() => {}}>
+      <DeviceChrome onNav={(a) => manualStreamRef.current?.sendSystemKey(a)}>
         <DeviceStream
+          ref={manualStreamRef}
           streamUrl={applied.url}
           streamToken={applied.token}
           hasControl={hasControl}

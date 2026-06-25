@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { Smartphone } from 'lucide-react';
-import { useCallback, useEffect } from 'react';
+import { forwardRef, useCallback, useEffect } from 'react';
 import { cn } from '../lib/cn';
-import { RemoteControl } from './remote-control';
+import { RemoteControl, type RemoteControlHandle } from './remote-control';
 import { StreamStatusPill } from './stream-status-pill';
 import { useStreamSelfHeal } from '../hooks/use-stream-self-heal';
 
@@ -41,18 +41,21 @@ interface DeviceStreamProps {
   onPeerConnectionChange?: (pc: RTCPeerConnection | null) => void;
 }
 
-export function DeviceStream({
-  streamUrl,
-  streamToken,
-  hasControl,
-  onHasControlChange: setHasControl = () => {},
-  onConnectionStateChange,
-  onStreamHealed,
-  className,
-  placeholderLabel,
-  muted,
-  onPeerConnectionChange,
-}: DeviceStreamProps) {
+export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(function DeviceStream(
+  {
+    streamUrl,
+    streamToken,
+    hasControl,
+    onHasControlChange: setHasControl = () => {},
+    onConnectionStateChange,
+    onStreamHealed,
+    className,
+    placeholderLabel,
+    muted,
+    onPeerConnectionChange,
+  }: DeviceStreamProps,
+  ref,
+) {
   const { onConnectionStateChange: onSelfHealConnectionChange, streamKey } = useStreamSelfHeal({
     onHeal: onStreamHealed,
     restartKey: `${streamUrl ?? ''}|${streamToken ?? ''}`,
@@ -84,6 +87,7 @@ export function DeviceStream({
         <>
           <div className="device-stream-wrapper w-full h-full flex items-center justify-center relative">
             <RemoteControl
+              ref={ref}
               key={streamKey}
               url={streamUrl}
               token={streamToken}
@@ -113,4 +117,4 @@ export function DeviceStream({
       )}
     </div>
   );
-}
+});
