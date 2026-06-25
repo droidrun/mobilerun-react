@@ -9,8 +9,8 @@
 <h1 align="center">@mobilerun/react</h1>
 
 <p align="center">
-  <strong>React components for embedding Mobilerun's native device streaming.</strong><br />
-  Live WebRTC video + full scrcpy remote control of a cloud Android device, in any React app.
+  <strong>React components for embedding Mobilerun's native streaming.</strong><br />
+  Live WebRTC video + full scrcpy remote control of a cloud device, in any React app.
 </p>
 
 <div align="center">
@@ -32,7 +32,7 @@
 
 ## ✨ What you get
 
-Drop a live, controllable cloud Android device into any React app:
+Drop a live, controllable cloud device (iOS/ Android) into any React app:
 
 - 📺 **`<DeviceStream />`** — WebRTC video with touch, swipe and keyboard control, plus self-healing reconnects.
 - 🪝 **`useDeviceStream()`** — resolves a device's stream credentials from [`@mobilerun/sdk`](https://www.npmjs.com/package/@mobilerun/sdk), polling while it boots.
