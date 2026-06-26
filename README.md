@@ -19,6 +19,7 @@
 ·
 <a href="https://cloud.mobilerun.ai">☁️ Mobilerun Cloud</a>
 
+[![npm](https://img.shields.io/npm/v/@mobilerun/react.svg?color=cb3837&logo=npm)](https://www.npmjs.com/package/@mobilerun/react)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
 [![mobilerun.ai](https://img.shields.io/badge/mobilerun.ai-white)](https://mobilerun.ai)
 [![React](https://img.shields.io/badge/React-18%20%7C%2019-149eca.svg)](https://react.dev)
