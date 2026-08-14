@@ -84,6 +84,13 @@ export function useWebRtcConnection({
   const pendingScreenshotRejectersRef = useRef<Map<string, (reason?: any) => void>>(new Map());
   const pendingIceCandidatesRef = useRef<RTCIceCandidate[]>([]);
   const remoteDescriptionSetRef = useRef(false);
+  // Deadline (epoch ms) until which non-terminal connection-state dips are
+  // suppressed: set when a credential-refresh ICE restart starts. Media keeps
+  // flowing on the old candidate pair during the restart (make-before-break),
+  // so reporting the transient 'connecting' would flicker the UI and trip
+  // self-heal remounts (use-stream-self-heal) — the interruption the refresh
+  // exists to avoid. 'failed'/'closed' always pass through.
+  const iceRestartGraceUntilRef = useRef(0);
   // Single combined stream we own — backend sends video and audio on
   // separate MediaStreams (different msid stream IDs), so we can't just
   // assign event.streams[0] or the second ontrack overwrites the first.
@@ -293,8 +300,22 @@ export function useWebRtcConnection({
 
       // Set up connection state monitoring
       peerConnectionRef.current.onconnectionstatechange = () => {
-        updateStatus('Connection state: ' + peerConnectionRef.current?.connectionState);
-        const connected = peerConnectionRef.current?.connectionState === 'connected';
+        const state = peerConnectionRef.current?.connectionState;
+        updateStatus('Connection state: ' + state);
+        const connected = state === 'connected';
+        if (connected) {
+          iceRestartGraceUntilRef.current = 0;
+        } else if (
+          Date.now() < iceRestartGraceUntilRef.current &&
+          state !== 'failed' &&
+          state !== 'closed'
+        ) {
+          // A genuinely dead connection still surfaces: it reaches 'failed',
+          // which always passes through. A restart parked in 'connecting'
+          // with media still flowing on the old pair is not a disconnect.
+          updateStatus('Suppressing transient state during ICE restart: ' + state);
+          return;
+        }
         setIsConnected(connected);
         onConnectionStateChangeRef.current?.(connected);
       };
@@ -444,6 +465,36 @@ export function useWebRtcConnection({
             pendingScreenshotResolversRef.current.delete(message.id);
             pendingScreenshotRejectersRef.current.delete(message.id);
             break;
+          case 'rtcConfiguration': {
+            // Mid-session TURN credential refresh (stream-protocol §1.7): the
+            // server re-minted ICE servers and already handed them to the
+            // bridge. Apply them and restart ICE so both sides allocate with
+            // the fresh credentials before the old ones expire; media
+            // continues uninterrupted. (The initial rtcConfiguration reply is
+            // consumed by the one-shot listener before this handler is
+            // attached, so anything arriving here is a refresh.)
+            const pc = peerConnectionRef.current;
+            if (!pc || !message.rtcConfiguration?.iceServers) break;
+            try {
+              pc.setConfiguration({ iceServers: message.rtcConfiguration.iceServers });
+            } catch (e) {
+              debugWarn('rtcConfiguration refresh: setConfiguration failed, skipping ICE restart:', e);
+              break;
+            }
+            iceRestartGraceUntilRef.current = Date.now() + 15_000;
+            try {
+              const offer = await pc.createOffer({ iceRestart: true });
+              await pc.setLocalDescription(offer);
+              if (wsRef.current === currentWs) {
+                currentWs.send(JSON.stringify({ type: 'offer', sdp: offer.sdp, sessionId }));
+                updateStatus('Sent ICE-restart offer (credential refresh)');
+              }
+            } catch (e) {
+              iceRestartGraceUntilRef.current = 0;
+              debugWarn('rtcConfiguration refresh: ICE restart failed:', e);
+            }
+            break;
+          }
           default:
             debugWarn(`Received unhandled message type: ${message.type}`, message);
             break;
