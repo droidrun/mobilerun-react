@@ -3,6 +3,17 @@
 
 import { CONTROL_MSG_TYPE } from './constants';
 
+export function createRTCConfigurationRequest(sessionId: string) {
+  return {
+    type: 'requestRtcConfiguration',
+    sessionId,
+    // Opt in to mid-session TURN credential refresh: the server only pushes
+    // unsolicited rtcConfiguration (and this client's ICE restart handling
+    // only runs) for viewers that advertise it.
+    supportsLiveRtcRefresh: true,
+  } as const;
+}
+
 export function createTouchControlMessage(
   action: number,
   pointerId: number,

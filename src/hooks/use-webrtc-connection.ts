@@ -5,6 +5,8 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 
+import { createRTCConfigurationRequest } from '../webrtc-messages';
+
 const debugLog = (...args: any[]) => {
   if (window.debugRemoteControl) {
     // eslint-disable-next-line no-console -- opt-in debug channel (window.debugRemoteControl)
@@ -91,6 +93,11 @@ export function useWebRtcConnection({
   // self-heal remounts (use-stream-self-heal) — the interruption the refresh
   // exists to avoid. 'failed'/'closed' always pass through.
   const iceRestartGraceUntilRef = useRef(0);
+  // Pending re-check armed while a dip is being suppressed: state events only
+  // fire on transitions, so a restart parked in 'connecting'/'disconnected'
+  // past the grace deadline must be reported by this timer or the stream
+  // would claim connected forever and self-heal would never start.
+  const iceRestartRecheckTimerRef = useRef<number | undefined>(undefined);
   // Single combined stream we own — backend sends video and audio on
   // separate MediaStreams (different msid stream IDs), so we can't just
   // assign event.streams[0] or the second ontrack overwrites the first.
@@ -99,6 +106,38 @@ export function useWebRtcConnection({
   const updateStatus = (message: string) => {
     // Use the wrapper for conditional logging
     debugLog(message);
+  };
+
+  const clearRestartRecheck = () => {
+    if (iceRestartRecheckTimerRef.current !== undefined) {
+      window.clearTimeout(iceRestartRecheckTimerRef.current);
+      iceRestartRecheckTimerRef.current = undefined;
+    }
+  };
+
+  // Re-evaluates a suppressed connection-state dip once the ICE-restart grace
+  // window expires. Rechecks against the pc captured at arm time so a torn
+  // down or replaced connection is never reported on.
+  const scheduleRestartRecheck = () => {
+    if (iceRestartRecheckTimerRef.current !== undefined) return;
+    const pcAtArm = peerConnectionRef.current;
+    iceRestartRecheckTimerRef.current = window.setTimeout(
+      () => {
+        iceRestartRecheckTimerRef.current = undefined;
+        if (!pcAtArm || peerConnectionRef.current !== pcAtArm) return;
+        if (Date.now() < iceRestartGraceUntilRef.current) {
+          // A newer restart extended the grace window; re-arm for it.
+          scheduleRestartRecheck();
+          return;
+        }
+        const state = pcAtArm.connectionState;
+        if (state === 'connected') return;
+        updateStatus('ICE-restart grace expired, reporting state: ' + state);
+        setIsConnected(false);
+        onConnectionStateChangeRef.current?.(false);
+      },
+      Math.max(0, iceRestartGraceUntilRef.current - Date.now()),
+    );
   };
 
   const sendKeepAlive = () => {
@@ -140,6 +179,10 @@ export function useWebRtcConnection({
     // from the old WebSocket leak into the new peer connection.
     remoteDescriptionSetRef.current = false;
     pendingIceCandidatesRef.current = [];
+    // A stale restart-grace window must not suppress the fresh peer
+    // connection's early states after a remount.
+    iceRestartGraceUntilRef.current = 0;
+    clearRestartRecheck();
     try {
       const wsUrl = buildWebSocketUrl(url, tokenRef.current);
       wsRef.current = new WebSocket(wsUrl);
@@ -179,12 +222,7 @@ export function useWebRtcConnection({
         };
 
         wsRef.current?.addEventListener('message', messageHandler);
-        wsRef.current?.send(
-          JSON.stringify({
-            type: 'requestRtcConfiguration',
-            sessionId: sessionId,
-          }),
-        );
+        wsRef.current?.send(JSON.stringify(createRTCConfigurationRequest(sessionId)));
       });
 
       const rtcConfig = await rtcConfigPromise;
@@ -311,11 +349,15 @@ export function useWebRtcConnection({
           state !== 'closed'
         ) {
           // A genuinely dead connection still surfaces: it reaches 'failed',
-          // which always passes through. A restart parked in 'connecting'
-          // with media still flowing on the old pair is not a disconnect.
+          // which always passes through, and the deadline re-check reports a
+          // dip that outlives the grace window. A restart parked in
+          // 'connecting' with media still flowing on the old pair is not a
+          // disconnect.
           updateStatus('Suppressing transient state during ICE restart: ' + state);
+          scheduleRestartRecheck();
           return;
         }
+        clearRestartRecheck();
         setIsConnected(connected);
         onConnectionStateChangeRef.current?.(connected);
       };
@@ -486,6 +528,13 @@ export function useWebRtcConnection({
               const offer = await pc.createOffer({ iceRestart: true });
               await pc.setLocalDescription(offer);
               if (wsRef.current === currentWs) {
+                // New ICE generation: buffer incoming candidates until the
+                // restart answer arrives. Applying them against the old
+                // remote description rejects them on ufrag mismatch and
+                // silently loses them — fatal on relay-only paths once the
+                // old TURN allocation expires.
+                remoteDescriptionSetRef.current = false;
+                pendingIceCandidatesRef.current = [];
                 currentWs.send(JSON.stringify({ type: 'offer', sdp: offer.sdp, sessionId }));
                 updateStatus('Sent ICE-restart offer (credential refresh)');
               }
@@ -523,6 +572,7 @@ export function useWebRtcConnection({
   };
 
   const stop = () => {
+    clearRestartRecheck();
     if (wsRef.current) {
       wsRef.current.close();
       wsRef.current = null;
