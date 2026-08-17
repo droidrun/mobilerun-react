@@ -431,12 +431,20 @@ export function useWebRtcConnection({
               updateStatus('No peer connection, skipping answer');
               break;
             }
-            await peerConnectionRef.current.setRemoteDescription(
-              new RTCSessionDescription({
-                type: 'answer',
-                sdp: message.sdp,
-              }),
-            );
+            try {
+              await peerConnectionRef.current.setRemoteDescription(
+                new RTCSessionDescription({
+                  type: 'answer',
+                  sdp: message.sdp,
+                }),
+              );
+            } catch (e) {
+              // A stale answer (e.g. for a superseded ICE-restart offer) must
+              // not kill this handler with an unhandled rejection; the
+              // negotiation that produced the newer offer gets its own answer.
+              debugWarn('setRemoteDescription failed, ignoring answer:', e);
+              break;
+            }
             // Session may have changed during the await
             if (wsRef.current !== currentWs) break;
             remoteDescriptionSetRef.current = true;
