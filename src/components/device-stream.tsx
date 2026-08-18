@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { RotateCw, Smartphone, WifiOff } from 'lucide-react';
-import { forwardRef, useCallback, useEffect } from 'react';
+import { forwardRef, useCallback, useEffect, useMemo } from 'react';
 import { cn } from '../lib/cn';
 import { STREAM_RECONNECT_MAX_ATTEMPTS } from '../lib/stream-reconnect';
 import { RemoteControl, type RemoteControlHandle } from './remote-control';
@@ -18,9 +18,9 @@ interface DeviceStreamProps {
   onHasControlChange?: (hasControl: boolean) => void;
   onConnectionStateChange?: (connected: boolean) => void;
   /**
-   * Fired whenever a reconnect attempt is scheduled or started — i.e. the
-   * underlying WebRTC connection is about to be remounted. Use to refetch
-   * fresh stream credentials in case the URL is stale.
+   * Fired when a reconnect cycle starts (first failure after a healthy
+   * stretch) and on wake/manual retry. Use to refetch fresh stream
+   * credentials in case the URL is stale. Not fired per retry attempt.
    */
   onStreamHealed?: () => void;
   className?: string;
@@ -60,8 +60,14 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
   }: DeviceStreamProps,
   ref,
 ) {
+  // The reconnect manager pins which URL/token the mounted stream uses:
+  // fresh credentials arriving mid-backoff must not restart the connection
+  // early (RemoteControl reconnects in place on a url prop change), so
+  // RemoteControl below renders from `activeTarget`, never the raw props.
+  const target = useMemo(() => ({ url: streamUrl, token: streamToken }), [streamUrl, streamToken]);
   const {
     streamKey,
+    activeTarget,
     status,
     attempt,
     onConnectionStateChange: onReconnectConnectionChange,
@@ -69,7 +75,8 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
     retry,
   } = useStreamReconnect({
     onHeal: onStreamHealed,
-    restartKey: `${streamUrl ?? ''}|${streamToken ?? ''}`,
+    target,
+    targetKey: `${streamUrl ?? ''}|${streamToken ?? ''}`,
     enabled: !!streamUrl,
   });
 
@@ -118,8 +125,8 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
             <RemoteControl
               ref={ref}
               key={streamKey}
-              url={streamUrl}
-              token={streamToken}
+              url={activeTarget.url ?? streamUrl}
+              token={activeTarget.token}
               className="w-full h-full"
               onConnectionStateChange={handleConnectionStateChange}
               onConnectionFailed={onConnectionFailed}

@@ -5,66 +5,95 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createStreamReconnectController, type StreamReconnectSnapshot } from '../lib/stream-reconnect';
 
-interface UseStreamReconnectOptions {
+interface UseStreamReconnectOptions<T> {
   /**
-   * Fired whenever a reconnect attempt is scheduled or started — refetch
-   * fresh stream credentials in case the URL/token went stale.
+   * Fired when a reconnect cycle starts (first failure) and on wake/manual
+   * retry — refetch fresh stream credentials in case the URL/token went
+   * stale. Deliberately not fired per attempt: consumers refetch over the
+   * network, and grids share one fleet-wide refetch across every card.
    */
   onHeal?: () => void;
   /**
-   * Identifier of the underlying connection target — typically a composite of
-   * stream URL + credentials. While connected/connecting, a change forces a
-   * remount so the fresh credentials take effect (covers rotation where the
-   * underlying RemoteControl wouldn't otherwise restart). During a backoff
-   * wait or while unavailable it does NOT remount — the next attempt picks up
-   * the fresh target on its own, and remounting early would bypass the
-   * backoff (every heal refetches credentials, so a rotating token would
-   * otherwise zero the wait each attempt).
+   * The connection target (URL/credentials) the consumer currently wants.
+   * The hook pins the target the stream actually uses: `activeTarget` only
+   * advances together with a remount, so a change arriving during a backoff
+   * wait or while unavailable is held back until the next scheduled/manual
+   * attempt instead of restarting the connection mid-wait (which would
+   * bypass the backoff — every heal refetches credentials, so a rotating
+   * token would otherwise zero the wait each cycle). In every other state
+   * the change applies immediately via a remount.
    */
-  restartKey?: string;
+  target: T;
+  /** Stable identity of `target` — when it changes, the target changed. */
+  targetKey: string;
   /** False while there is no stream target (no URL yet) — pauses all timers. */
   enabled: boolean;
 }
 
 /**
  * Reconnect manager for a single WebRTC device stream. Owns when the stream
- * component (re)mounts (`streamKey` as React `key`), retries failed
- * connections with exponential backoff, gives up into `unavailable` after the
- * retry budget is spent, and starts a fresh cycle when the tab becomes
- * visible / the browser comes back online / `retry()` is called.
+ * component (re)mounts (`streamKey` as React `key`) and which target it
+ * connects to (`activeTarget` — render the stream from this, not from raw
+ * props), retries failed connections with exponential backoff, gives up into
+ * `unavailable` after the retry budget is spent, and starts a fresh cycle
+ * when the tab becomes visible / the browser comes back online / `retry()`
+ * is called.
  *
  * Forward `onConnectionStateChange` and `onConnectionFailed` to the stream
  * component; render status/attempt as the user-facing connection state.
  */
-export function useStreamReconnect({ onHeal, restartKey, enabled }: UseStreamReconnectOptions) {
-  const [epoch, setEpoch] = useState(0);
+export function useStreamReconnect<T>({
+  onHeal,
+  target,
+  targetKey,
+  enabled,
+}: UseStreamReconnectOptions<T>) {
   const [snapshot, setSnapshot] = useState<StreamReconnectSnapshot>({
     status: 'connecting',
     attempt: 0,
   });
+  // The mount epoch and the target that mount uses advance atomically, so a
+  // remounted stream never renders one commit on a stale target.
+  const [mount, setMount] = useState<{ epoch: number; target: T }>(() => ({ epoch: 0, target }));
 
   const onHealRef = useRef(onHeal);
   onHealRef.current = onHeal;
+
+  // Latest committed target, for timer-driven remounts (backoff fire, wake,
+  // retry). Written in an effect so a render React abandons never leaks its
+  // value into a later attempt.
+  const targetRef = useRef(target);
+  useEffect(() => {
+    targetRef.current = target;
+  });
+
+  const bumpMount = useCallback(() => {
+    setMount((m) => ({ epoch: m.epoch + 1, target: targetRef.current }));
+  }, []);
 
   // Lazy-initialized once; stable for the component's lifetime, so effects
   // and callbacks below can read it with empty deps.
   const controllerRef = useRef<ReturnType<typeof createStreamReconnectController> | null>(null);
   if (controllerRef.current === null) {
     controllerRef.current = createStreamReconnectController({
-      onRemount: () => setEpoch((e) => e + 1),
+      onRemount: bumpMount,
       onSnapshot: (s) => setSnapshot(s),
       onHeal: () => onHealRef.current?.(),
     });
   }
 
-  // Credential rotation: remount synchronously (render-phase state update, so
-  // the new RemoteControl mounts with the fresh props in this same render) —
-  // but only when the controller allows it; see `restartKey` docs above.
-  const lastRestartKeyRef = useRef(restartKey);
-  if (lastRestartKeyRef.current !== restartKey) {
-    lastRestartKeyRef.current = restartKey;
-    if (controllerRef.current.shouldRemountOnTargetChange()) {
-      setEpoch((e) => e + 1);
+  // Target changes apply by remounting with the new target in the same
+  // commit — unless the controller defers them (backoff wait, unavailable),
+  // in which case the next scheduled/manual attempt picks the latest target
+  // up via bumpMount. React's "adjust state during render" pattern, with the
+  // comparison base in state (not a ref): a render React abandons discards
+  // the comparison and the bump together, so the change is re-detected on
+  // the next committed render instead of being consumed and lost.
+  const [lastTargetKey, setLastTargetKey] = useState(targetKey);
+  if (lastTargetKey !== targetKey) {
+    setLastTargetKey(targetKey);
+    if (!controllerRef.current.shouldDeferTargetChange()) {
+      setMount((m) => ({ epoch: m.epoch + 1, target }));
     }
   }
 
@@ -77,7 +106,7 @@ export function useStreamReconnect({ onHeal, restartKey, enabled }: UseStreamRec
     } else {
       controllerRef.current?.setDisabled();
     }
-  }, [epoch, enabled]);
+  }, [mount.epoch, enabled]);
 
   useEffect(() => {
     const onVisibility = () => {
@@ -106,7 +135,9 @@ export function useStreamReconnect({ onHeal, restartKey, enabled }: UseStreamRec
   const retry = useCallback(() => controllerRef.current?.retry(), []);
 
   return {
-    streamKey: String(epoch),
+    streamKey: String(mount.epoch),
+    /** The pinned target to render the stream from — NOT the raw props. */
+    activeTarget: mount.target,
     status: snapshot.status,
     attempt: snapshot.attempt,
     onConnectionStateChange,

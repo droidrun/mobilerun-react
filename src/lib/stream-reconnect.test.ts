@@ -149,7 +149,8 @@ describe('backoff escalation and exhaustion', () => {
     // No further retries scheduled.
     schedule.advance(10 * 60_000);
     expect(calls.remounts).toBe(STREAM_RECONNECT_MAX_ATTEMPTS);
-    expect(calls.heals).toBe(STREAM_RECONNECT_MAX_ATTEMPTS);
+    // Credentials are refetched once per recovery cycle, not per attempt.
+    expect(calls.heals).toBe(1);
   });
 
   test('failure signals collapse into one backoff step per attempt', () => {
@@ -285,19 +286,19 @@ describe('wake and manual retry', () => {
 });
 
 describe('target changes', () => {
-  test('remounts immediately while connected or connecting', () => {
+  test('applies target changes immediately while connected or connecting', () => {
     const { controller } = setup();
     controller.attemptMounted();
-    expect(controller.shouldRemountOnTargetChange()).toBe(true);
+    expect(controller.shouldDeferTargetChange()).toBe(false);
     controller.handleConnected();
-    expect(controller.shouldRemountOnTargetChange()).toBe(true);
+    expect(controller.shouldDeferTargetChange()).toBe(false);
   });
 
-  test('does not bypass a backoff wait or unavailable', () => {
+  test('defers target changes during a backoff wait and while unavailable', () => {
     const { schedule, controller } = setup();
     controller.attemptMounted();
     controller.handleFailure();
-    expect(controller.shouldRemountOnTargetChange()).toBe(false);
+    expect(controller.shouldDeferTargetChange()).toBe(true);
     schedule.advance(DELAYS[0]!);
     controller.attemptMounted();
     for (let i = 1; i <= STREAM_RECONNECT_MAX_ATTEMPTS; i++) {
@@ -306,25 +307,25 @@ describe('target changes', () => {
       if (i < STREAM_RECONNECT_MAX_ATTEMPTS) controller.attemptMounted();
     }
     expect(controller.getSnapshot().status).toBe('unavailable');
-    expect(controller.shouldRemountOnTargetChange()).toBe(false);
+    expect(controller.shouldDeferTargetChange()).toBe(true);
   });
 
-  test('remounts an in-flight retry when credentials arrive after the backoff', () => {
+  test('applies credentials that arrive after the backoff to the in-flight retry', () => {
     const { schedule, controller } = setup();
     controller.attemptMounted();
     controller.handleFailure(); // fires onHeal — async credential refetch starts
     // Refetch still pending during the wait: deferred.
-    expect(controller.shouldRemountOnTargetChange()).toBe(false);
+    expect(controller.shouldDeferTargetChange()).toBe(true);
     schedule.advance(DELAYS[0]!);
     controller.attemptMounted();
     // Retry is in flight on stale credentials; the refetch resolves now. The
     // remount must not be swallowed or the attempt runs stale until the
     // watchdog fails it.
-    expect(controller.shouldRemountOnTargetChange()).toBe(true);
+    expect(controller.shouldDeferTargetChange()).toBe(false);
     expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 1 });
   });
 
-  test('remounts an in-flight fresh cycle when credentials arrive after wake', () => {
+  test('applies credentials that arrive after wake to the in-flight fresh cycle', () => {
     const { schedule, controller } = setup();
     controller.attemptMounted();
     for (let i = 0; i <= STREAM_RECONNECT_MAX_ATTEMPTS; i++) {
@@ -335,7 +336,7 @@ describe('target changes', () => {
     expect(controller.getSnapshot().status).toBe('unavailable');
     controller.handleWake(); // fires onHeal + remounts immediately
     controller.attemptMounted();
-    expect(controller.shouldRemountOnTargetChange()).toBe(true);
+    expect(controller.shouldDeferTargetChange()).toBe(false);
   });
 
   test('a rotation remount flips connected back to connecting', () => {
@@ -380,5 +381,41 @@ describe('disable and dispose', () => {
     expect(calls.remounts).toBe(0);
     schedule.advance(1);
     expect(calls.remounts).toBe(1);
+  });
+});
+
+describe('heal cadence', () => {
+  test('one heal per recovery cycle, again after stability reset and on wake', () => {
+    const { schedule, calls, controller } = setup();
+    controller.attemptMounted();
+
+    // Cycle 1: only the first failure heals.
+    controller.handleFailure();
+    expect(calls.heals).toBe(1);
+    schedule.advance(DELAYS[0]!);
+    controller.attemptMounted();
+    controller.handleFailure();
+    expect(calls.heals).toBe(1);
+    schedule.advance(DELAYS[1]!);
+    controller.attemptMounted();
+
+    // Stability refills the budget and ends the cycle.
+    controller.handleConnected();
+    schedule.advance(STREAM_RECONNECT_STABILITY_MS);
+
+    // Cycle 2 heals once more.
+    controller.handleDisconnected();
+    expect(calls.heals).toBe(2);
+
+    // Exhaust cycle 2 without further heals, then wake heals again.
+    for (let i = 1; i < STREAM_RECONNECT_MAX_ATTEMPTS + 1; i++) {
+      schedule.advance(DELAYS[Math.min(i, DELAYS.length - 1)]!);
+      controller.attemptMounted();
+      controller.handleFailure();
+    }
+    expect(controller.getSnapshot().status).toBe('unavailable');
+    expect(calls.heals).toBe(2);
+    controller.handleWake();
+    expect(calls.heals).toBe(3);
   });
 });

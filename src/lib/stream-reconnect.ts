@@ -76,12 +76,14 @@ export interface StreamReconnectController {
   handleDisconnected(): void;
   handleFailure(): void;
   /**
-   * Whether a stream-target change (URL/token rotation) should remount the
-   * stream right now. False while waiting out a backoff or unavailable — the
-   * next scheduled/manual attempt picks up the fresh target by itself, and an
-   * immediate remount would bypass the backoff.
+   * Whether a stream-target change (URL/token rotation) must be held back
+   * instead of applied right now. True while waiting out a backoff (an
+   * immediate switch would bypass the wait — the scheduled attempt picks the
+   * fresh target up by itself) and while unavailable (retry/wake own recovery
+   * there). Everywhere else — connected, connecting, a retry in flight, or
+   * disabled — the new target applies immediately.
    */
-  shouldRemountOnTargetChange(): boolean;
+  shouldDeferTargetChange(): boolean;
   /** Tab became visible / browser back online. */
   handleWake(): void;
   /** Manual retry (Unavailable-state button). */
@@ -147,9 +149,14 @@ export function createStreamReconnectController({
     }
     status = 'reconnecting';
     emit();
-    // Refetch credentials during the wait so the attempt runs with a fresh
-    // target when the consumer rotates them.
-    onHeal();
+    // Refetch credentials once per recovery cycle, not per attempt: consumer
+    // onHeal callbacks trigger network refetches (grids share one full-fleet
+    // refetch across every card), so per-attempt heals would multiply into a
+    // request storm during exactly the shared outage being recovered from.
+    // Credentials fetched at cycle start stay fresh across the cycle's ~2min
+    // span, and a refresh that resolves after a retry started still applies
+    // via shouldDeferTargetChange/onRemount.
+    if (attempt === 1) onHeal();
     backoffTimer = schedule.setTimeout(
       () => {
         backoffTimer = null;
@@ -238,16 +245,12 @@ export function createStreamReconnectController({
       countFailure();
     },
 
-    shouldRemountOnTargetChange() {
-      // Deferred only while a backoff wait is pending (remounting then would
-      // bypass the wait — the scheduled attempt picks the fresh target up by
-      // itself) or while unavailable (retry/wake own recovery there). In
-      // every other state — connected, connecting, or a reconnect attempt
-      // already in flight — remount now: onHeal-triggered credential
-      // refetches routinely resolve after the retry has started, and the
-      // in-flight attempt would otherwise run on stale credentials until the
-      // connect watchdog fails it.
-      return enabled && backoffTimer === null && status !== 'unavailable';
+    shouldDeferTargetChange() {
+      // onHeal-triggered credential refetches routinely resolve after the
+      // retry has started; outside the two deferred states the change must
+      // apply immediately or an in-flight attempt would run on stale
+      // credentials until the connect watchdog fails it.
+      return backoffTimer !== null || status === 'unavailable';
     },
 
     handleWake() {
