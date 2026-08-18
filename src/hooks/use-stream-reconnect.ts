@@ -55,19 +55,28 @@ export function useStreamReconnect<T>({
   // The mount epoch and the target that mount uses advance atomically, so a
   // remounted stream never renders one commit on a stale target.
   const [mount, setMount] = useState<{ epoch: number; target: T }>(() => ({ epoch: 0, target }));
+  // Key of the last APPLIED target — the comparison base for detecting
+  // pending target changes. Deliberately not advanced when a change is
+  // deferred; see the render-phase check below.
+  const [lastTargetKey, setLastTargetKey] = useState(targetKey);
 
   const onHealRef = useRef(onHeal);
   onHealRef.current = onHeal;
 
-  // Latest committed target, for timer-driven remounts (backoff fire, wake,
-  // retry). Written in an effect so a render React abandons never leaks its
-  // value into a later attempt.
+  // Latest committed target (and its key), for timer-driven remounts
+  // (backoff fire, wake, retry). Written in an effect so a render React
+  // abandons never leaks its value into a later attempt.
   const targetRef = useRef(target);
+  const targetKeyRef = useRef(targetKey);
   useEffect(() => {
     targetRef.current = target;
+    targetKeyRef.current = targetKey;
   });
 
+  // Applying a target always records its key too, so a change that was
+  // pending while deferred is not re-applied a second time afterwards.
   const bumpMount = useCallback(() => {
+    setLastTargetKey(targetKeyRef.current);
     setMount((m) => ({ epoch: m.epoch + 1, target: targetRef.current }));
   }, []);
 
@@ -83,18 +92,19 @@ export function useStreamReconnect<T>({
   }
 
   // Target changes apply by remounting with the new target in the same
-  // commit — unless the controller defers them (backoff wait, unavailable),
-  // in which case the next scheduled/manual attempt picks the latest target
-  // up via bumpMount. React's "adjust state during render" pattern, with the
-  // comparison base in state (not a ref): a render React abandons discards
+  // commit — unless the controller defers them (backoff wait, unavailable).
+  // A deferred change stays PENDING (the key is only consumed when a target
+  // is applied): either the scheduled/manual attempt picks the latest target
+  // up via bumpMount, or — when the old connection self-recovers and cancels
+  // that attempt — the pending change is re-detected on the recovery render
+  // and applied here, instead of stranding the pin on the old target.
+  // React's "adjust state during render" pattern, with the comparison base
+  // in state (not a ref, declared above): a render React abandons discards
   // the comparison and the bump together, so the change is re-detected on
   // the next committed render instead of being consumed and lost.
-  const [lastTargetKey, setLastTargetKey] = useState(targetKey);
-  if (lastTargetKey !== targetKey) {
+  if (lastTargetKey !== targetKey && !controllerRef.current.shouldDeferTargetChange()) {
     setLastTargetKey(targetKey);
-    if (!controllerRef.current.shouldDeferTargetChange()) {
-      setMount((m) => ({ epoch: m.epoch + 1, target }));
-    }
+    setMount((m) => ({ epoch: m.epoch + 1, target }));
   }
 
   // Every mount/remount of the stream component (or enable flip) re-arms the
