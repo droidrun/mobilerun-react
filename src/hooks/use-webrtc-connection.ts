@@ -5,6 +5,10 @@
 import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 
+import {
+  STREAM_RTC_CONFIG_TIMEOUT_MS,
+  STREAM_WS_OPEN_TIMEOUT_MS,
+} from '../lib/stream-reconnect';
 import { createRTCConfigurationRequest } from '../webrtc-messages';
 
 const debugLog = (...args: any[]) => {
@@ -213,7 +217,10 @@ export function useWebRtcConnection({
           // Fail fast on a rejected/unreachable socket instead of sitting out
           // the full timeout — the close event arrives within seconds.
           ws.onclose = () => reject(new Error('WebSocket closed before open'));
-          setTimeout(() => reject(new Error('WebSocket connection timeout')), 30000);
+          setTimeout(
+            () => reject(new Error('WebSocket connection timeout')),
+            STREAM_WS_OPEN_TIMEOUT_MS,
+          );
         }
       });
 
@@ -232,7 +239,10 @@ export function useWebRtcConnection({
 
       // Request RTCConfiguration
       const rtcConfigPromise = new Promise<RTCConfiguration>((resolve, reject) => {
-        const timeoutId = setTimeout(() => reject(new Error('RTCConfiguration timeout')), 30000);
+        const timeoutId = setTimeout(
+          () => reject(new Error('RTCConfiguration timeout')),
+          STREAM_RTC_CONFIG_TIMEOUT_MS,
+        );
 
         const messageHandler = (event: MessageEvent) => {
           try {

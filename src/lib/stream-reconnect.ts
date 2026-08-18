@@ -39,7 +39,21 @@ export interface StreamReconnectSnapshot {
 }
 
 export const STREAM_RECONNECT_MAX_ATTEMPTS = 6;
-export const STREAM_CONNECT_TIMEOUT_MS = 20_000;
+// Connection-layer phase budgets, enforced in use-webrtc-connection: how long
+// the signaling WebSocket may take to open, and how long the RTCConfiguration
+// reply may take after that. Each phase rejects (→ onConnectionFailed) when
+// its budget runs out, so a dead attempt is counted the moment the layer that
+// owns it gives up. Defined here, next to the watchdog, because the three
+// values form one contract — see STREAM_CONNECT_TIMEOUT_MS.
+export const STREAM_WS_OPEN_TIMEOUT_MS = 15_000;
+export const STREAM_RTC_CONFIG_TIMEOUT_MS = 15_000;
+// Watchdog for a whole connect attempt. Its real job is the one phase with no
+// self-timeout — waiting for the SDP answer / ICE to land after the offer is
+// sent — so it MUST exceed the sum of the self-timed phases above (plus a
+// negotiation allowance) or it would preempt slow-but-valid handshakes the
+// connection layer still considers on budget, and on the final retry strand
+// the stream in 'unavailable' mid-handshake. Guarded by a test.
+export const STREAM_CONNECT_TIMEOUT_MS = 45_000;
 export const STREAM_RECONNECT_STABILITY_MS = 30_000;
 const BASE_DELAY_MS = 1_000;
 const MAX_DELAY_MS = 30_000;

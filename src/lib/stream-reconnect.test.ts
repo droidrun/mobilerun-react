@@ -7,6 +7,8 @@ import {
   STREAM_CONNECT_TIMEOUT_MS,
   STREAM_RECONNECT_MAX_ATTEMPTS,
   STREAM_RECONNECT_STABILITY_MS,
+  STREAM_RTC_CONFIG_TIMEOUT_MS,
+  STREAM_WS_OPEN_TIMEOUT_MS,
   streamReconnectDelayMs,
   type StreamReconnectSnapshot,
 } from './stream-reconnect';
@@ -99,6 +101,18 @@ describe('streamReconnectDelayMs', () => {
 });
 
 describe('connect watchdog', () => {
+  test("exceeds the connection layer's own phase budgets", () => {
+    // The WS-open and RTCConfiguration phases reject on their own; the
+    // watchdog only backstops the phase after them (answer/ICE), which has
+    // no self-timeout. A watchdog at or below the phases' sum would preempt
+    // slow-but-valid handshakes the connection layer still considers on
+    // budget — and on the final retry strand the stream in 'unavailable'
+    // mid-handshake.
+    expect(STREAM_CONNECT_TIMEOUT_MS).toBeGreaterThan(
+      STREAM_WS_OPEN_TIMEOUT_MS + STREAM_RTC_CONFIG_TIMEOUT_MS,
+    );
+  });
+
   test('an attempt that never connects fails after the timeout and schedules a retry', () => {
     const { schedule, calls, snapshots, controller } = setup();
     controller.attemptMounted();
