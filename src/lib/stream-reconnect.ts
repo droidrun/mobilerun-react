@@ -239,7 +239,15 @@ export function createStreamReconnectController({
     },
 
     shouldRemountOnTargetChange() {
-      return enabled && (status === 'connected' || status === 'connecting');
+      // Deferred only while a backoff wait is pending (remounting then would
+      // bypass the wait — the scheduled attempt picks the fresh target up by
+      // itself) or while unavailable (retry/wake own recovery there). In
+      // every other state — connected, connecting, or a reconnect attempt
+      // already in flight — remount now: onHeal-triggered credential
+      // refetches routinely resolve after the retry has started, and the
+      // in-flight attempt would otherwise run on stale credentials until the
+      // connect watchdog fails it.
+      return enabled && backoffTimer === null && status !== 'unavailable';
     },
 
     handleWake() {

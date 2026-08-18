@@ -309,6 +309,35 @@ describe('target changes', () => {
     expect(controller.shouldRemountOnTargetChange()).toBe(false);
   });
 
+  test('remounts an in-flight retry when credentials arrive after the backoff', () => {
+    const { schedule, controller } = setup();
+    controller.attemptMounted();
+    controller.handleFailure(); // fires onHeal — async credential refetch starts
+    // Refetch still pending during the wait: deferred.
+    expect(controller.shouldRemountOnTargetChange()).toBe(false);
+    schedule.advance(DELAYS[0]!);
+    controller.attemptMounted();
+    // Retry is in flight on stale credentials; the refetch resolves now. The
+    // remount must not be swallowed or the attempt runs stale until the
+    // watchdog fails it.
+    expect(controller.shouldRemountOnTargetChange()).toBe(true);
+    expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 1 });
+  });
+
+  test('remounts an in-flight fresh cycle when credentials arrive after wake', () => {
+    const { schedule, controller } = setup();
+    controller.attemptMounted();
+    for (let i = 0; i <= STREAM_RECONNECT_MAX_ATTEMPTS; i++) {
+      controller.handleFailure();
+      schedule.advance(DELAYS[Math.min(i, DELAYS.length - 1)]!);
+      if (i < STREAM_RECONNECT_MAX_ATTEMPTS) controller.attemptMounted();
+    }
+    expect(controller.getSnapshot().status).toBe('unavailable');
+    controller.handleWake(); // fires onHeal + remounts immediately
+    controller.attemptMounted();
+    expect(controller.shouldRemountOnTargetChange()).toBe(true);
+  });
+
   test('a rotation remount flips connected back to connecting', () => {
     const { controller } = setup();
     controller.attemptMounted();
