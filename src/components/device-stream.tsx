@@ -2,12 +2,14 @@
 // Copyright 2026 Mobilerun
 // SPDX-License-Identifier: Apache-2.0
 
-import { Smartphone } from 'lucide-react';
+import { RotateCw, Smartphone, WifiOff } from 'lucide-react';
 import { forwardRef, useCallback, useEffect } from 'react';
 import { cn } from '../lib/cn';
+import { STREAM_RECONNECT_MAX_ATTEMPTS } from '../lib/stream-reconnect';
 import { RemoteControl, type RemoteControlHandle } from './remote-control';
 import { StreamStatusPill } from './stream-status-pill';
-import { useStreamSelfHeal } from '../hooks/use-stream-self-heal';
+import { Button } from './ui/button';
+import { useStreamReconnect } from '../hooks/use-stream-reconnect';
 
 interface DeviceStreamProps {
   streamUrl?: string;
@@ -16,16 +18,18 @@ interface DeviceStreamProps {
   onHasControlChange?: (hasControl: boolean) => void;
   onConnectionStateChange?: (connected: boolean) => void;
   /**
-   * Fired whenever the stream self-heals after a stable disconnect — i.e. the
-   * underlying WebRTC connection has been remounted. Use to refetch fresh
-   * stream credentials in case the URL is stale.
+   * Fired whenever a reconnect attempt is scheduled or started — i.e. the
+   * underlying WebRTC connection is about to be remounted. Use to refetch
+   * fresh stream credentials in case the URL is stale.
    */
   onStreamHealed?: () => void;
   className?: string;
   /**
    * Label for the corner pill shown while the stream isn't connected (no
    * URL yet, or WebRTC still negotiating). Drive this from the device's
-   * state so the user sees what the device is actually doing.
+   * state so the user sees what the device is actually doing. While the
+   * stream is reconnecting after a drop, a "reconnecting" label takes
+   * precedence — that is the actual status then.
    */
   placeholderLabel?: string;
   /**
@@ -56,17 +60,25 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
   }: DeviceStreamProps,
   ref,
 ) {
-  const { onConnectionStateChange: onSelfHealConnectionChange, streamKey } = useStreamSelfHeal({
+  const {
+    streamKey,
+    status,
+    attempt,
+    onConnectionStateChange: onReconnectConnectionChange,
+    onConnectionFailed,
+    retry,
+  } = useStreamReconnect({
     onHeal: onStreamHealed,
     restartKey: `${streamUrl ?? ''}|${streamToken ?? ''}`,
+    enabled: !!streamUrl,
   });
 
   const handleConnectionStateChange = useCallback(
     (connected: boolean) => {
-      onSelfHealConnectionChange(connected);
+      onReconnectConnectionChange(connected);
       onConnectionStateChange?.(connected);
     },
-    [onSelfHealConnectionChange, onConnectionStateChange],
+    [onReconnectConnectionChange, onConnectionStateChange],
   );
 
   // Reset control when stream disconnects
@@ -76,6 +88,9 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
     }
   }, [streamUrl, setHasControl]);
 
+  const reconnectLabel =
+    attempt > 1 ? `reconnecting (${attempt}/${STREAM_RECONNECT_MAX_ATTEMPTS})` : 'reconnecting';
+
   return (
     <div
       className={cn(
@@ -83,7 +98,21 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
         className,
       )}
     >
-      {streamUrl ? (
+      {!streamUrl ? (
+        <>
+          <Smartphone className="w-12 h-12 text-muted-foreground/30" />
+          <StreamStatusPill label={placeholderLabel ?? 'connecting'} />
+        </>
+      ) : status === 'unavailable' ? (
+        <div className="flex flex-col items-center justify-center gap-3 text-muted-foreground">
+          <WifiOff className="h-10 w-10 opacity-50" />
+          <span className="text-xs font-medium">device stream unavailable</span>
+          <Button variant="outline" onClick={retry}>
+            <RotateCw className="mr-1.5 h-3.5 w-3.5" />
+            Retry
+          </Button>
+        </div>
+      ) : (
         <>
           <div className="device-stream-wrapper w-full h-full flex items-center justify-center relative">
             <RemoteControl
@@ -93,7 +122,8 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
               token={streamToken}
               className="w-full h-full"
               onConnectionStateChange={handleConnectionStateChange}
-              placeholderLabel={placeholderLabel}
+              onConnectionFailed={onConnectionFailed}
+              placeholderLabel={status === 'reconnecting' ? reconnectLabel : placeholderLabel}
               muted={muted}
               onPeerConnectionChange={onPeerConnectionChange}
             />
@@ -108,11 +138,6 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
               onTouchStart={(e) => e.stopPropagation()}
             />
           )}
-        </>
-      ) : (
-        <>
-          <Smartphone className="w-12 h-12 text-muted-foreground/30" />
-          <StreamStatusPill label={placeholderLabel ?? 'connecting'} />
         </>
       )}
     </div>

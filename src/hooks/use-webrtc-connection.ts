@@ -39,6 +39,12 @@ interface UseWebRtcConnectionOptions {
   openUrl?: string;
   videoRef: React.RefObject<HTMLVideoElement | null>;
   onConnectionStateChange?: (connected: boolean) => void;
+  // Fired on terminal failures this connection cannot recover from on its
+  // own: the signaling WebSocket dies, negotiation setup throws, or the peer
+  // connection reaches 'failed'/'closed'. Never fired on intentional teardown
+  // (stop/unmount). Distinct from onConnectionStateChange(false), which also
+  // fires for transient non-connected states during normal negotiation.
+  onConnectionFailed?: () => void;
   // Fired with the RTCPeerConnection once it is created and with null when
   // it is torn down. Lets consumers observe the connection (e.g. getStats())
   // without owning its lifecycle.
@@ -63,6 +69,7 @@ export function useWebRtcConnection({
   openUrl,
   videoRef,
   onConnectionStateChange,
+  onConnectionFailed,
   onPeerConnectionChange,
 }: UseWebRtcConnectionOptions): UseWebRtcConnectionResult {
   const tokenRef = useRef(token);
@@ -70,6 +77,9 @@ export function useWebRtcConnection({
 
   const onConnectionStateChangeRef = useRef(onConnectionStateChange);
   onConnectionStateChangeRef.current = onConnectionStateChange;
+
+  const onConnectionFailedRef = useRef(onConnectionFailed);
+  onConnectionFailedRef.current = onConnectionFailed;
 
   const onPeerConnectionChangeRef = useRef(onPeerConnectionChange);
   onPeerConnectionChangeRef.current = onPeerConnectionChange;
@@ -90,13 +100,13 @@ export function useWebRtcConnection({
   // suppressed: set when a credential-refresh ICE restart starts. Media keeps
   // flowing on the old candidate pair during the restart (make-before-break),
   // so reporting the transient 'connecting' would flicker the UI and trip
-  // self-heal remounts (use-stream-self-heal) — the interruption the refresh
+  // reconnect remounts (use-stream-reconnect) — the interruption the refresh
   // exists to avoid. 'failed'/'closed' always pass through.
   const iceRestartGraceUntilRef = useRef(0);
   // Pending re-check armed while a dip is being suppressed: state events only
   // fire on transitions, so a restart parked in 'connecting'/'disconnected'
   // past the grace deadline must be reported by this timer or the stream
-  // would claim connected forever and self-heal would never start.
+  // would claim connected forever and reconnect would never start.
   const iceRestartRecheckTimerRef = useRef<number | undefined>(undefined);
   // Single combined stream we own — backend sends video and audio on
   // separate MediaStreams (different msid stream IDs), so we can't just
@@ -183,25 +193,42 @@ export function useWebRtcConnection({
     // connection's early states after a remount.
     iceRestartGraceUntilRef.current = 0;
     clearRestartRecheck();
+    // Captured for the teardown/staleness guards below: once wsRef.current no
+    // longer points at this socket, the session was stopped or replaced and
+    // nothing about it may be reported anymore.
+    let ws: WebSocket | null = null;
     try {
       const wsUrl = buildWebSocketUrl(url, tokenRef.current);
-      wsRef.current = new WebSocket(wsUrl);
+      ws = new WebSocket(wsUrl);
+      wsRef.current = ws;
 
-      wsRef.current.onerror = (error) => {
+      ws.onerror = (error) => {
         updateStatus('WebSocket error: ' + error);
-      };
-
-      wsRef.current.onclose = () => {
-        updateStatus('WebSocket closed');
       };
 
       // Wait for WebSocket to connect
       await new Promise((resolve, reject) => {
-        if (wsRef.current) {
-          wsRef.current.onopen = resolve;
+        if (ws) {
+          ws.onopen = resolve;
+          // Fail fast on a rejected/unreachable socket instead of sitting out
+          // the full timeout — the close event arrives within seconds.
+          ws.onclose = () => reject(new Error('WebSocket closed before open'));
           setTimeout(() => reject(new Error('WebSocket connection timeout')), 30000);
         }
       });
+
+      // The signaling channel dying is terminal for this session (no TURN
+      // credential refresh, no renegotiation), but while the peer connection
+      // is still 'connected' media keeps flowing without it — there, let the
+      // peer connection state decide, as it does today. Report a failure only
+      // when the media path isn't up either (WS died mid-negotiation).
+      ws.onclose = () => {
+        if (wsRef.current !== ws) return;
+        updateStatus('WebSocket closed');
+        if (peerConnectionRef.current?.connectionState !== 'connected') {
+          onConnectionFailedRef.current?.();
+        }
+      };
 
       // Request RTCConfiguration
       const rtcConfigPromise = new Promise<RTCConfiguration>((resolve, reject) => {
@@ -341,6 +368,10 @@ export function useWebRtcConnection({
         const state = peerConnectionRef.current?.connectionState;
         updateStatus('Connection state: ' + state);
         const connected = state === 'connected';
+        if (state === 'failed' || state === 'closed') {
+          // Terminal: this peer connection will not come back on its own.
+          onConnectionFailedRef.current?.();
+        }
         if (connected) {
           iceRestartGraceUntilRef.current = 0;
         } else if (
@@ -576,12 +607,23 @@ export function useWebRtcConnection({
       }
     } catch (e) {
       updateStatus('Error: ' + e);
+      // Only report on the still-current session: stop() (unmount/remount)
+      // rejects the pending open-promise too, and that teardown must stay
+      // silent.
+      if (wsRef.current === ws) {
+        onConnectionFailedRef.current?.();
+      }
     }
   };
 
   const stop = () => {
     clearRestartRecheck();
     if (wsRef.current) {
+      // Clear handlers before close() so intentional teardown never reports
+      // a failure (mirrors the peer-connection handler clearing below).
+      wsRef.current.onclose = null;
+      wsRef.current.onerror = null;
+      wsRef.current.onmessage = null;
       wsRef.current.close();
       wsRef.current = null;
     }

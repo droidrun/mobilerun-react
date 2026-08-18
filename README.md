@@ -35,7 +35,7 @@
 
 Drop a live, controllable cloud device (iOS/ Android) into any React app:
 
-- 📺 **`<DeviceStream />`** — WebRTC video with touch, swipe and keyboard control, plus self-healing reconnects.
+- 📺 **`<DeviceStream />`** — WebRTC video with touch, swipe and keyboard control, plus automatic reconnects with exponential backoff and a retry UI once attempts are exhausted.
 - 🪝 **`useDeviceStream()`** — resolves a device's stream credentials from [`@mobilerun/sdk`](https://www.npmjs.com/package/@mobilerun/sdk), polling while it boots.
 - 🧭 **`<NavigationBar />`**, **`<StreamStatusPill />`**, **`<RemoteControl />`** — the surrounding chrome and a lower-level escape hatch.
 - 🎨 **Prebuilt stylesheet** — no Tailwind setup required, themeable via CSS variables.
@@ -51,7 +51,7 @@ npm install @mobilerun/react @mobilerun/sdk react react-dom
 
 ## 🚀 Quick start
 
-The SDK's `Device` already carries everything the stream needs (`streamUrl` + `streamToken`). `useDeviceStream` fetches them and refreshes them when the stream self-heals:
+The SDK's `Device` already carries everything the stream needs (`streamUrl` + `streamToken`). `useDeviceStream` fetches them and refreshes them when the stream reconnects:
 
 > ⚠️ **`MOBILERUN_API_KEY` is a secret API key — never ship it to the browser.** It grants full account access, so the snippet below assumes a server-only context (RSC, route handler, SSR). In a client component, resolve `streamUrl` + `streamToken` on your backend instead and pass only those to `<DeviceStream />` — they're short-lived and scoped to a single device. See [Without the hook](#without-the-hook).
 

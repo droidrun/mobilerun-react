@@ -46,6 +46,12 @@ interface RemoteControlProps {
   // to use for disconnect detection without false positives.
   onConnectionStateChange?: (connected: boolean) => void;
 
+  // Fired on terminal connection failures (signaling WebSocket died,
+  // negotiation threw, peer connection 'failed'/'closed') — never on
+  // intentional teardown. Lets a reconnect manager retry without waiting
+  // out a connect watchdog.
+  onConnectionFailed?: () => void;
+
   // Override label for the corner pill shown while the WebRTC stream is
   // not yet connected. Defaults to "connecting". Pass a device-state-derived
   // label (e.g. "migrating", "resetting") when the underlying device isn't
@@ -117,6 +123,7 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
       sessionId: propSessionId,
       openUrl,
       onConnectionStateChange,
+      onConnectionFailed,
       placeholderLabel,
       muted = true,
       onPeerConnectionChange,
@@ -147,6 +154,7 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
       openUrl,
       videoRef,
       onConnectionStateChange,
+      onConnectionFailed,
       onPeerConnectionChange,
     });
 

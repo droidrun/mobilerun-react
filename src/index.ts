@@ -16,10 +16,12 @@ export { Button, buttonVariants, type ButtonProps } from './components/ui/button
 // Hooks
 export { useDeviceStream } from './hooks/use-device-stream';
 export type { UseDeviceStreamOptions, UseDeviceStreamResult } from './hooks/use-device-stream';
+export { useStreamReconnect } from './hooks/use-stream-reconnect';
 export {
-  useStreamSelfHeal,
-  useDeviceGridSelfHeal,
-} from './hooks/use-stream-self-heal';
+  STREAM_RECONNECT_MAX_ATTEMPTS,
+  type StreamReconnectStatus,
+} from './lib/stream-reconnect';
+export { useDeviceGridSelfHeal } from './hooks/use-device-grid-self-heal';
 export { useWebRtcConnection } from './hooks/use-webrtc-connection';
 export { useScrcpyInput } from './hooks/use-scrcpy-input';
 
