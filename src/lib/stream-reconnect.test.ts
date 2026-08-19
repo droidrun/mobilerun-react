@@ -431,5 +431,12 @@ describe('heal cadence', () => {
     expect(calls.heals).toBe(2);
     controller.handleWake();
     expect(calls.heals).toBe(3);
+
+    // The restarted attempt fails: the wake's heal already covered this
+    // cycle — no second heal (the attempt===1 derivation used to fire one).
+    controller.attemptMounted();
+    controller.handleFailure();
+    expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 1 });
+    expect(calls.heals).toBe(3);
   });
 });

@@ -126,6 +126,10 @@ export function createStreamReconnectController({
   // signals (WS close + pc 'failed' + state change) that must collapse into
   // a single backoff step.
   let failureLatched = false;
+  // One heal per recovery cycle. Tracked explicitly rather than derived from
+  // the attempt counter: freshCycle() heals with attempt reset to 0, so its
+  // first failed retry would otherwise heal again at attempt === 1.
+  let healedThisCycle = false;
   let watchdogTimer: TimerId | null = null;
   let backoffTimer: TimerId | null = null;
   let stabilityTimer: TimerId | null = null;
@@ -170,7 +174,10 @@ export function createStreamReconnectController({
     // Credentials fetched at cycle start stay fresh across the cycle's ~2min
     // span, and a refresh that resolves after a retry started still applies
     // via shouldDeferTargetChange/onRemount.
-    if (attempt === 1) onHeal();
+    if (!healedThisCycle) {
+      healedThisCycle = true;
+      onHeal();
+    }
     backoffTimer = schedule.setTimeout(
       () => {
         backoffTimer = null;
@@ -184,6 +191,9 @@ export function createStreamReconnectController({
     attempt = 0;
     failureLatched = false;
     everConnectedThisEpoch = false;
+    // This heal covers the whole restarted cycle — a failure of the
+    // restarted attempt must not heal a second time.
+    healedThisCycle = true;
     status = 'reconnecting';
     emit();
     onHeal();
@@ -217,6 +227,7 @@ export function createStreamReconnectController({
       clearAllTimers();
       everConnectedThisEpoch = false;
       failureLatched = false;
+      healedThisCycle = false;
       if (status !== 'connecting' || attempt !== 0) {
         status = 'connecting';
         attempt = 0;
@@ -239,6 +250,8 @@ export function createStreamReconnectController({
       stabilityTimer = clearTimer(stabilityTimer);
       stabilityTimer = schedule.setTimeout(() => {
         stabilityTimer = null;
+        // The cycle is over — the next failure run heals anew.
+        healedThisCycle = false;
         if (attempt !== 0) {
           attempt = 0;
           emit();
