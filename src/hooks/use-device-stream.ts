@@ -43,7 +43,7 @@ export interface UseDeviceStreamResult {
   error?: unknown;
   /**
    * Re-fetch fresh stream credentials. Wire this into
-   * `<DeviceStream onStreamHealed={refetch} />` so a self-heal pulls a fresh URL.
+   * `<DeviceStream onStreamHealed={refetch} />` so a reconnect pulls a fresh URL.
    */
   refetch: () => void;
 }

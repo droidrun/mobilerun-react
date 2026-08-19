@@ -417,5 +417,5 @@ function App() {
 // Not wrapped in <React.StrictMode>: its dev-only double-mount tears down and
 // recreates the WebSocket/RTCPeerConnection mid-negotiation, which WebRTC
 // doesn't survive. Production apps with StrictMode rely on the component's
-// self-heal (onStreamHealed) to recover.
+// reconnect logic (onStreamHealed) to recover.
 createRoot(document.getElementById('root')!).render(<App />);

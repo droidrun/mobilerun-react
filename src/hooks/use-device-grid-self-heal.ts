@@ -53,66 +53,13 @@ function createStabilityTracker(onMeaningfulDisconnect: () => void): StabilityTr
   };
 }
 
-interface UseStreamSelfHealOptions {
-  onHeal?: () => void;
-  /**
-   * Identifier of the underlying connection target — typically a composite of
-   * stream URL + credentials. Two roles:
-   *  1. When it changes, the stability tracker resets, so the next `connecting`
-   *     callback from a fresh peer isn't misread as a stable disconnect.
-   *  2. It is folded into the returned `streamKey` so any change forces the
-   *     consumer to remount its WebRTC component (covers credential rotation
-   *     where the underlying RemoteControl wouldn't otherwise restart).
-   */
-  restartKey?: string;
-}
-
 /**
- * Self-heals a single WebRTC stream: when a stably-connected stream drops,
- * bumps an epoch (used as a `key` to remount the underlying connection) and
- * fires `onHeal` so the caller can refetch fresh stream credentials. Slap the
- * returned `streamKey` onto the WebRTC component as `key={streamKey}` and
- * forward `onConnectionStateChange`.
- */
-export function useStreamSelfHeal({ onHeal, restartKey }: UseStreamSelfHealOptions = {}) {
-  const [epoch, setEpoch] = useState(0);
-  const onHealRef = useRef(onHeal);
-  onHealRef.current = onHeal;
-
-  const trackerRef = useRef<StabilityTracker | null>(null);
-  if (trackerRef.current === null) {
-    trackerRef.current = createStabilityTracker(() => {
-      setEpoch((e) => e + 1);
-      onHealRef.current?.();
-    });
-  }
-
-  // Reset synchronously during render, so the reset is applied before the new
-  // RemoteControl's effects subscribe to `connectionstatechange` on the fresh
-  // peer.
-  const lastRestartKeyRef = useRef(restartKey);
-  if (lastRestartKeyRef.current !== restartKey) {
-    lastRestartKeyRef.current = restartKey;
-    trackerRef.current.reset();
-  }
-
-  const onConnectionStateChange = useCallback((connected: boolean) => {
-    trackerRef.current?.handle(connected);
-  }, []);
-
-  useEffect(() => {
-    return () => trackerRef.current?.dispose();
-  }, []);
-
-  const streamKey = `${epoch}|${restartKey ?? ''}`;
-
-  return { onConnectionStateChange, streamKey };
-}
-
-/**
- * Multi-device variant: tracks self-heal state per deviceId. Used by grid-like
- * views that show many streams and want a single shared `onHeal` (e.g. to
- * refetch the device list).
+ * Multi-device variant of stream healing: tracks self-heal state per deviceId.
+ * Used by grid-like views that show many streams and want a single shared
+ * `onHeal` (e.g. to refetch the device list).
+ *
+ * Note: single-stream consumers should use `useStreamReconnect` (built into
+ * `DeviceStream`), which adds backoff, retry exhaustion, and wake-on-visible.
  */
 export function useDeviceGridSelfHeal({ onHeal }: { onHeal?: () => void }) {
   const trackersRef = useRef<Map<string, StabilityTracker>>(new Map());
