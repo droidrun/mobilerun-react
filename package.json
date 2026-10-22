@@ -65,16 +65,21 @@
   "devDependencies": {
     "@mobilerun/sdk": "^2.1.0",
     "@tailwindcss/cli": "^4.1.5",
-    "@types/bun": "^1.3.14",
+    "@types/bun": "1.4.3",
+    "@types/node": "^24",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "hono": "^4.12.27",
     "react": "^19",
     "react-dom": "^19",
     "tailwindcss": "^4.1.5",
-    "tsup": "^8.5.1",
+    "tsup": "^9.0.0",
     "tw-animate-css": "^1.2.5",
-    "typescript": "^5.9.3"
+    "typescript": "6.0.3"
+  },
+  "overrides": {
+    "rollup": "4.64.6",
+    "source-map-js": "1.2.2"
   },
   "publishConfig": {
     "access": "public"
