@@ -12,7 +12,7 @@
         "tailwind-merge": "^3.2.0",
       },
       "devDependencies": {
-        "@mobilerun/sdk": "^2.1.0",
+        "@mobilerun/sdk": "^6.1.0",
         "@tailwindcss/cli": "^4.1.5",
         "@types/bun": "1.4.3",
         "@types/node": "^24",
@@ -100,7 +100,7 @@
 
     "@jridgewell/trace-mapping": ["@jridgewell/trace-mapping@0.3.31", "", { "dependencies": { "@jridgewell/resolve-uri": "^3.1.0", "@jridgewell/sourcemap-codec": "^1.4.14" } }, "sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw=="],
 
-    "@mobilerun/sdk": ["@mobilerun/sdk@2.2.0", "", {}, "sha512-T1TtEOkbt7Nk5Pu6/wMe7kSHTSkUA5jYlrmqGZHe3ymlG4gCH0PoTkG7f523B9NdX8G3+y1zmYpf7UOfuWXQ5g=="],
+    "@mobilerun/sdk": ["@mobilerun/sdk@6.1.0", "", {}, "sha512-bXx6yVOvVDhwx+OZcFXZVLPqCpg4cqpCPKM3x//Y23susurCUHX/9kNQ3mu81YU7+IrYWEdoegkHqxfsgHjNFw=="],
 
     "@napi-rs/lzma-linux-x64-gnu": ["@napi-rs/lzma-linux-x64-gnu@1.5.1", "", { "os": "linux", "cpu": "x64" }, "sha512-oTXEIha4SsuXdTA4Iyskj0kpdx2yVXdhd75c2v3xGrHFfVMsbhTPZU/nMPL4sWKo4pBHm3aucLaqGlF696dTyQ=="],
 
