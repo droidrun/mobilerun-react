@@ -24,14 +24,14 @@ jobs:
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
-          bun-version: latest
+          bun-version: 1.4.4
 
       # Node + the npm registry are needed for `npm publish` (Bun has no
       # publish-with-provenance support yet). Bun still drives install + build.
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24.22.1
           registry-url: "https://registry.npmjs.org"
 
       - name: Install dependencies
