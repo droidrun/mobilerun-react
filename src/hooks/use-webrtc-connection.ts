@@ -89,6 +89,7 @@ export function useWebRtcConnection({
   onPeerConnectionChangeRef.current = onPeerConnectionChange;
 
   const wsRef = useRef<WebSocket | null>(null);
+  const cancelStartupRef = useRef<(() => void) | null>(null);
   const peerConnectionRef = useRef<RTCPeerConnection | null>(null);
   const dataChannelRef = useRef<RTCDataChannel | null>(null);
   const hoverChannelRef = useRef<RTCDataChannel | null>(null);
@@ -135,10 +136,11 @@ export function useWebRtcConnection({
   const scheduleRestartRecheck = () => {
     if (iceRestartRecheckTimerRef.current !== undefined) return;
     const pcAtArm = peerConnectionRef.current;
+    const wsAtArm = wsRef.current;
     iceRestartRecheckTimerRef.current = window.setTimeout(
       () => {
+        if (!pcAtArm || peerConnectionRef.current !== pcAtArm || wsRef.current !== wsAtArm) return;
         iceRestartRecheckTimerRef.current = undefined;
-        if (!pcAtArm || peerConnectionRef.current !== pcAtArm) return;
         if (Date.now() < iceRestartGraceUntilRef.current) {
           // A newer restart extended the grace window; re-arm for it.
           scheduleRestartRecheck();
@@ -154,9 +156,9 @@ export function useWebRtcConnection({
     );
   };
 
-  const sendKeepAlive = () => {
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(
+  const sendKeepAlive = (ws: WebSocket | null) => {
+    if (ws && wsRef.current === ws && ws.readyState === WebSocket.OPEN) {
+      ws.send(
         JSON.stringify({
           type: 'keepAlive',
           sessionId: sessionId,
@@ -169,7 +171,8 @@ export function useWebRtcConnection({
     if (keepAliveIntervalRef.current) {
       window.clearInterval(keepAliveIntervalRef.current);
     }
-    keepAliveIntervalRef.current = window.setInterval(sendKeepAlive, 10000);
+    const ws = wsRef.current;
+    keepAliveIntervalRef.current = window.setInterval(() => sendKeepAlive(ws), 10000);
   };
 
   const stopKeepAlive = () => {
@@ -200,29 +203,56 @@ export function useWebRtcConnection({
     // Captured for the teardown/staleness guards below: once wsRef.current no
     // longer points at this socket, the session was stopped or replaced and
     // nothing about it may be reported anymore.
-    let ws: WebSocket | null = null;
+    let attemptWs: WebSocket | null = null;
+    let cancelStartup = () => {};
     try {
       const wsUrl = buildWebSocketUrl(url, tokenRef.current);
-      ws = new WebSocket(wsUrl);
+      const ws = new WebSocket(wsUrl);
+      attemptWs = ws;
       wsRef.current = ws;
+      const isCurrent = () => wsRef.current === ws;
+      let pendingTimer: ReturnType<typeof setTimeout> | undefined;
+      let configHandler: ((event: MessageEvent) => void) | undefined;
+      let rejectStartup: ((reason: Error) => void) | undefined;
+      const clearStartup = () => {
+        clearTimeout(pendingTimer);
+        pendingTimer = undefined;
+        if (configHandler) ws.removeEventListener('message', configHandler);
+        configHandler = undefined;
+        ws.onopen = null;
+        rejectStartup = undefined;
+      };
+      cancelStartup = () => {
+        const reject = rejectStartup;
+        clearStartup();
+        reject?.(new Error('WebRTC startup cancelled'));
+      };
+      cancelStartupRef.current = cancelStartup;
 
       ws.onerror = (error) => {
+        if (!isCurrent()) return;
         updateStatus('WebSocket error: ' + error);
       };
 
-      // Wait for WebSocket to connect
-      await new Promise((resolve, reject) => {
-        if (ws) {
-          ws.onopen = resolve;
-          // Fail fast on a rejected/unreachable socket instead of sitting out
-          // the full timeout — the close event arrives within seconds.
-          ws.onclose = () => reject(new Error('WebSocket closed before open'));
-          setTimeout(
-            () => reject(new Error('WebSocket connection timeout')),
-            STREAM_WS_OPEN_TIMEOUT_MS,
-          );
-        }
+      // Wait for WebSocket to connect. Teardown settles this wait and removes
+      // its timer even when the browser never delivers another socket event.
+      await new Promise<void>((resolve, reject) => {
+        rejectStartup = reject;
+        ws.onopen = () => {
+          if (!isCurrent()) return;
+          clearStartup();
+          resolve();
+        };
+        ws.onclose = () => {
+          if (!isCurrent()) return;
+          reject(new Error('WebSocket closed before open'));
+        };
+        pendingTimer = setTimeout(() => {
+          if (!isCurrent()) return;
+          reject(new Error('WebSocket connection timeout'));
+        }, STREAM_WS_OPEN_TIMEOUT_MS);
       });
+      if (!isCurrent()) return;
 
       // The signaling channel dying is terminal for this session (no TURN
       // credential refresh, no renegotiation), but while the peer connection
@@ -230,7 +260,7 @@ export function useWebRtcConnection({
       // peer connection state decide, as it does today. Report a failure only
       // when the media path isn't up either (WS died mid-negotiation).
       ws.onclose = () => {
-        if (wsRef.current !== ws) return;
+        if (!isCurrent()) return;
         updateStatus('WebSocket closed');
         if (peerConnectionRef.current?.connectionState !== 'connected') {
           onConnectionFailedRef.current?.();
@@ -239,17 +269,18 @@ export function useWebRtcConnection({
 
       // Request RTCConfiguration
       const rtcConfigPromise = new Promise<RTCConfiguration>((resolve, reject) => {
-        const timeoutId = setTimeout(
-          () => reject(new Error('RTCConfiguration timeout')),
-          STREAM_RTC_CONFIG_TIMEOUT_MS,
-        );
+        rejectStartup = reject;
+        pendingTimer = setTimeout(() => {
+          if (!isCurrent()) return;
+          reject(new Error('RTCConfiguration timeout'));
+        }, STREAM_RTC_CONFIG_TIMEOUT_MS);
 
         const messageHandler = (event: MessageEvent) => {
+          if (!isCurrent()) return;
           try {
             const message = JSON.parse(event.data);
             if (message.type === 'rtcConfiguration') {
-              clearTimeout(timeoutId);
-              wsRef.current?.removeEventListener('message', messageHandler);
+              clearStartup();
               resolve(message.rtcConfiguration);
             }
           } catch (e) {
@@ -258,15 +289,19 @@ export function useWebRtcConnection({
           }
         };
 
-        wsRef.current?.addEventListener('message', messageHandler);
-        wsRef.current?.send(JSON.stringify(createRTCConfigurationRequest(sessionId)));
+        configHandler = messageHandler;
+        ws.addEventListener('message', messageHandler);
+        ws.send(JSON.stringify(createRTCConfigurationRequest(sessionId)));
       });
 
       const rtcConfig = await rtcConfigPromise;
-      peerConnectionRef.current = new RTCPeerConnection(rtcConfig);
-      onPeerConnectionChangeRef.current?.(peerConnectionRef.current);
-      peerConnectionRef.current.addTransceiver('audio', { direction: 'recvonly' });
-      const videoTransceiver = peerConnectionRef.current.addTransceiver('video', {
+      if (!isCurrent()) return;
+      const pc = new RTCPeerConnection(rtcConfig);
+      peerConnectionRef.current = pc;
+      onPeerConnectionChangeRef.current?.(pc);
+      if (!isCurrent()) return;
+      pc.addTransceiver('audio', { direction: 'recvonly' });
+      const videoTransceiver = pc.addTransceiver('video', {
         direction: 'recvonly',
       });
 
@@ -307,7 +342,7 @@ export function useWebRtcConnection({
         }
       }
 
-      dataChannelRef.current = peerConnectionRef.current.createDataChannel('control', {
+      dataChannelRef.current = pc.createDataChannel('control', {
         ordered: true,
         negotiated: true,
         id: 1,
@@ -316,24 +351,34 @@ export function useWebRtcConnection({
       // Best-effort channel for hover updates: unordered, no retransmits.
       // Backend may not implement it; in that case sendHoverMessage falls
       // back to the reliable control channel.
-      hoverChannelRef.current = peerConnectionRef.current.createDataChannel('hover', {
+      hoverChannelRef.current = pc.createDataChannel('hover', {
         ordered: false,
         maxRetransmits: 0,
         negotiated: true,
         id: 2,
       });
-      hoverChannelRef.current.onopen = () => updateStatus('Hover channel opened');
-      hoverChannelRef.current.onclose = () => updateStatus('Hover channel closed');
-      hoverChannelRef.current.onerror = (error) => debugWarn('Hover channel error:', error);
+      hoverChannelRef.current.onopen = () => {
+        if (!isCurrent()) return;
+        updateStatus('Hover channel opened');
+      };
+      hoverChannelRef.current.onclose = () => {
+        if (!isCurrent()) return;
+        updateStatus('Hover channel closed');
+      };
+      hoverChannelRef.current.onerror = (error) => {
+        if (!isCurrent()) return;
+        debugWarn('Hover channel error:', error);
+      };
 
       dataChannelRef.current.onopen = () => {
+        if (!isCurrent()) return;
         updateStatus('Control channel opened');
         // Request first frame once we're ready to receive video
-        if (wsRef.current) {
+        if (isCurrent()) {
           for (let i = 0; i < 12; i++) {
             setTimeout(() => {
-              if (wsRef.current) {
-                wsRef.current.send(JSON.stringify({ type: 'requestFrame', sessionId: sessionId }));
+              if (isCurrent()) {
+                ws.send(JSON.stringify({ type: 'requestFrame', sessionId: sessionId }));
               }
             }, i * 125); // 125ms = quarter second
           }
@@ -343,7 +388,7 @@ export function useWebRtcConnection({
             try {
               const decodedUrl = decodeURIComponent(openUrl);
               updateStatus('Opening URL');
-              wsRef.current.send(
+              ws.send(
                 JSON.stringify({
                   type: 'openUrl',
                   url: decodedUrl,
@@ -352,7 +397,7 @@ export function useWebRtcConnection({
               );
             } catch (error) {
               console.error({ error }, 'Error decoding URL, falling back to the original URL');
-              wsRef.current.send(
+              ws.send(
                 JSON.stringify({
                   type: 'openUrl',
                   url: openUrl,
@@ -365,17 +410,20 @@ export function useWebRtcConnection({
       };
 
       dataChannelRef.current.onclose = () => {
+        if (!isCurrent()) return;
         updateStatus('Control channel closed');
       };
 
       dataChannelRef.current.onerror = (error) => {
+        if (!isCurrent()) return;
         console.error('Control channel error:', error);
         updateStatus('Control channel error: ' + error);
       };
 
       // Set up connection state monitoring
-      peerConnectionRef.current.onconnectionstatechange = () => {
-        const state = peerConnectionRef.current?.connectionState;
+      pc.onconnectionstatechange = () => {
+        if (!isCurrent()) return;
+        const state = pc.connectionState;
         updateStatus('Connection state: ' + state);
         const connected = state === 'connected';
         if (state === 'failed' || state === 'closed') {
@@ -403,15 +451,17 @@ export function useWebRtcConnection({
         onConnectionStateChangeRef.current?.(connected);
       };
 
-      peerConnectionRef.current.oniceconnectionstatechange = () => {
-        updateStatus('ICE state: ' + peerConnectionRef.current?.iceConnectionState);
+      pc.oniceconnectionstatechange = () => {
+        if (!isCurrent()) return;
+        updateStatus('ICE state: ' + pc.iceConnectionState);
       };
 
       // Build one combined stream and add each remote track into it.
       // event.streams[0] differs per track because the sender groups them
       // under separate msids, so re-assigning srcObject would clobber the
       // previous track. The audio track only plays if muted=false.
-      peerConnectionRef.current.ontrack = (event) => {
+      pc.ontrack = (event) => {
+        if (!isCurrent()) return;
         updateStatus('Received remote track: ' + event.track.kind);
         if (event.track.kind !== 'video' && event.track.kind !== 'audio') return;
         if (!videoRef.current) return;
@@ -431,13 +481,17 @@ export function useWebRtcConnection({
         // still in window, surfaces in debug logs otherwise so it's
         // clear why the stream stayed silent.
         if (!videoRef.current.muted) {
-          videoRef.current.play().catch((err) => debugWarn('ontrack play() rejected:', err));
+          videoRef.current.play().catch((err) => {
+            if (!isCurrent()) return;
+            debugWarn('ontrack play() rejected:', err);
+          });
         }
       };
 
       // Handle ICE candidates
-      peerConnectionRef.current.onicecandidate = (event) => {
-        if (event.candidate && wsRef.current) {
+      pc.onicecandidate = (event) => {
+        if (!isCurrent()) return;
+        if (event.candidate) {
           const message = {
             type: 'candidate',
             candidate: event.candidate.candidate,
@@ -445,7 +499,7 @@ export function useWebRtcConnection({
             sdpMLineIndex: event.candidate.sdpMLineIndex,
             sessionId: sessionId,
           };
-          wsRef.current.send(JSON.stringify(message));
+          ws.send(JSON.stringify(message));
           updateStatus('Sent ICE candidate');
         } else {
           updateStatus('ICE candidate gathering completed');
@@ -453,11 +507,8 @@ export function useWebRtcConnection({
       };
 
       // Handle incoming messages
-      // Capture the current WebSocket so stale messages from a previous
-      // session (draining after stop()) are silently discarded.
-      const currentWs = wsRef.current;
-      currentWs.onmessage = async (event) => {
-        if (wsRef.current !== currentWs) return;
+      ws.onmessage = async (event) => {
+        if (!isCurrent()) return;
         let message;
         try {
           message = JSON.parse(event.data);
@@ -473,13 +524,14 @@ export function useWebRtcConnection({
               break;
             }
             try {
-              await peerConnectionRef.current.setRemoteDescription(
+              await pc.setRemoteDescription(
                 new RTCSessionDescription({
                   type: 'answer',
                   sdp: message.sdp,
                 }),
               );
             } catch (e) {
+              if (!isCurrent()) return;
               // A stale answer (e.g. for a superseded ICE-restart offer) must
               // not kill this handler with an unhandled rejection; the
               // negotiation that produced the newer offer gets its own answer.
@@ -487,16 +539,18 @@ export function useWebRtcConnection({
               break;
             }
             // Session may have changed during the await
-            if (wsRef.current !== currentWs) break;
+            if (!isCurrent()) return;
             remoteDescriptionSetRef.current = true;
             updateStatus('Set remote description');
             // Flush any ICE candidates that arrived before the answer
             for (const candidate of pendingIceCandidatesRef.current) {
-              if (wsRef.current !== currentWs) break;
+              if (!isCurrent()) return;
               try {
-                await peerConnectionRef.current.addIceCandidate(candidate);
+                await pc.addIceCandidate(candidate);
+                if (!isCurrent()) return;
                 updateStatus('Added buffered ICE candidate');
               } catch (e) {
+                if (!isCurrent()) return;
                 debugWarn('Failed to add buffered ICE candidate:', e);
               }
             }
@@ -518,9 +572,11 @@ export function useWebRtcConnection({
                 updateStatus('Buffered ICE candidate (waiting for remote description)');
               } else {
                 try {
-                  await peerConnectionRef.current.addIceCandidate(candidate);
+                  await pc.addIceCandidate(candidate);
+                  if (!isCurrent()) return;
                   updateStatus('Added ICE candidate');
                 } catch (e) {
+                  if (!isCurrent()) return;
                   debugWarn('Failed to add ICE candidate:', e);
                 }
               }
@@ -564,8 +620,7 @@ export function useWebRtcConnection({
             // continues uninterrupted. (The initial rtcConfiguration reply is
             // consumed by the one-shot listener before this handler is
             // attached, so anything arriving here is a refresh.)
-            const pc = peerConnectionRef.current;
-            if (!pc || !message.rtcConfiguration?.iceServers) break;
+            if (!message.rtcConfiguration?.iceServers) break;
             try {
               pc.setConfiguration({ iceServers: message.rtcConfiguration.iceServers });
             } catch (e) {
@@ -575,19 +630,20 @@ export function useWebRtcConnection({
             iceRestartGraceUntilRef.current = Date.now() + 15_000;
             try {
               const offer = await pc.createOffer({ iceRestart: true });
+              if (!isCurrent() || peerConnectionRef.current !== pc) return;
               await pc.setLocalDescription(offer);
-              if (wsRef.current === currentWs) {
-                // New ICE generation: buffer incoming candidates until the
-                // restart answer arrives. Applying them against the old
-                // remote description rejects them on ufrag mismatch and
-                // silently loses them — fatal on relay-only paths once the
-                // old TURN allocation expires.
-                remoteDescriptionSetRef.current = false;
-                pendingIceCandidatesRef.current = [];
-                currentWs.send(JSON.stringify({ type: 'offer', sdp: offer.sdp, sessionId }));
-                updateStatus('Sent ICE-restart offer (credential refresh)');
-              }
+              if (!isCurrent() || peerConnectionRef.current !== pc) return;
+              // New ICE generation: buffer incoming candidates until the
+              // restart answer arrives. Applying them against the old
+              // remote description rejects them on ufrag mismatch and
+              // silently loses them — fatal on relay-only paths once the
+              // old TURN allocation expires.
+              remoteDescriptionSetRef.current = false;
+              pendingIceCandidatesRef.current = [];
+              ws.send(JSON.stringify({ type: 'offer', sdp: offer.sdp, sessionId }));
+              updateStatus('Sent ICE-restart offer (credential refresh)');
             } catch (e) {
+              if (!isCurrent()) return;
               iceRestartGraceUntilRef.current = 0;
               debugWarn('rtcConfiguration refresh: ICE restart failed:', e);
             }
@@ -599,43 +655,35 @@ export function useWebRtcConnection({
         }
       };
 
-      // Create and send offer
-      if (peerConnectionRef.current) {
-        const offer = await peerConnectionRef.current.createOffer();
-        await peerConnectionRef.current.setLocalDescription(offer);
-
-        if (wsRef.current) {
-          wsRef.current.send(
-            JSON.stringify({
-              type: 'offer',
-              sdp: offer.sdp,
-              sessionId: sessionId,
-            }),
-          );
-        }
-        updateStatus('Sent offer');
-      }
+      // Create and send offer on the socket and peer that own this attempt.
+      const offer = await pc.createOffer();
+      if (!isCurrent() || peerConnectionRef.current !== pc) return;
+      await pc.setLocalDescription(offer);
+      if (!isCurrent() || peerConnectionRef.current !== pc) return;
+      ws.send(JSON.stringify({ type: 'offer', sdp: offer.sdp, sessionId }));
+      updateStatus('Sent offer');
     } catch (e) {
+      if (wsRef.current !== attemptWs) return;
+      cancelStartup();
       updateStatus('Error: ' + e);
-      // Only report on the still-current session: stop() (unmount/remount)
-      // rejects the pending open-promise too, and that teardown must stay
-      // silent.
-      if (wsRef.current === ws) {
-        onConnectionFailedRef.current?.();
-      }
+      onConnectionFailedRef.current?.();
     }
   };
 
   const stop = () => {
+    cancelStartupRef.current?.();
+    cancelStartupRef.current = null;
     clearRestartRecheck();
     if (wsRef.current) {
       // Clear handlers before close() so intentional teardown never reports
       // a failure (mirrors the peer-connection handler clearing below).
-      wsRef.current.onclose = null;
-      wsRef.current.onerror = null;
-      wsRef.current.onmessage = null;
-      wsRef.current.close();
+      const ws = wsRef.current;
       wsRef.current = null;
+      ws.onopen = null;
+      ws.onclose = null;
+      ws.onerror = null;
+      ws.onmessage = null;
+      ws.close();
     }
     if (peerConnectionRef.current) {
       // Clear handler before close() to prevent spurious disconnect
@@ -676,13 +724,18 @@ export function useWebRtcConnection({
     }
 
     // Add visibility change listener
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    const ws = wsRef.current;
+    const onVisibilityChange = () => {
+      if (wsRef.current !== ws) return;
+      handleVisibilityChange();
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     // Clean up
     return () => {
       stopKeepAlive();
       stop();
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: reconnect only on url/session change; start/stop/keepAlive helpers are re-created each render and must not be deps
   }, [url, sessionId]);
