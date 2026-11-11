@@ -6,7 +6,16 @@ import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
 // Import straight from source so Bun transpiles + HMRs the package as you edit.
-import { DeviceStream, NavigationBar, useDeviceStream, type RemoteControlHandle } from '../src/index';
+import {
+  DeviceStream,
+  NavigationBar,
+  TaskApproval,
+  useDeviceStream,
+  useTaskApproval,
+  type ApprovalDecision,
+  type PendingApproval,
+  type RemoteControlHandle,
+} from '../src/index';
 // Prebuilt themed stylesheet (run `bun run build:css` once to generate it).
 import '../dist/styles.css';
 // Brand mark (black) — inverted to white in dark mode via CSS.
@@ -132,6 +141,7 @@ const HARNESS_CSS = `
   }
   .phone-stage { flex: 1; min-height: 0; position: relative; }
   /* nav bar top seam: hairline highlight against the black screen */
+  .approval-device .phone { width: 100%; }
   .device-nav { border-top: none !important; box-shadow: inset 0 0.5px 0 rgba(255,255,255,.06); }
 `;
 
@@ -241,6 +251,116 @@ function StatusLine({ s, active }: { s: Status; active: boolean }) {
         <strong>{text}</strong>
       </div>
       {errText ? <div className="err-text">{errText}</div> : null}
+    </div>
+  );
+}
+
+async function readError(res: Response): Promise<Error> {
+  const body = (await res.json().catch(() => null)) as { detail?: string; error?: string } | null;
+  return new Error(body?.detail ?? body?.error ?? `HTTP ${res.status}`);
+}
+
+// All calls go to this example's own server: the API key never reaches the browser.
+async function fetchApproval(taskId: string): Promise<PendingApproval | null> {
+  const res = await fetch(`/api/v1/tasks/${encodeURIComponent(taskId)}`);
+  if (!res.ok) throw await readError(res);
+  const task = (await res.json()) as { status?: string; pendingApproval?: PendingApproval | null };
+  return task.pendingApproval ?? null;
+}
+
+async function sendDecision(input: { taskId: string; approvalId: string; decision: ApprovalDecision }) {
+  const res = await fetch(
+    `/api/v1/tasks/${encodeURIComponent(input.taskId)}/approvals/${encodeURIComponent(input.approvalId)}`,
+    { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ decision: input.decision }) },
+  );
+  if (!res.ok) throw await readError(res);
+}
+
+/** The webhook handler pushes a change signal over SSE; the hook then reloads. */
+function subscribeApprovalEvents(taskId: string) {
+  return (onChange: () => void) => {
+    const source = new EventSource('/api/v1/events');
+    source.onmessage = (e) => {
+      try {
+        if ((JSON.parse(e.data) as { taskId?: string }).taskId === taskId) onChange();
+      } catch {
+        // ignore malformed events
+      }
+    };
+    return () => source.close();
+  };
+}
+
+function ApprovalPanel({ taskId }: { taskId: string }) {
+  const subscribe = useMemo(() => subscribeApprovalEvents(taskId), [taskId]);
+  const { approval, isLoading, error, decide, isDeciding, decision } = useTaskApproval({
+    taskId,
+    fetchApproval,
+    decide: sendDecision,
+    subscribe,
+    pollIntervalMs: 15000, // safety net next to the SSE push
+  });
+  const message = error ? (error as { message?: string }).message ?? String(error) : undefined;
+  return (
+    <>
+      {!approval && (
+        <div className="status">
+          <span className={`dot ${message ? 'err' : 'idle'}`} />
+          <strong>{isLoading ? 'loading…' : 'no pending approval'}</strong>
+        </div>
+      )}
+      {!approval && message ? <div className="err-text">{message}</div> : null}
+      <TaskApproval
+        approval={approval}
+        onDecide={decide}
+        isPending={isDeciding}
+        decision={decision}
+        error={approval ? message : undefined}
+        device={
+          approval?.deviceId ? (
+            <div className="approval-device">
+              <SdkStream
+                apiKey=""
+                baseURL={`${window.location.origin}/api/v1`}
+                deviceId={approval.deviceId}
+                hasControl={false}
+                muted
+                onStatus={() => {}}
+              />
+            </div>
+          ) : undefined
+        }
+      />
+    </>
+  );
+}
+
+function ApprovalSection() {
+  const [taskId, setTaskId] = useState('');
+  const [watching, setWatching] = useState('');
+  return (
+    <div className="card" style={{ width: '100%' }}>
+      <strong>Task approval</strong>
+      <div className="field">
+        <label>task id</label>
+        <input value={taskId} onChange={(e) => setTaskId(e.target.value)} placeholder="task_…" />
+      </div>
+      <p className="hint">
+        <span>
+          Needs <code>MOBILERUN_API_KEY</code> and <code>MOBILERUN_WEBHOOK_SECRET</code> server-side. Point a webhook for{' '}
+          <code>task.run.approval_requested</code> and <code>task.run.approval_resolved</code> at{' '}
+          <code>/webhooks/mobilerun</code>.
+        </span>
+      </p>
+      <div className="row">
+        <button className="btn btn-primary" disabled={!taskId} onClick={() => setWatching(taskId)}>
+          Watch
+        </button>
+        <button className="btn" onClick={() => setWatching('')}>
+          Stop
+        </button>
+      </div>
+      {watching ? <ApprovalPanel taskId={watching} /> : null}
     </div>
   );
 }
@@ -409,6 +529,8 @@ function App() {
 
           {device}
         </div>
+
+        <ApprovalSection />
       </div>
     </div>
   );

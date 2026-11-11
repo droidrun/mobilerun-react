@@ -1,7 +1,7 @@
 {
   "name": "@mobilerun/react",
   "version": "0.2.1",
-  "description": "React components for embedding Mobilerun's native device streaming (WebRTC + scrcpy) — plug-and-play with @mobilerun/sdk.",
+  "description": "React components for embedding Mobilerun's native device streaming (WebRTC + scrcpy) and task approvals — plug-and-play with @mobilerun/sdk.",
   "license": "Apache-2.0",
   "author": "Mobilerun <support@droidrun.ai>",
   "homepage": "https://github.com/droidrun/mobilerun-react#readme",
@@ -21,7 +21,8 @@
     "scrcpy",
     "remote-control",
     "cloud-device",
-    "components"
+    "components",
+    "task-approval"
   ],
   "type": "module",
   "sideEffects": [

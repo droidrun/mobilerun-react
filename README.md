@@ -37,6 +37,7 @@ Drop a live, controllable cloud device (iOS/ Android) into any React app:
 
 - 📺 **`<DeviceStream />`** — WebRTC video with touch, swipe and keyboard control, plus automatic reconnects with exponential backoff and a retry UI once attempts are exhausted.
 - 🪝 **`useDeviceStream()`** — resolves a device's stream credentials from [`@mobilerun/sdk`](https://www.npmjs.com/package/@mobilerun/sdk), polling while it boots.
+- ✅ **`<TaskApproval />`** + **`useTaskApproval()`** — show a task's pending human approval (e.g. "enter payment card X into app Y") with a countdown and Approve/Deny buttons. See [Task approvals](#-task-approvals).
 - 🧭 **`<NavigationBar />`**, **`<StreamStatusPill />`**, **`<RemoteControl />`** — the surrounding chrome and a lower-level escape hatch.
 - 🎨 **Prebuilt stylesheet** — no Tailwind setup required, themeable via CSS variables.
 - 📦 **Typed** — ships its own `.d.ts`; React and the SDK are peer dependencies.
@@ -89,6 +90,117 @@ const device = await client.devices.retrieve(deviceId);
 <DeviceStream streamUrl={device.streamUrl} streamToken={device.streamToken} hasControl />;
 ```
 
+## ✅ Task approvals
+
+A task can pause and wait for a human to approve a step, for example entering a payment card into an app. `useTaskApproval()` loads the pending approval and `<TaskApproval />` renders it with a countdown and Approve/Deny buttons.
+
+**The decision goes through your backend.** The API key that may approve is a secret and must never reach the browser, so the browser only talks to your own routes. The Mobilerun API owns the approval state and decides: the component renders what it is given and forwards the decision, and the countdown is display only. A 404/409 from the decide call (unknown, already resolved or expired) comes back as an error and triggers a refetch.
+
+### 1. Subscribe a webhook
+
+In your Mobilerun webhook settings, point an endpoint at your backend and filter it to the two approval events: `task.run.approval_requested` and `task.run.approval_resolved`. Events only tell the browser to reload; the fetched approval is the source of truth.
+
+Each delivery carries `X-Mobilerun-Timestamp` (Unix ms) and `X-Mobilerun-Signature: sha256=<hex>`, an HMAC-SHA256 of `"{timestamp}.{rawBody}"` with the endpoint secret. Verify it on the raw body before parsing, and reject timestamps more than 5 minutes off. `example/webhook-signature.ts` has a ready-made verifier.
+
+### 2. Backend sketch
+
+```ts
+// 1. Webhook: verify → push a change signal to the signed-in user's browser (SSE, WebSocket, ...)
+app.post('/webhooks/mobilerun', async (c) => {
+  const raw = await c.req.text();
+  if (!verifyWebhookSignature({ secret, rawBody: raw, timestamp: c.req.header('X-Mobilerun-Timestamp'), signature: c.req.header('X-Mobilerun-Signature') })) {
+    return c.body(null, 401);
+  }
+  const event = JSON.parse(raw);
+  if (event.type === 'task.run.approval_requested' || event.type === 'task.run.approval_resolved') {
+    push({ taskId: event.data.taskId });
+  }
+  return c.body(null, 204);
+});
+
+// 2. Pending approval: GET /tasks/{id} → pendingApproval (null when none)
+app.get('/api/tasks/:id', async (c) => {
+  const task = await mobilerunGet(`/tasks/${c.req.param('id')}`);
+  return c.json({ pendingApproval: task.pendingApproval ?? null });
+});
+
+// 3. Decision: POST /tasks/{id}/approvals/{approvalId} { decision: 'approve' | 'deny' }
+app.post('/api/tasks/:id/approvals/:approvalId', async (c) => {
+  const { decision } = await c.req.json();
+  await mobilerunPost(`/tasks/${c.req.param('id')}/approvals/${c.req.param('approvalId')}`, { decision });
+  return c.body(null, 204);
+});
+```
+
+Authenticate and scope these routes to the signed-in user or organization. `bun run example` runs a working version of all three plus an SSE endpoint.
+
+### 3. Client
+
+```tsx
+import { TaskApproval, useTaskApproval, type PendingApproval } from '@mobilerun/react';
+import '@mobilerun/react/styles.css';
+
+export function Approval({ taskId }: { taskId: string }) {
+  const { approval, decide, isDeciding, decision, error } = useTaskApproval({
+    taskId,
+    fetchApproval: async (id) => {
+      const res = await fetch(`/api/tasks/${id}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return ((await res.json()) as { pendingApproval: PendingApproval | null }).pendingApproval;
+    },
+    decide: async ({ taskId, approvalId, decision }) => {
+      const res = await fetch(`/api/tasks/${taskId}/approvals/${approvalId}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ decision }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    },
+    // Optional push: reload when your backend signals a change. Without it the hook polls every 3 s.
+    subscribe: (onChange) => {
+      const source = new EventSource('/api/events');
+      source.onmessage = onChange;
+      return () => source.close();
+    },
+  });
+
+  return (
+    <TaskApproval
+      approval={approval}
+      onDecide={decide}
+      isPending={isDeciding}
+      decision={decision}
+      error={error ? String(error) : undefined}
+      // device={<DeviceStream … />}  // optional live device next to the details
+    />
+  );
+}
+```
+
+`<TaskApproval />` renders an inline card (wrap it in your own dialog if you want one) and nothing when `approval` is `null`. For an unknown `kind` or unexpected `details` it shows a generic "Waiting for approval" body with the same buttons.
+
+### Labels and i18n
+
+Every user-visible string can be replaced through the `labels` prop. `{time}` in `timeLeft` is replaced with the remaining time.
+
+```tsx
+<TaskApproval
+  approval={approval}
+  onDecide={decide}
+  labels={{
+    paymentCardTitle: 'Zahlungskarte bestätigen',
+    waiting: 'Warte auf Freigabe',
+    card: 'Karte',
+    app: 'App',
+    domain: 'Domain',
+    timeLeft: 'Noch {time}',
+    expired: 'Freigabe abgelaufen',
+    approve: 'Freigeben',
+    deny: 'Ablehnen',
+  }}
+/>
+```
+
 ## 🧪 Try it locally
 
 The repo ships the playground shown above — paste an API key + device id, or a raw `streamUrl` + `streamToken`, and stream a real device:
@@ -98,7 +210,7 @@ bun install
 bun run example     # serves the playground at http://localhost:3000
 ```
 
-In SDK mode the example server exposes one narrow helper endpoint backed by `@mobilerun/sdk` so the API key can stay server-side while retrieving `streamUrl` and `streamToken`. The stream WebSocket itself is opened directly by the browser against `streamUrl`; the component appends `streamToken` as `?token=`.
+In SDK mode the example server exposes one narrow helper endpoint backed by `@mobilerun/sdk` so the API key can stay server-side while retrieving `streamUrl` and `streamToken`. The stream WebSocket itself is opened directly by the browser against `streamUrl`; the component appends `streamToken` as `?token=`. The same server also demonstrates [task approvals](#-task-approvals) (set `MOBILERUN_WEBHOOK_SECRET` for the webhook route).
 
 ## 🎨 Styling & theming
 
