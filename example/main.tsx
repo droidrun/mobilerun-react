@@ -141,7 +141,8 @@ const HARNESS_CSS = `
   }
   .phone-stage { flex: 1; min-height: 0; position: relative; }
   /* nav bar top seam: hairline highlight against the black screen */
-  .approval-device .phone { width: 100%; }
+  .approval-device { height: 100%; display: flex; justify-content: center; }
+  .approval-device .phone { height: 100%; width: auto; max-width: 100%; }
   .device-nav { border-top: none !important; box-shadow: inset 0 0.5px 0 rgba(255,255,255,.06); }
 `;
 

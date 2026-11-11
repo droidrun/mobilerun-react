@@ -215,7 +215,7 @@ function ApprovalCard({
           </div>
         </div>
         {hasDevice && (
-          <div className="h-[min(calc(100svh-20rem),520px)] min-h-56 w-full min-w-0 max-md:group-data-[mobile-view=details]/approval:hidden md:h-auto md:min-h-0 md:w-64">
+          <div className="h-[min(calc(100svh-20rem),520px)] min-h-56 w-full min-w-0 overflow-hidden max-md:group-data-[mobile-view=details]/approval:hidden md:h-[min(56svh,520px)] md:min-h-80 md:w-64">
             {device}
           </div>
         )}
