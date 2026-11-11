@@ -7,7 +7,7 @@ import type { ApprovalDecision, PendingApproval } from '../lib/task-approval';
 
 export interface UseTaskApprovalOptions {
   taskId: string;
-  /** Your backend: GET /tasks/{id} → pendingApproval (null when none or the task is not running). */
+  /** Your backend: GET /tasks/{id} → task.pendingApproval (null when none or the task is not running). */
   fetchApproval: (taskId: string) => Promise<PendingApproval | null>;
   /** Your backend: POST /tasks/{id}/approvals/{approvalId} { decision }. Throw on non-2xx. */
   decide: (input: { taskId: string; approvalId: string; decision: ApprovalDecision }) => Promise<void>;

@@ -126,13 +126,13 @@ app.post('/webhooks/mobilerun', async (c) => {
   return c.body(null, 204);
 });
 
-// 2. Pending approval: GET /tasks/{id} → pendingApproval (null when none)
+// 2. Pending approval: GET /tasks/{id} → task.pendingApproval (null when none)
 app.get('/api/tasks/:id', async (c) => {
   const id = c.req.param('id');
   if (!ID.test(id)) return c.json({ error: 'invalid_id' }, 400);
   // Authenticate the caller and check the task belongs to their user/org first.
-  const task = await mobilerunGet(`/tasks/${encodeURIComponent(id)}`);
-  return c.json({ pendingApproval: task.pendingApproval ?? null });
+  const { task } = await mobilerunGet(`/tasks/${encodeURIComponent(id)}`);
+  return c.json({ pendingApproval: task?.pendingApproval ?? null });
 });
 
 // 3. Decision: POST /tasks/{id}/approvals/{approvalId} { decision: 'approve' | 'deny' }

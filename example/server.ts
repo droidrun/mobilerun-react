@@ -84,8 +84,8 @@ app.get('/api/v1/tasks/:taskId', async (c) => {
   if (!ID_PATTERN.test(taskId)) return c.json({ error: 'invalid_id' }, 400);
   try {
     // The installed SDK's task type may not carry pendingApproval yet, so read the raw response.
-    const task = await client.get<{ pendingApproval?: unknown }>(`/tasks/${encodeURIComponent(taskId)}`);
-    return c.json({ pendingApproval: task.pendingApproval ?? null });
+    const { task } = await client.get<{ task?: { pendingApproval?: unknown } }>(`/tasks/${encodeURIComponent(taskId)}`);
+    return c.json({ pendingApproval: task?.pendingApproval ?? null });
   } catch (err) {
     return upstreamFailure(c, 'task_retrieve_failed', err);
   }
