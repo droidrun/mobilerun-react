@@ -90,7 +90,7 @@ function ApprovalFact({ icon: Icon, label, value }: { icon: LucideIcon; label: s
         </span>
         {label}
       </dt>
-      <dd className="break-words text-sm font-medium">{value}</dd>
+      <dd className="ml-0 break-words text-sm font-medium">{value}</dd>
     </div>
   );
 }

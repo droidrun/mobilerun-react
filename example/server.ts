@@ -24,6 +24,7 @@
 //
 // Run:  MOBILERUN_API_KEY=dr_sk_… bun run example  (or put it in a .env file)
 
+import type { Server } from 'bun';
 import Mobilerun from '@mobilerun/sdk';
 import { Hono, type Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
@@ -45,7 +46,7 @@ if (!API_KEY) {
   );
 }
 
-const app = new Hono();
+const app = new Hono<{ Bindings: Server<unknown> }>();
 
 app.get('/api/v1/devices/:deviceId', async (c) => {
   if (!client) {
@@ -120,8 +121,10 @@ app.post('/api/v1/tasks/:taskId/approvals/:approvalId', async (c) => {
 type ApprovalSignal = { taskId: string };
 const subscribers = new Set<(signal: ApprovalSignal) => void>();
 
-app.get('/api/v1/events', (c) =>
-  streamSSE(c, async (stream) => {
+app.get('/api/v1/events', (c) => {
+  // Bun closes idle requests after 10 s; exempt this long-lived stream only.
+  c.env.timeout(c.req.raw, 0);
+  return streamSSE(c, async (stream) => {
     const send = (signal: ApprovalSignal) => void stream.writeSSE({ data: JSON.stringify(signal) });
     subscribers.add(send);
     stream.onAbort(() => subscribers.delete(send));
@@ -131,8 +134,8 @@ app.get('/api/v1/events', (c) =>
       await stream.sleep(25_000);
     }
     subscribers.delete(send);
-  }),
-);
+  });
+});
 
 const APPROVAL_EVENTS = new Set(['task.run.approval_requested', 'task.run.approval_resolved']);
 
