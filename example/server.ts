@@ -13,6 +13,10 @@
 //
 //   • Serves the example UI (Bun bundles index.html + main.tsx).
 //   • Handles GET /api/v1/devices/:deviceId via Mobilerun.devices.retrieve().
+//   • Local use only: the server binds to 127.0.0.1 and its task routes and SSE
+//     route are unauthenticated by design. If you expose anything publicly (e.g. a
+//     tunnel for webhook testing), forward only /webhooks/mobilerun, never the
+//     whole server.
 //   • Task approvals: GET /api/v1/tasks/:taskId (pending approval), POST
 //     /api/v1/tasks/:taskId/approvals/:approvalId (decision), POST /webhooks/mobilerun
 //     (signed webhook, set MOBILERUN_WEBHOOK_SECRET) and GET /api/v1/events (SSE
@@ -21,7 +25,8 @@
 // Run:  MOBILERUN_API_KEY=dr_sk_… bun run example  (or put it in a .env file)
 
 import Mobilerun from '@mobilerun/sdk';
-import { Hono } from 'hono';
+import { Hono, type Context } from 'hono';
+import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { streamSSE } from 'hono/streaming';
 import { verifyWebhookSignature } from './webhook-signature';
 import index from './index.html';
@@ -58,43 +63,47 @@ app.get('/api/v1/devices/:deviceId', async (c) => {
   }
 });
 
-function upstreamStatus(err: unknown): number {
-  const status = (err as { status?: number }).status;
-  return status && status >= 400 && status < 600 ? status : 502;
+const ID_PATTERN = /^[A-Za-z0-9_-]+$/;
+const MAX_WEBHOOK_BODY_BYTES = 1024 * 1024;
+
+/** Maps an upstream API error to a response, passing 4xx/5xx through (404/409 let the UI refetch). */
+function upstreamFailure(c: Context, error: string, err: unknown) {
+  const { status, message } = err as { status?: number; message?: string };
+  const code = (status && status >= 400 && status < 600 ? status : 502) as ContentfulStatusCode;
+  return c.json({ error, detail: message ?? String(err) }, code);
 }
 
-// Narrow local type: the installed SDK's task type may not carry pendingApproval yet.
-interface TaskWithApproval {
-  status?: string;
-  pendingApproval?: unknown;
-}
-
+// A real app authenticates the caller and checks that the task belongs to that
+// user/org before forwarding. This example is unauthenticated and local-only.
 app.get('/api/v1/tasks/:taskId', async (c) => {
   if (!client) {
     return c.json({ error: 'missing_api_key', detail: 'Set MOBILERUN_API_KEY to use task approvals.' }, 500);
   }
   const taskId = c.req.param('taskId');
+  if (!ID_PATTERN.test(taskId)) return c.json({ error: 'invalid_id' }, 400);
   try {
-    const task = await client.get<TaskWithApproval>(`/tasks/${encodeURIComponent(taskId)}`);
-    return c.json({ status: task.status, pendingApproval: task.pendingApproval ?? null });
+    // The installed SDK's task type may not carry pendingApproval yet, so read the raw response.
+    const task = await client.get<{ pendingApproval?: unknown }>(`/tasks/${encodeURIComponent(taskId)}`);
+    return c.json({ pendingApproval: task.pendingApproval ?? null });
   } catch (err) {
-    const message = (err as { message?: string }).message ?? String(err);
-    console.error(`✗ task retrieve ${taskId} failed:`, message);
-    return c.json({ error: 'task_retrieve_failed', detail: message }, upstreamStatus(err) as 400);
+    console.error(`✗ task retrieve ${JSON.stringify(taskId)} failed:`, (err as Error).message ?? String(err));
+    return upstreamFailure(c, 'task_retrieve_failed', err);
   }
 });
 
+// Same rule as above: authenticate the caller and check task ownership before forwarding.
 app.post('/api/v1/tasks/:taskId/approvals/:approvalId', async (c) => {
   if (!client) {
     return c.json({ error: 'missing_api_key', detail: 'Set MOBILERUN_API_KEY to use task approvals.' }, 500);
   }
+  const taskId = c.req.param('taskId');
+  const approvalId = c.req.param('approvalId');
+  if (!ID_PATTERN.test(taskId) || !ID_PATTERN.test(approvalId)) return c.json({ error: 'invalid_id' }, 400);
   const body = (await c.req.json().catch(() => null)) as { decision?: unknown } | null;
   const decision = body?.decision;
   if (decision !== 'approve' && decision !== 'deny') {
     return c.json({ error: 'invalid_decision', detail: "decision must be 'approve' or 'deny'." }, 422);
   }
-  const taskId = c.req.param('taskId');
-  const approvalId = c.req.param('approvalId');
   try {
     // Becomes client.tasks.approvals.decide(...) once the SDK ships that method.
     await client.post(`/tasks/${encodeURIComponent(taskId)}/approvals/${encodeURIComponent(approvalId)}`, {
@@ -102,16 +111,17 @@ app.post('/api/v1/tasks/:taskId/approvals/:approvalId', async (c) => {
     });
     return c.body(null, 204);
   } catch (err) {
-    const message = (err as { message?: string }).message ?? String(err);
-    console.error(`✗ approval decide ${taskId}/${approvalId} failed:`, message);
-    // 404 (unknown) and 409 (already resolved/expired) pass through so the UI can refetch.
-    return c.json({ error: 'approval_decide_failed', detail: message }, upstreamStatus(err) as 400);
+    console.error(
+      `✗ approval decide ${JSON.stringify(taskId)}/${JSON.stringify(approvalId)} failed:`,
+      (err as Error).message ?? String(err),
+    );
+    return upstreamFailure(c, 'approval_decide_failed', err);
   }
 });
 
 // SSE subscribers. A real app scopes this per signed-in user/org instead of
 // broadcasting every event to every browser.
-type ApprovalSignal = { type: string; taskId: unknown; approvalId: unknown };
+type ApprovalSignal = { taskId: string };
 const subscribers = new Set<(signal: ApprovalSignal) => void>();
 
 app.get('/api/v1/events', (c) =>
@@ -132,29 +142,35 @@ const APPROVAL_EVENTS = new Set(['task.run.approval_requested', 'task.run.approv
 
 app.post('/webhooks/mobilerun', async (c) => {
   if (!WEBHOOK_SECRET) return c.json({ error: 'missing_webhook_secret' }, 500);
-  const rawBody = await c.req.text(); // exactly as received; verify before parsing
+  if (Number(c.req.header('Content-Length') ?? 0) > MAX_WEBHOOK_BODY_BYTES) {
+    return c.json({ error: 'payload_too_large' }, 413);
+  }
+  // Raw bytes exactly as received; verify before parsing.
+  const bytes = new Uint8Array(await c.req.arrayBuffer());
+  if (bytes.length > MAX_WEBHOOK_BODY_BYTES) return c.json({ error: 'payload_too_large' }, 413);
   const ok = verifyWebhookSignature({
     secret: WEBHOOK_SECRET,
     timestamp: c.req.header('X-Mobilerun-Timestamp'),
     signature: c.req.header('X-Mobilerun-Signature'),
-    rawBody,
+    rawBody: bytes,
   });
   if (!ok) return c.json({ error: 'invalid_signature' }, 401);
 
-  let event: { type?: unknown; data?: { taskId?: unknown; approvalId?: unknown } } | null = null;
+  let event: { type?: unknown; data?: { taskId?: unknown } } | null = null;
   try {
-    event = JSON.parse(rawBody);
+    event = JSON.parse(new TextDecoder().decode(bytes));
   } catch {
     // Verified but not JSON: nothing to broadcast.
   }
-  if (event && typeof event.type === 'string' && APPROVAL_EVENTS.has(event.type)) {
-    const signal = { type: event.type, taskId: event.data?.taskId, approvalId: event.data?.approvalId };
-    for (const send of subscribers) send(signal);
+  const taskId = event?.data?.taskId;
+  if (typeof event?.type === 'string' && APPROVAL_EVENTS.has(event.type) && typeof taskId === 'string') {
+    for (const send of subscribers) send({ taskId });
   }
   return c.body(null, 204);
 });
 
 Bun.serve({
+  hostname: '127.0.0.1',
   port: PORT,
   routes: { '/': index }, // Bun bundles + serves the React UI and its assets
   development: { hmr: true, console: true },

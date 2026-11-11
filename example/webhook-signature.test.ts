@@ -17,6 +17,13 @@ describe('verifyWebhookSignature', () => {
   test('rejects a wrong secret', () => {
     expect(verifyWebhookSignature({ ...good(), secret: 'other' })).toBe(false);
   });
+  test('rejects an empty secret even when the signature matches it', () => {
+    expect(verifyWebhookSignature({ ...good(), secret: '', signature: signWebhook('', ts, body) })).toBe(false);
+  });
+  test('verifies raw bytes', () => {
+    const bytes = new TextEncoder().encode(body);
+    expect(verifyWebhookSignature({ ...good(), rawBody: bytes })).toBe(true);
+  });
   test('rejects a tampered body', () => {
     expect(verifyWebhookSignature({ ...good(), rawBody: body.replace('t1', 't2') })).toBe(false);
   });

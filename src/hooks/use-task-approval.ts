@@ -12,7 +12,7 @@ export interface UseTaskApprovalOptions {
   /** Your backend: POST /tasks/{id}/approvals/{approvalId} { decision }. Throw on non-2xx. */
   decide: (input: { taskId: string; approvalId: string; decision: ApprovalDecision }) => Promise<void>;
   /** Optional push source (e.g. SSE fed by your webhook handler). Call onChange when an approval event for this task arrives; return an unsubscribe. */
-  subscribe?: (onChange: () => void) => () => void;
+  subscribe?: (taskId: string, onChange: () => void) => () => void;
   /** Poll interval while enabled. Default 0 (off) when `subscribe` is given, else 3000. */
   pollIntervalMs?: number;
   enabled?: boolean;
@@ -23,7 +23,10 @@ export interface UseTaskApprovalResult {
   approval: PendingApproval | null;
   /** True until the first fetch resolves. */
   isLoading: boolean;
-  /** The last fetch or decide error, if any. */
+  /**
+   * The last decide error (cleared by the next decide attempt or a task change),
+   * else the last fetch error (cleared by the next successful fetch).
+   */
   error?: unknown;
   decide: (decision: ApprovalDecision) => void;
   isDeciding: boolean;
@@ -45,7 +48,7 @@ export interface UseTaskApprovalResult {
  *   decide: sendDecision,
  *   subscribe,
  * });
- * return <TaskApproval approval={approval} onDecide={decide} isPending={isDeciding} decision={decision} />;
+ * return <TaskApproval approval={approval} onDecide={decide} isPending={isDeciding} decision={decision} error={error} />;
  * ```
  */
 export function useTaskApproval({
@@ -59,7 +62,8 @@ export function useTaskApproval({
 }: UseTaskApprovalOptions): UseTaskApprovalResult {
   const [approval, setApproval] = useState<PendingApproval | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(enabled);
-  const [error, setError] = useState<unknown>(undefined);
+  const [fetchError, setFetchError] = useState<unknown>(undefined);
+  const [decideError, setDecideError] = useState<unknown>(undefined);
   const [isDeciding, setIsDeciding] = useState(false);
   const [decision, setDecision] = useState<ApprovalDecision | undefined>(undefined);
 
@@ -73,16 +77,26 @@ export function useTaskApproval({
   onErrorRef.current = onError;
   const approvalRef = useRef(approval);
   approvalRef.current = approval;
-  // Guards against stale results after a taskId change or unmount.
-  const generationRef = useRef(0);
+  const taskIdRef = useRef(taskId);
+  taskIdRef.current = taskId;
+  const decidingRef = useRef(false);
+  // Request sequence: an older overlapping fetch never overwrites a newer one.
+  const seqRef = useRef(0);
+  // The running effect's `load`, so refetch never re-subscribes.
+  const reloadRef = useRef<() => void>(() => {});
 
   const hasSubscribe = !!subscribe;
   const interval = pollIntervalMs ?? (hasSubscribe ? 0 : 3000);
 
-  const [fetchEpoch, setFetchEpoch] = useState(0);
-  const refetch = useCallback(() => setFetchEpoch((e) => e + 1), []);
-
   useEffect(() => {
+    // A different task starts clean.
+    setApproval(null);
+    setFetchError(undefined);
+    setDecideError(undefined);
+    setIsDeciding(false);
+    setDecision(undefined);
+    decidingRef.current = false;
+
     if (!enabled || !taskId) {
       setIsLoading(false);
       return;
@@ -91,69 +105,65 @@ export function useTaskApproval({
     let cancelled = false;
     let pollTimer: ReturnType<typeof setTimeout> | undefined;
     let unsubscribe: (() => void) | undefined;
-    const generation = ++generationRef.current;
 
     const load = async () => {
       if (pollTimer) clearTimeout(pollTimer);
+      const seq = ++seqRef.current;
       try {
         const next = await fetchRef.current(taskId);
-        if (cancelled || generation !== generationRef.current) return;
+        if (cancelled || seq !== seqRef.current) return;
         setApproval(next);
-        setError(undefined);
+        setFetchError(undefined);
       } catch (err) {
-        if (cancelled || generation !== generationRef.current) return;
-        setError(err);
+        if (cancelled || seq !== seqRef.current) return;
+        setFetchError(err);
         onErrorRef.current?.(err);
       } finally {
-        if (!cancelled && generation === generationRef.current) {
+        if (!cancelled && seq === seqRef.current) {
           setIsLoading(false);
           if (interval > 0) pollTimer = setTimeout(load, interval);
         }
       }
     };
 
+    reloadRef.current = () => void load();
     setIsLoading(true);
     void load();
-    if (subscribeRef.current) {
-      unsubscribe = subscribeRef.current(() => {
-        if (!cancelled) void load();
-      });
-    }
+    unsubscribe = subscribeRef.current?.(taskId, () => {
+      if (!cancelled) void load();
+    });
 
     return () => {
       cancelled = true;
+      reloadRef.current = () => {};
       if (pollTimer) clearTimeout(pollTimer);
       unsubscribe?.();
     };
-  }, [taskId, enabled, interval, hasSubscribe, fetchEpoch]);
+  }, [taskId, enabled, interval, hasSubscribe]);
 
-  // A different task starts clean.
-  useEffect(() => {
-    setApproval(null);
-    setError(undefined);
-    setIsDeciding(false);
-    setDecision(undefined);
-  }, [taskId]);
+  const refetch = useCallback(() => reloadRef.current(), []);
 
   const decide = useCallback(
     (next: ApprovalDecision) => {
       const current = approvalRef.current;
-      if (!current) return;
-      const generation = generationRef.current;
+      if (!current || decidingRef.current) return;
+      decidingRef.current = true;
       setDecision(next);
+      setDecideError(undefined);
       setIsDeciding(true);
       void (async () => {
         try {
           await decideRef.current({ taskId, approvalId: current.approvalId, decision: next });
-          if (generation === generationRef.current) setError(undefined);
         } catch (err) {
-          if (generation !== generationRef.current) return;
-          setError(err);
-          onErrorRef.current?.(err);
+          if (taskIdRef.current === taskId) {
+            setDecideError(err);
+            onErrorRef.current?.(err);
+          }
         } finally {
-          if (generation === generationRef.current) {
+          if (taskIdRef.current === taskId) {
+            decidingRef.current = false;
             setIsDeciding(false);
-            setFetchEpoch((e) => e + 1);
+            reloadRef.current();
           }
         }
       })();
@@ -161,5 +171,5 @@ export function useTaskApproval({
     [taskId],
   );
 
-  return { approval, isLoading, error, decide, isDeciding, decision, refetch };
+  return { approval, isLoading, error: decideError ?? fetchError, decide, isDeciding, decision, refetch };
 }

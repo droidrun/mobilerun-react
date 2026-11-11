@@ -105,13 +105,21 @@ Each delivery carries `X-Mobilerun-Timestamp` (Unix ms) and `X-Mobilerun-Signatu
 ### 2. Backend sketch
 
 ```ts
-// 1. Webhook: verify → push a change signal to the signed-in user's browser (SSE, WebSocket, ...)
+const ID = /^[A-Za-z0-9_-]+$/;
+
+// 1. Webhook: verify over the raw bytes → push a change signal to the signed-in user's browser (SSE, WebSocket, ...)
 app.post('/webhooks/mobilerun', async (c) => {
-  const raw = await c.req.text();
-  if (!verifyWebhookSignature({ secret, rawBody: raw, timestamp: c.req.header('X-Mobilerun-Timestamp'), signature: c.req.header('X-Mobilerun-Signature') })) {
-    return c.body(null, 401);
-  }
-  const event = JSON.parse(raw);
+  const secret = process.env.MOBILERUN_WEBHOOK_SECRET;
+  if (!secret) return c.json({ error: 'missing_webhook_secret' }, 500);
+  const bytes = new Uint8Array(await c.req.arrayBuffer());
+  const ok = verifyWebhookSignature({
+    secret,
+    rawBody: bytes,
+    timestamp: c.req.header('X-Mobilerun-Timestamp'),
+    signature: c.req.header('X-Mobilerun-Signature'),
+  });
+  if (!ok) return c.body(null, 401);
+  const event = JSON.parse(new TextDecoder().decode(bytes));
   if (event.type === 'task.run.approval_requested' || event.type === 'task.run.approval_resolved') {
     push({ taskId: event.data.taskId });
   }
@@ -120,19 +128,29 @@ app.post('/webhooks/mobilerun', async (c) => {
 
 // 2. Pending approval: GET /tasks/{id} → pendingApproval (null when none)
 app.get('/api/tasks/:id', async (c) => {
-  const task = await mobilerunGet(`/tasks/${c.req.param('id')}`);
+  const id = c.req.param('id');
+  if (!ID.test(id)) return c.json({ error: 'invalid_id' }, 400);
+  // Authenticate the caller and check the task belongs to their user/org first.
+  const task = await mobilerunGet(`/tasks/${encodeURIComponent(id)}`);
   return c.json({ pendingApproval: task.pendingApproval ?? null });
 });
 
 // 3. Decision: POST /tasks/{id}/approvals/{approvalId} { decision: 'approve' | 'deny' }
 app.post('/api/tasks/:id/approvals/:approvalId', async (c) => {
+  const id = c.req.param('id');
+  const approvalId = c.req.param('approvalId');
+  if (!ID.test(id) || !ID.test(approvalId)) return c.json({ error: 'invalid_id' }, 400);
   const { decision } = await c.req.json();
-  await mobilerunPost(`/tasks/${c.req.param('id')}/approvals/${c.req.param('approvalId')}`, { decision });
+  if (decision !== 'approve' && decision !== 'deny') return c.json({ error: 'invalid_decision' }, 422);
+  // Authenticate the caller and check the task belongs to their user/org first.
+  await mobilerunPost(`/tasks/${encodeURIComponent(id)}/approvals/${encodeURIComponent(approvalId)}`, { decision });
   return c.body(null, 204);
 });
 ```
 
-Authenticate and scope these routes to the signed-in user or organization. `bun run example` runs a working version of all three plus an SSE endpoint.
+Authenticate every route and check that the task belongs to the signed-in user or organization before forwarding. A delivery can be replayed within the 5-minute window; that is harmless here because events only trigger a refetch. Dedupe on the event `id` if your handler does more.
+
+`bun run example` runs a working version of all three plus an SSE endpoint. It is for local use only: it binds to `127.0.0.1` and its task and SSE routes are unauthenticated.
 
 ### 3. Client
 
@@ -144,12 +162,12 @@ export function Approval({ taskId }: { taskId: string }) {
   const { approval, decide, isDeciding, decision, error } = useTaskApproval({
     taskId,
     fetchApproval: async (id) => {
-      const res = await fetch(`/api/tasks/${id}`);
+      const res = await fetch(`/api/tasks/${encodeURIComponent(id)}`);
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       return ((await res.json()) as { pendingApproval: PendingApproval | null }).pendingApproval;
     },
     decide: async ({ taskId, approvalId, decision }) => {
-      const res = await fetch(`/api/tasks/${taskId}/approvals/${approvalId}`, {
+      const res = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/approvals/${encodeURIComponent(approvalId)}`, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ decision }),
@@ -157,8 +175,8 @@ export function Approval({ taskId }: { taskId: string }) {
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
     },
     // Optional push: reload when your backend signals a change. Without it the hook polls every 3 s.
-    subscribe: (onChange) => {
-      const source = new EventSource('/api/events');
+    subscribe: (taskId, onChange) => {
+      const source = new EventSource(`/api/events?taskId=${encodeURIComponent(taskId)}`);
       source.onmessage = onChange;
       return () => source.close();
     },
@@ -170,7 +188,7 @@ export function Approval({ taskId }: { taskId: string }) {
       onDecide={decide}
       isPending={isDeciding}
       decision={decision}
-      error={error ? String(error) : undefined}
+      error={error}
       // device={<DeviceStream … />}  // optional live device next to the details
     />
   );
@@ -181,23 +199,13 @@ export function Approval({ taskId }: { taskId: string }) {
 
 ### Labels and i18n
 
-Every user-visible string can be replaced through the `labels` prop. `{time}` in `timeLeft` is replaced with the remaining time.
+Every user-visible string can be replaced through the `labels` prop; see `TaskApprovalLabels` for all keys. `{time}` in `timeLeft` is replaced with the remaining time.
 
 ```tsx
 <TaskApproval
   approval={approval}
   onDecide={decide}
-  labels={{
-    paymentCardTitle: 'Zahlungskarte bestätigen',
-    waiting: 'Warte auf Freigabe',
-    card: 'Karte',
-    app: 'App',
-    domain: 'Domain',
-    timeLeft: 'Noch {time}',
-    expired: 'Freigabe abgelaufen',
-    approve: 'Freigeben',
-    deny: 'Ablehnen',
-  }}
+  labels={{ approve: 'Freigeben', deny: 'Ablehnen', timeLeft: 'Noch {time}' }}
 />
 ```
 
@@ -210,7 +218,7 @@ bun install
 bun run example     # serves the playground at http://localhost:3000
 ```
 
-In SDK mode the example server exposes one narrow helper endpoint backed by `@mobilerun/sdk` so the API key can stay server-side while retrieving `streamUrl` and `streamToken`. The stream WebSocket itself is opened directly by the browser against `streamUrl`; the component appends `streamToken` as `?token=`. The same server also demonstrates [task approvals](#-task-approvals) (set `MOBILERUN_WEBHOOK_SECRET` for the webhook route).
+In SDK mode the example server exposes one narrow helper endpoint backed by `@mobilerun/sdk` so the API key can stay server-side while retrieving `streamUrl` and `streamToken`. The stream WebSocket itself is opened directly by the browser against `streamUrl`; the component appends `streamToken` as `?token=`. The same server also demonstrates [task approvals](#-task-approvals) (set `MOBILERUN_WEBHOOK_SECRET` for the webhook route). The server binds to `127.0.0.1` and its task and SSE routes are unauthenticated by design. If you need webhooks delivered to your machine, expose only `/webhooks/mobilerun` (for example through a tunnel that forwards just that path), never the whole server.
 
 ## 🎨 Styling & theming
 

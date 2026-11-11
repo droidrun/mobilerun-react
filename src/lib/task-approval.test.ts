@@ -22,7 +22,10 @@ describe('parsePaymentCardDetails', () => {
     expect(parsePaymentCardDetails({ label: 'x' })).toBeUndefined();
     expect(parsePaymentCardDetails({ targetPackage: 'com.shop' })).toBeUndefined();
     expect(parsePaymentCardDetails({ label: 1, targetPackage: 'a' })).toBeUndefined();
-    expect(parsePaymentCardDetails({ label: 'x', targetPackage: 'a', targetHost: 3 })).toBeUndefined();
+    expect(parsePaymentCardDetails({ label: 'x', targetPackage: 'a', targetHost: 3 })).toEqual({
+      card: 'x',
+      targetPackage: 'a',
+    });
     expect(parsePaymentCardDetails(null)).toBeUndefined();
     expect(parsePaymentCardDetails('card')).toBeUndefined();
   });
@@ -31,9 +34,9 @@ describe('parsePaymentCardDetails', () => {
 describe('remaining time', () => {
   const at = '2026-01-01T00:10:00.000Z';
   const base = Date.parse(at);
-  test('remainingMs clamps at zero and tolerates bad dates', () => {
+  test('remainingMs is negative once past and tolerates bad dates', () => {
     expect(remainingMs(at, base - 5000)).toBe(5000);
-    expect(remainingMs(at, base + 1)).toBe(0);
+    expect(remainingMs(at, base + 1)).toBe(-1);
     expect(remainingMs('nope', base)).toBe(0);
   });
   test('formatRemaining', () => {

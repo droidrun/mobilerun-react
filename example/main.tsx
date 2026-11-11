@@ -264,8 +264,7 @@ async function readError(res: Response): Promise<Error> {
 async function fetchApproval(taskId: string): Promise<PendingApproval | null> {
   const res = await fetch(`/api/v1/tasks/${encodeURIComponent(taskId)}`);
   if (!res.ok) throw await readError(res);
-  const task = (await res.json()) as { status?: string; pendingApproval?: PendingApproval | null };
-  return task.pendingApproval ?? null;
+  return ((await res.json()) as { pendingApproval?: PendingApproval | null }).pendingApproval ?? null;
 }
 
 async function sendDecision(input: { taskId: string; approvalId: string; decision: ApprovalDecision }) {
@@ -277,45 +276,46 @@ async function sendDecision(input: { taskId: string; approvalId: string; decisio
 }
 
 /** The webhook handler pushes a change signal over SSE; the hook then reloads. */
-function subscribeApprovalEvents(taskId: string) {
-  return (onChange: () => void) => {
-    const source = new EventSource('/api/v1/events');
-    source.onmessage = (e) => {
-      try {
-        if ((JSON.parse(e.data) as { taskId?: string }).taskId === taskId) onChange();
-      } catch {
-        // ignore malformed events
-      }
-    };
-    return () => source.close();
+function subscribeApprovalEvents(taskId: string, onChange: () => void) {
+  const source = new EventSource('/api/v1/events');
+  source.onmessage = (e) => {
+    try {
+      if ((JSON.parse(e.data) as { taskId?: string }).taskId === taskId) onChange();
+    } catch {
+      // ignore malformed events
+    }
   };
+  return () => source.close();
 }
 
+// Stable reference so SdkStream's status effect doesn't re-run on every render.
+const noopStatus = () => {};
+
 function ApprovalPanel({ taskId }: { taskId: string }) {
-  const subscribe = useMemo(() => subscribeApprovalEvents(taskId), [taskId]);
   const { approval, isLoading, error, decide, isDeciding, decision } = useTaskApproval({
     taskId,
     fetchApproval,
     decide: sendDecision,
-    subscribe,
+    subscribe: subscribeApprovalEvents,
     pollIntervalMs: 15000, // safety net next to the SSE push
   });
-  const message = error ? (error as { message?: string }).message ?? String(error) : undefined;
   return (
     <>
       {!approval && (
-        <div className="status">
-          <span className={`dot ${message ? 'err' : 'idle'}`} />
-          <strong>{isLoading ? 'loading…' : 'no pending approval'}</strong>
-        </div>
+        <>
+          <div className="status">
+            <span className={`dot ${error ? 'err' : 'idle'}`} />
+            <strong>{isLoading ? 'loading…' : 'no pending approval'}</strong>
+          </div>
+          {error ? <div className="err-text">{error instanceof Error ? error.message : String(error)}</div> : null}
+        </>
       )}
-      {!approval && message ? <div className="err-text">{message}</div> : null}
       <TaskApproval
         approval={approval}
         onDecide={decide}
         isPending={isDeciding}
         decision={decision}
-        error={approval ? message : undefined}
+        error={approval ? error : undefined}
         device={
           approval?.deviceId ? (
             <div className="approval-device">
@@ -325,7 +325,7 @@ function ApprovalPanel({ taskId }: { taskId: string }) {
                 deviceId={approval.deviceId}
                 hasControl={false}
                 muted
-                onStatus={() => {}}
+                onStatus={noopStatus}
               />
             </div>
           ) : undefined

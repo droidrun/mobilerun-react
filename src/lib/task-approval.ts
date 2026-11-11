@@ -26,32 +26,29 @@ export interface PaymentCardDetails {
   targetHost?: string;
 }
 
-function optionalString(value: unknown): string | undefined | null {
-  if (value === undefined || value === null) return undefined;
-  return typeof value === 'string' ? value : null;
-}
+const str = (v: unknown) => (typeof v === 'string' && v ? v : undefined);
 
-/** Plain type guard for `payment_card` details. Returns undefined when invalid. */
+/**
+ * Plain type guard for `payment_card` details. Returns undefined when invalid.
+ * Wrong-typed optional fields count as absent.
+ */
 export function parsePaymentCardDetails(details: unknown): PaymentCardDetails | undefined {
   if (typeof details !== 'object' || details === null) return undefined;
   const d = details as Record<string, unknown>;
-  const label = optionalString(d.label);
-  const credentialName = optionalString(d.credentialName);
-  const targetHost = optionalString(d.targetHost);
-  if (label === null || credentialName === null || targetHost === null) return undefined;
-  if (typeof d.targetPackage !== 'string') return undefined;
-  const card = label ?? credentialName;
-  if (!card) return undefined;
-  return { card, targetPackage: d.targetPackage, ...(targetHost ? { targetHost } : {}) };
+  const targetPackage = str(d.targetPackage);
+  const card = str(d.label) ?? str(d.credentialName);
+  if (!targetPackage || !card) return undefined;
+  const targetHost = str(d.targetHost);
+  return { card, targetPackage, ...(targetHost ? { targetHost } : {}) };
 }
 
-/** Milliseconds until `expiresAt` (never negative); 0 when unparsable. Display only. */
+/** Milliseconds until `expiresAt` (negative once past); 0 when unparsable. Display only. */
 export function remainingMs(expiresAt: string, nowMs: number): number {
   const at = Date.parse(expiresAt);
-  return Number.isNaN(at) ? 0 : Math.max(0, at - nowMs);
+  return Number.isNaN(at) ? 0 : at - nowMs;
 }
 
-/** `m:ss`, or `h:mm:ss` from one hour up. */
+/** `m:ss`, or `h:mm:ss` from one hour up. Clamps at zero. */
 export function formatRemaining(ms: number): string {
   const total = Math.max(0, Math.ceil(ms / 1000));
   const h = Math.floor(total / 3600);

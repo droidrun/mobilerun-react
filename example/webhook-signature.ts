@@ -9,18 +9,20 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 
 export const WEBHOOK_MAX_DRIFT_MS = 5 * 60 * 1000;
 
-export function signWebhook(secret: string, timestamp: string, rawBody: string): string {
-  return `sha256=${createHmac('sha256', secret).update(`${timestamp}.${rawBody}`).digest('hex')}`;
+export function signWebhook(secret: string, timestamp: string, rawBody: string | Uint8Array): string {
+  return `sha256=${createHmac('sha256', secret).update(timestamp).update('.').update(rawBody).digest('hex')}`;
 }
 
 export function verifyWebhookSignature(input: {
   secret: string;
   timestamp: string | null | undefined;
   signature: string | null | undefined;
-  rawBody: string;
+  /** The request body exactly as received. */
+  rawBody: string | Uint8Array;
   nowMs?: number;
 }): boolean {
   const { secret, timestamp, signature, rawBody, nowMs = Date.now() } = input;
+  if (!secret) return false;
   if (!timestamp || !signature || !signature.startsWith('sha256=')) return false;
   if (!/^\d+$/.test(timestamp)) return false;
   if (Math.abs(nowMs - Number(timestamp)) > WEBHOOK_MAX_DRIFT_MS) return false;
