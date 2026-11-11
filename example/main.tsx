@@ -264,7 +264,8 @@ async function readError(res: Response): Promise<Error> {
 async function fetchApproval(taskId: string): Promise<PendingApproval | null> {
   const res = await fetch(`/api/v1/tasks/${encodeURIComponent(taskId)}`);
   if (!res.ok) throw await readError(res);
-  return ((await res.json()) as { pendingApproval?: PendingApproval | null }).pendingApproval ?? null;
+  const task = (await res.json()) as { pendingApproval?: PendingApproval | null };
+  return task.pendingApproval ?? null;
 }
 
 async function sendDecision(input: { taskId: string; approvalId: string; decision: ApprovalDecision }) {
@@ -307,7 +308,7 @@ function ApprovalPanel({ taskId }: { taskId: string }) {
             <span className={`dot ${error ? 'err' : 'idle'}`} />
             <strong>{isLoading ? 'loading…' : 'no pending approval'}</strong>
           </div>
-          {error ? <div className="err-text">{error instanceof Error ? error.message : String(error)}</div> : null}
+          {error instanceof Error && <div className="err-text">{error.message}</div>}
         </>
       )}
       <TaskApproval
@@ -315,7 +316,7 @@ function ApprovalPanel({ taskId }: { taskId: string }) {
         onDecide={decide}
         isPending={isDeciding}
         decision={decision}
-        error={approval ? error : undefined}
+        error={error}
         device={
           approval?.deviceId ? (
             <div className="approval-device">

@@ -69,6 +69,7 @@ const MAX_WEBHOOK_BODY_BYTES = 1024 * 1024;
 /** Maps an upstream API error to a response, passing 4xx/5xx through (404/409 let the UI refetch). */
 function upstreamFailure(c: Context, error: string, err: unknown) {
   const { status, message } = err as { status?: number; message?: string };
+  console.error(`✗ ${error}`, JSON.stringify(c.req.param()), message ?? String(err));
   const code = (status && status >= 400 && status < 600 ? status : 502) as ContentfulStatusCode;
   return c.json({ error, detail: message ?? String(err) }, code);
 }
@@ -86,7 +87,6 @@ app.get('/api/v1/tasks/:taskId', async (c) => {
     const task = await client.get<{ pendingApproval?: unknown }>(`/tasks/${encodeURIComponent(taskId)}`);
     return c.json({ pendingApproval: task.pendingApproval ?? null });
   } catch (err) {
-    console.error(`✗ task retrieve ${JSON.stringify(taskId)} failed:`, (err as Error).message ?? String(err));
     return upstreamFailure(c, 'task_retrieve_failed', err);
   }
 });
@@ -111,10 +111,6 @@ app.post('/api/v1/tasks/:taskId/approvals/:approvalId', async (c) => {
     });
     return c.body(null, 204);
   } catch (err) {
-    console.error(
-      `✗ approval decide ${JSON.stringify(taskId)}/${JSON.stringify(approvalId)} failed:`,
-      (err as Error).message ?? String(err),
-    );
     return upstreamFailure(c, 'approval_decide_failed', err);
   }
 });
@@ -147,7 +143,6 @@ app.post('/webhooks/mobilerun', async (c) => {
   }
   // Raw bytes exactly as received; verify before parsing.
   const bytes = new Uint8Array(await c.req.arrayBuffer());
-  if (bytes.length > MAX_WEBHOOK_BODY_BYTES) return c.json({ error: 'payload_too_large' }, 413);
   const ok = verifyWebhookSignature({
     secret: WEBHOOK_SECRET,
     timestamp: c.req.header('X-Mobilerun-Timestamp'),

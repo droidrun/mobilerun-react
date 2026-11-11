@@ -107,7 +107,7 @@ Each delivery carries `X-Mobilerun-Timestamp` (Unix ms) and `X-Mobilerun-Signatu
 ```ts
 const ID = /^[A-Za-z0-9_-]+$/;
 
-// 1. Webhook: verify over the raw bytes → push a change signal to the signed-in user's browser (SSE, WebSocket, ...)
+// 1. Webhook: verify the raw bytes, then push a change signal to the user's browser (SSE, ...)
 app.post('/webhooks/mobilerun', async (c) => {
   const secret = process.env.MOBILERUN_WEBHOOK_SECRET;
   if (!secret) return c.json({ error: 'missing_webhook_secret' }, 500);
@@ -143,7 +143,8 @@ app.post('/api/tasks/:id/approvals/:approvalId', async (c) => {
   const { decision } = await c.req.json();
   if (decision !== 'approve' && decision !== 'deny') return c.json({ error: 'invalid_decision' }, 422);
   // Authenticate the caller and check the task belongs to their user/org first.
-  await mobilerunPost(`/tasks/${encodeURIComponent(id)}/approvals/${encodeURIComponent(approvalId)}`, { decision });
+  const url = `/tasks/${encodeURIComponent(id)}/approvals/${encodeURIComponent(approvalId)}`;
+  await mobilerunPost(url, { decision });
   return c.body(null, 204);
 });
 ```
@@ -167,7 +168,8 @@ export function Approval({ taskId }: { taskId: string }) {
       return ((await res.json()) as { pendingApproval: PendingApproval | null }).pendingApproval;
     },
     decide: async ({ taskId, approvalId, decision }) => {
-      const res = await fetch(`/api/tasks/${encodeURIComponent(taskId)}/approvals/${encodeURIComponent(approvalId)}`, {
+      const url = `/api/tasks/${encodeURIComponent(taskId)}/approvals/${encodeURIComponent(approvalId)}`;
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ decision }),

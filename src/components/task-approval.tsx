@@ -139,7 +139,7 @@ export function TaskApproval({
               {card.targetHost && <ApprovalFact icon={Globe} label={t.domain} value={card.targetHost} />}
             </dl>
           )}
-          {error != null && error !== '' && (
+          {!!error && (
             <p role="alert" className="break-words text-sm text-red-600">
               {error instanceof Error ? error.message : String(error)}
             </p>

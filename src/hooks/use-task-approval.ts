@@ -80,8 +80,6 @@ export function useTaskApproval({
   const taskIdRef = useRef(taskId);
   taskIdRef.current = taskId;
   const decidingRef = useRef(false);
-  // Request sequence: an older overlapping fetch never overwrites a newer one.
-  const seqRef = useRef(0);
   // The running effect's `load`, so refetch never re-subscribes.
   const reloadRef = useRef<() => void>(() => {});
 
@@ -89,13 +87,16 @@ export function useTaskApproval({
   const interval = pollIntervalMs ?? (hasSubscribe ? 0 : 3000);
 
   useEffect(() => {
-    // A different task starts clean.
-    setApproval(null);
-    setFetchError(undefined);
+    // A different task starts with a clean decide state.
     setDecideError(undefined);
     setIsDeciding(false);
     setDecision(undefined);
     decidingRef.current = false;
+  }, [taskId]);
+
+  useEffect(() => {
+    setApproval(null);
+    setFetchError(undefined);
 
     if (!enabled || !taskId) {
       setIsLoading(false);
@@ -104,22 +105,24 @@ export function useTaskApproval({
 
     let cancelled = false;
     let pollTimer: ReturnType<typeof setTimeout> | undefined;
-    let unsubscribe: (() => void) | undefined;
+    // An older overlapping fetch never overwrites a newer one.
+    let latest = 0;
 
     const load = async () => {
       if (pollTimer) clearTimeout(pollTimer);
-      const seq = ++seqRef.current;
+      const seq = ++latest;
+      const isCurrent = () => !cancelled && seq === latest;
       try {
         const next = await fetchRef.current(taskId);
-        if (cancelled || seq !== seqRef.current) return;
+        if (!isCurrent()) return;
         setApproval(next);
         setFetchError(undefined);
       } catch (err) {
-        if (cancelled || seq !== seqRef.current) return;
+        if (!isCurrent()) return;
         setFetchError(err);
         onErrorRef.current?.(err);
       } finally {
-        if (!cancelled && seq === seqRef.current) {
+        if (isCurrent()) {
           setIsLoading(false);
           if (interval > 0) pollTimer = setTimeout(load, interval);
         }
@@ -129,7 +132,7 @@ export function useTaskApproval({
     reloadRef.current = () => void load();
     setIsLoading(true);
     void load();
-    unsubscribe = subscribeRef.current?.(taskId, () => {
+    const unsubscribe = subscribeRef.current?.(taskId, () => {
       if (!cancelled) void load();
     });
 
@@ -152,20 +155,20 @@ export function useTaskApproval({
       setDecideError(undefined);
       setIsDeciding(true);
       void (async () => {
+        let failure: unknown;
         try {
           await decideRef.current({ taskId, approvalId: current.approvalId, decision: next });
         } catch (err) {
-          if (taskIdRef.current === taskId) {
-            setDecideError(err);
-            onErrorRef.current?.(err);
-          }
-        } finally {
-          if (taskIdRef.current === taskId) {
-            decidingRef.current = false;
-            setIsDeciding(false);
-            reloadRef.current();
-          }
+          failure = err;
         }
+        if (taskIdRef.current !== taskId) return;
+        decidingRef.current = false;
+        setIsDeciding(false);
+        if (failure !== undefined) {
+          setDecideError(failure);
+          onErrorRef.current?.(failure);
+        }
+        reloadRef.current();
       })();
     },
     [taskId],
