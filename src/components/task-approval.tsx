@@ -169,6 +169,7 @@ function ApprovalCard({
             <Button
               type="button"
               variant={mobileView === 'details' ? 'default' : 'outline'}
+              className={mobileView === 'details' ? undefined : 'text-foreground'}
               aria-pressed={mobileView === 'details'}
               onClick={() => setMobileView('details')}
             >
@@ -178,6 +179,7 @@ function ApprovalCard({
             <Button
               type="button"
               variant={mobileView === 'device' ? 'default' : 'outline'}
+              className={mobileView === 'device' ? undefined : 'text-foreground'}
               aria-pressed={mobileView === 'device'}
               onClick={() => setMobileView('device')}
             >
@@ -207,7 +209,7 @@ function ApprovalCard({
                 {isPending && decision === 'approve' ? <Loader2 className="animate-spin" aria-hidden /> : <Check aria-hidden />}
                 {t.approve}
               </Button>
-              <Button type="button" variant="outline" onClick={() => onDecide('deny')} disabled={isPending}>
+              <Button type="button" variant="outline" className="text-foreground" onClick={() => onDecide('deny')} disabled={isPending}>
                 {isPending && decision === 'deny' ? <Loader2 className="animate-spin" aria-hidden /> : <X aria-hidden />}
                 {t.deny}
               </Button>
