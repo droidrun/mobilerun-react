@@ -45,7 +45,7 @@ export interface TaskApprovalLabels {
 }
 
 const DEFAULT_LABELS: TaskApprovalLabels = {
-  paymentCardTitle: 'Approve payment card',
+  paymentCardTitle: 'Approve payment',
   waiting: 'Waiting for approval',
   card: 'Card',
   app: 'App',
@@ -198,7 +198,7 @@ function ApprovalCard({
           </div>
           <div className="mt-auto flex flex-col gap-4 max-md:order-last">
             {!!error && (
-              <p role="alert" className="break-words text-sm text-red-600">
+              <p role="alert" className="break-words text-sm text-destructive">
                 {error instanceof Error ? error.message : String(error)}
               </p>
             )}

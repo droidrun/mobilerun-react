@@ -48,12 +48,12 @@ export function remainingMs(expiresAt: string, nowMs: number): number {
   return Number.isNaN(at) ? 0 : at - nowMs;
 }
 
-/** `m:ss`, or `h:mm:ss` from one hour up. Clamps at zero. */
+/** `4m 58s`, `1h 2m 3s` from one hour up (minutes and seconds always shown), `45s` below a minute. Clamps at zero. */
 export function formatRemaining(ms: number): string {
   const total = Math.max(0, Math.ceil(ms / 1000));
   const h = Math.floor(total / 3600);
   const m = Math.floor((total % 3600) / 60);
   const s = total % 60;
-  const ss = String(s).padStart(2, '0');
-  return h > 0 ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+  if (h > 0) return `${h}h ${m}m ${s}s`;
+  return m > 0 ? `${m}m ${s}s` : `${s}s`;
 }

@@ -38,6 +38,7 @@
   --color-primary-foreground: var(--primary-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
 }
 
 /* Default token values (light). Override on the host's :root to retheme. */
@@ -54,6 +55,7 @@
   --primary-foreground: oklch(0.985 0 0);
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
+  --destructive: oklch(0.577 0.245 27.325);
 }
 
 .dark {
@@ -69,6 +71,7 @@
   --primary-foreground: oklch(0.205 0 0);
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.704 0.191 22.216);
 }
 
 /* ---- Structural component CSS (not utility-based) ---- */

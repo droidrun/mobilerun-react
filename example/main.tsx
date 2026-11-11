@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Mobilerun from '@mobilerun/sdk';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 
 // Import straight from source so Bun transpiles + HMRs the package as you edit.
@@ -141,6 +141,10 @@ const HARNESS_CSS = `
   }
   .phone-stage { flex: 1; min-height: 0; position: relative; }
   /* nav bar top seam: hairline highlight against the black screen */
+  .sheet-backdrop { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; background: rgba(0,0,0,.45); }
+  .sheet { width: 100%; max-height: 92vh; overflow-y: auto; padding: 8px; border-radius: 24px 24px 0 0; background: var(--background); animation: sheet-up .35s cubic-bezier(.2,.7,.2,1); }
+  @keyframes sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+  @media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
   .approval-device { height: 100%; display: flex; justify-content: center; }
   .approval-device .phone { height: 100%; width: auto; max-width: 100%; }
   .device-nav { border-top: none !important; box-shadow: inset 0 0.5px 0 rgba(255,255,255,.06); }
@@ -293,6 +297,18 @@ function subscribeApprovalEvents(taskId: string, onChange: () => void) {
 // Stable reference so SdkStream's status effect doesn't re-run on every render.
 const noopStatus = () => {};
 
+function useIsMobile() {
+  const query = '(max-width: 767px)';
+  const [mobile, setMobile] = useState(() => window.matchMedia(query).matches);
+  useEffect(() => {
+    const mq = window.matchMedia(query);
+    const onChange = () => setMobile(mq.matches);
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+  return mobile;
+}
+
 function ApprovalPanel({ taskId }: { taskId: string }) {
   const { approval, isLoading, error, decide, isDeciding, decision } = useTaskApproval({
     taskId,
@@ -301,6 +317,30 @@ function ApprovalPanel({ taskId }: { taskId: string }) {
     subscribe: subscribeApprovalEvents,
     pollIntervalMs: 15000, // safety net next to the SSE push
   });
+  const isMobile = useIsMobile();
+  const taskApproval = (
+    <TaskApproval
+      approval={approval}
+      onDecide={decide}
+      isPending={isDeciding}
+      decision={decision}
+      error={error}
+      device={
+        approval?.deviceId ? (
+          <div className="approval-device">
+            <SdkStream
+              apiKey=""
+              baseURL={`${window.location.origin}/api/v1`}
+              deviceId={approval.deviceId}
+              hasControl={false}
+              muted
+              onStatus={noopStatus}
+            />
+          </div>
+        ) : undefined
+      }
+    />
+  );
   return (
     <>
       {!approval && (
@@ -312,27 +352,20 @@ function ApprovalPanel({ taskId }: { taskId: string }) {
           {error instanceof Error && <div className="err-text">{error.message}</div>}
         </>
       )}
-      <TaskApproval
-        approval={approval}
-        onDecide={decide}
-        isPending={isDeciding}
-        decision={decision}
-        error={error}
-        device={
-          approval?.deviceId ? (
-            <div className="approval-device">
-              <SdkStream
-                apiKey=""
-                baseURL={`${window.location.origin}/api/v1`}
-                deviceId={approval.deviceId}
-                hasControl={false}
-                muted
-                onStatus={noopStatus}
-              />
-            </div>
-          ) : undefined
-        }
-      />
+      {approval && isMobile ? (
+        <div className="sheet-backdrop">
+          <div
+            className="sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label={approval.kind === 'payment_card' ? 'Approve payment' : 'Waiting for approval'}
+          >
+            {taskApproval}
+          </div>
+        </div>
+      ) : (
+        taskApproval
+      )}
     </>
   );
 }

@@ -40,10 +40,13 @@ describe('remaining time', () => {
     expect(remainingMs('nope', base)).toBe(0);
   });
   test('formatRemaining', () => {
-    expect(formatRemaining(0)).toBe('0:00');
-    expect(formatRemaining(61_000)).toBe('1:01');
-    expect(formatRemaining(59_001)).toBe('1:00');
-    expect(formatRemaining(3_725_000)).toBe('1:02:05');
-    expect(formatRemaining(-5)).toBe('0:00');
+    expect(formatRemaining(0)).toBe('0s');
+    expect(formatRemaining(61_000)).toBe('1m 1s');
+    expect(formatRemaining(59_001)).toBe('1m 0s');
+    expect(formatRemaining(3_725_000)).toBe('1h 2m 5s');
+    expect(formatRemaining(298_000)).toBe('4m 58s');
+    expect(formatRemaining(45_000)).toBe('45s');
+    expect(formatRemaining(3_600_000)).toBe('1h 0m 0s');
+    expect(formatRemaining(-5)).toBe('0s');
   });
 });

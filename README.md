@@ -199,6 +199,29 @@ export function Approval({ taskId }: { taskId: string }) {
 
 `<TaskApproval />` renders an inline card (wrap it in your own dialog if you want one) and nothing when `approval` is `null`. When you pass `device`, the card shows it next to the details from `md` up; below `md` a Details/Device switch toggles between the two while the device stays mounted, so a live stream never reconnects. The device slot has a fixed height and clips overflow, so the device element should fill it (`height: 100%`). For an unknown `kind` or unexpected `details` it shows a generic "Waiting for approval" body with the same buttons.
 
+### Show it as a bottom sheet
+
+The host owns the sheet or dialog; the library ships only the card. Render `<TaskApproval>` inside your own wrapper while `approval` is non-null, for example below `md`:
+
+```tsx
+{approval && (
+  <div className="sheet-backdrop">
+    <div className="sheet" role="dialog" aria-modal="true" aria-label="Approve payment">
+      <TaskApproval approval={approval} onDecide={decide} />
+    </div>
+  </div>
+)}
+```
+
+```css
+.sheet-backdrop { position: fixed; inset: 0; display: flex; align-items: flex-end; background: rgba(0,0,0,.45); }
+.sheet { width: 100%; max-height: 92vh; overflow-y: auto; border-radius: 24px 24px 0 0; animation: sheet-up .35s cubic-bezier(.2,.7,.2,1); }
+@keyframes sheet-up { from { transform: translateY(100%); } }
+@media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+```
+
+For dark mode put `.dark` on any ancestor, or override the CSS variables (`--background`, `--card`, `--destructive`, …).
+
 ### Labels and i18n
 
 Every user-visible string can be replaced through the `labels` prop; see `TaskApprovalLabels` for all keys. `{time}` in `timeLeft` is replaced with the remaining time.
