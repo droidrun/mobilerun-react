@@ -197,7 +197,7 @@ export function Approval({ taskId }: { taskId: string }) {
 }
 ```
 
-`<TaskApproval />` renders an inline card (wrap it in your own dialog if you want one) and nothing when `approval` is `null`. For an unknown `kind` or unexpected `details` it shows a generic "Waiting for approval" body with the same buttons.
+`<TaskApproval />` renders an inline card (wrap it in your own dialog if you want one) and nothing when `approval` is `null`. When you pass `device`, the card shows it next to the details from `md` up; below `md` a Details/Device switch toggles between the two while the device stays mounted, so a live stream never reconnects. For an unknown `kind` or unexpected `details` it shows a generic "Waiting for approval" body with the same buttons.
 
 ### Labels and i18n
 
