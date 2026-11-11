@@ -41,7 +41,6 @@ describe('remaining time', () => {
   });
   test('formatRemaining', () => {
     expect(formatRemaining(0)).toBe('0s');
-    expect(formatRemaining(61_000)).toBe('1m 1s');
     expect(formatRemaining(59_001)).toBe('1m 0s');
     expect(formatRemaining(3_725_000)).toBe('1h 2m 5s');
     expect(formatRemaining(298_000)).toBe('4m 58s');

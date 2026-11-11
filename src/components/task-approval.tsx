@@ -154,7 +154,7 @@ function ApprovalCard({
   return (
     <section
       aria-label={title}
-      className={cn('flex w-full flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground sm:p-6', className)}
+      className={cn('flex w-full flex-col gap-4 rounded-xl border border-border bg-card p-4 text-card-foreground sm:p-6', className)}
     >
       <header className="flex flex-col gap-2">
         <h3 className="text-base font-semibold">{title}</h3>
@@ -189,7 +189,7 @@ function ApprovalCard({
         <div className="flex min-w-0 flex-col gap-4 max-md:contents">
           <div className="max-md:group-data-[mobile-view=device]/approval:hidden">
             {card && (
-              <dl className="divide-y rounded-lg border">
+              <dl className="divide-y divide-border rounded-lg border border-border">
                 <ApprovalFact icon={CreditCard} label={t.card} value={card.card} />
                 <ApprovalFact icon={AppWindow} label={t.app} value={card.targetPackage} />
                 {card.targetHost && <ApprovalFact icon={Globe} label={t.domain} value={card.targetHost} />}

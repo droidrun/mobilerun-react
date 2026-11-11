@@ -48,7 +48,7 @@ export function remainingMs(expiresAt: string, nowMs: number): number {
   return Number.isNaN(at) ? 0 : at - nowMs;
 }
 
-/** `4m 58s`, `1h 2m 3s` from one hour up (minutes and seconds always shown), `45s` below a minute. Clamps at zero. */
+/** "4m 58s"; "1h 2m 3s" from one hour up (m and s always shown); "45s" under a minute. Clamps at 0. */
 export function formatRemaining(ms: number): string {
   const total = Math.max(0, Math.ceil(ms / 1000));
   const h = Math.floor(total / 3600);
