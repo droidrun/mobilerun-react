@@ -13,13 +13,16 @@ import type { Mobilerun } from '@mobilerun/sdk';
 type SdkDevice = Awaited<ReturnType<Mobilerun['devices']['retrieve']>>;
 
 /**
- * The part of an `@mobilerun/sdk` device object (`sdk.devices.get(id)`) this hook
- * needs. Structural on purpose, so it also works with SDK versions that predate
- * the object API.
+ * The part of an `@mobilerun/sdk` device object (`sdk.devices.get(id)`) this
+ * hook needs. Structural so these types compile against `@mobilerun/sdk` < 6.2,
+ * which has no `Device` export.
  */
 export interface SdkDeviceHandle {
   id: string;
-  /** Identifies the client behind the handle; with `id` it keys the effect so a fresh handle per render does not refetch. */
+  /**
+   * The client behind the handle. With `id` it keys the effect, so a fresh
+   * handle per render does not refetch.
+   */
   api?: unknown;
   /** Re-fetches the device and resolves with its current info. */
   refresh(): PromiseLike<SdkDevice>;
@@ -37,32 +40,20 @@ interface UseDeviceStreamBase {
   onError?: (error: unknown) => void;
 }
 
-/** Pass either a configured `Mobilerun` client plus `deviceId`, or an SDK device object. */
-export type UseDeviceStreamOptions = UseDeviceStreamBase &
-  (
-    | {
-        /** A configured `@mobilerun/sdk` client instance. */
-        client: Mobilerun;
-        /** The device to stream. */
-        deviceId: string;
-        device?: undefined;
-      }
-    | {
-        /** A device object from `sdk.devices.get(id)` (`@mobilerun/sdk` 6.2+). */
-        device: SdkDeviceHandle;
-        client?: undefined;
-        deviceId?: undefined;
-      }
-  );
+/** Options for a configured `Mobilerun` client plus a device id. */
+export interface UseDeviceStreamOptions extends UseDeviceStreamBase {
+  /** A configured `@mobilerun/sdk` client instance. */
+  client: Mobilerun;
+  /** The device to stream. */
+  deviceId: string;
+  device?: undefined;
+}
 
-/** Fetches the device's current info from whichever source the caller passed. */
-export function fetchDeviceInfo(source: {
-  client?: Mobilerun;
-  deviceId?: string;
-  device?: SdkDeviceHandle;
-}): PromiseLike<SdkDevice> {
-  if (source.device) return source.device.refresh();
-  return source.client!.devices.retrieve(source.deviceId!);
+/** Options for an SDK device object from `sdk.devices.get(id)` (SDK 6.2+). */
+export interface UseDeviceStreamDeviceOptions extends UseDeviceStreamBase {
+  device: SdkDeviceHandle;
+  client?: undefined;
+  deviceId?: undefined;
 }
 
 export interface UseDeviceStreamResult {
@@ -112,25 +103,23 @@ export function useDeviceStream({
   enabled = true,
   pollIntervalMs = 3000,
   onError,
-}: UseDeviceStreamOptions): UseDeviceStreamResult {
+}: UseDeviceStreamOptions | UseDeviceStreamDeviceOptions): UseDeviceStreamResult {
   const [device, setDevice] = useState<SdkDevice | undefined>(undefined);
   const [isLoading, setIsLoading] = useState<boolean>(enabled);
   const [error, setError] = useState<unknown>(undefined);
 
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
-  // Latest handle, read by load(); the effect is keyed by id/api, not identity.
-  const deviceHandleRef = useRef(deviceHandle);
-  deviceHandleRef.current = deviceHandle;
-  const handleId = deviceHandle?.id;
-  const handleApi = deviceHandle?.api;
+  // Keyed by id + client, not handle identity: a fresh handle per render is fine.
+  const targetId = deviceHandle?.id ?? deviceId;
+  const source = deviceHandle?.api ?? client;
 
   // Bumping this triggers a re-fetch without changing the polling cadence.
   const [fetchEpoch, setFetchEpoch] = useState(0);
   const refetch = useCallback(() => setFetchEpoch((e) => e + 1), []);
 
   useEffect(() => {
-    if (!enabled || !(handleId || (client && deviceId))) {
+    if (!enabled || !targetId) {
       setIsLoading(false);
       return;
     }
@@ -140,7 +129,7 @@ export function useDeviceStream({
 
     const load = async () => {
       try {
-        const next = await fetchDeviceInfo({ client, deviceId, device: deviceHandleRef.current });
+        const next = await (deviceHandle ? deviceHandle.refresh() : client!.devices.retrieve(targetId!));
         if (cancelled) return;
         setDevice(next);
         setError(undefined);
@@ -164,7 +153,7 @@ export function useDeviceStream({
       cancelled = true;
       if (pollTimer) clearTimeout(pollTimer);
     };
-  }, [client, deviceId, handleId, handleApi, enabled, pollIntervalMs, fetchEpoch]);
+  }, [source, targetId, enabled, pollIntervalMs, fetchEpoch]);
 
   return {
     streamUrl: device?.streamUrl || undefined,

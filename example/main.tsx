@@ -205,13 +205,15 @@ function SdkStream({
   muted: boolean;
   onStatus: (s: Partial<Status>) => void;
 }) {
-  const device = useMemo(
+  const sdk = useMemo(
     // apiKey may be blank when the example SDK helper supplies the real key.
-    // `fromId` makes no request; the hook loads the device and refreshes it on reconnect.
-    () => new MobilerunSDK({ apiKey: apiKey || 'example-sdk-helper', ...(baseURL ? { baseURL } : {}) }).devices.fromId(deviceId),
-    [apiKey, baseURL, deviceId],
+    () => new MobilerunSDK({ apiKey: apiKey || 'example-sdk-helper', ...(baseURL ? { baseURL } : {}) }),
+    [apiKey, baseURL],
   );
-  const { streamUrl, streamToken, state, error, isLoading, refetch } = useDeviceStream({ device });
+  // `fromId` makes no request; a fresh handle each render is fine, the hook keys by id.
+  const { streamUrl, streamToken, state, error, isLoading, refetch } = useDeviceStream({
+    device: sdk.devices.fromId(deviceId),
+  });
 
   React.useEffect(() => onStatus({ state, error, isLoading }), [state, error, isLoading, onStatus]);
 

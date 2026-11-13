@@ -91,7 +91,7 @@ const device = await sdk.devices.get(deviceId);
 <DeviceStream streamUrl={device.info?.streamUrl} streamToken={device.info?.streamToken} hasControl />;
 ```
 
-`useDeviceStream` also still accepts `{ client, deviceId }` with a plain `Mobilerun` client, so existing code keeps working. Devices are created on the server with `await sdk.devices.create({ deviceType: 'android_cloud_phone', billing: 'minute' })`, which waits until the device is ready; creating one uses device minutes until you stop it with `await device.stop()`.
+`useDeviceStream` also still accepts `{ client, deviceId }` with a plain `Mobilerun` client, so existing code keeps working.
 
 ## ✅ Task approvals
 
@@ -113,7 +113,6 @@ const ID = /^[A-Za-z0-9_-]+$/;
 // 1. Webhook: verify the raw bytes, then push a change signal to the user's browser (SSE, ...)
 app.post('/webhooks/mobilerun', async (c) => {
   const secret = process.env.MOBILERUN_WEBHOOK_SECRET;
-  // TODO: replace with the SDK's `verifyWebhook` helper once it ships.
   if (!secret) return c.json({ error: 'missing_webhook_secret' }, 500);
   const bytes = new Uint8Array(await c.req.arrayBuffer());
   const ok = verifyWebhookSignature({

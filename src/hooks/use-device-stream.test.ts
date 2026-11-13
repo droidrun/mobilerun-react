@@ -2,32 +2,16 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { expect, mock, test } from 'bun:test';
-import { fetchDeviceInfo } from './use-device-stream';
+import { runInNewContext } from 'node:vm';
+import type { UseDeviceStreamOptions } from './use-device-stream';
 
-const info = { streamUrl: 'wss://stream.example/ws', streamToken: 'tok', state: 'ready' } as never;
+// Type-only check: extending the legacy options interface keeps compiling.
+export interface PanelOptions extends UseDeviceStreamOptions {
+  label: string;
+}
 
-test('fetchDeviceInfo with a client retrieves by device id', async () => {
-  const retrieve = mock(async (_id: string) => info);
-  const client = { devices: { retrieve } } as never;
-  expect(await fetchDeviceInfo({ client, deviceId: 'dev_1' })).toBe(info);
-  expect(retrieve).toHaveBeenCalledWith('dev_1');
-});
-
-test('fetchDeviceInfo with a device object refreshes that device', async () => {
-  const refresh = mock(async () => info);
-  expect(await fetchDeviceInfo({ device: { id: 'dev_1', refresh } })).toBe(info);
-  expect(refresh).toHaveBeenCalledTimes(1);
-});
-
-test('a device object wins when both sources are given', async () => {
-  const retrieve = mock(async () => ({}) as never);
-  const refresh = mock(async () => info);
-  const client = { devices: { retrieve } } as never;
-  await fetchDeviceInfo({ client, deviceId: 'dev_2', device: { id: 'dev_1', refresh } });
-  expect(retrieve).not.toHaveBeenCalled();
-});
-
-// Minimal hook runner: effects re-run only when their deps change between renders.
+// Isolate the hook per test run without a DOM dependency. Effects re-run only
+// when their deps change between renders; cleanup runs before the next setup.
 const bundle = await Bun.build({
   entrypoints: [import.meta.dir + '/use-device-stream.ts'],
   target: 'browser',
@@ -39,39 +23,79 @@ const bundle = await Bun.build({
       build.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({
         loader: 'js',
         contents: `
-          let cursor = 0; const slots = [];
-          export function useRef(v) { return slots[cursor++] ??= { current: v }; }
-          export function useState(v) { const r = useRef(v); return [r.current, n => { r.current = typeof n === 'function' ? n(r.current) : n; }]; }
+          let cursor = 0;
+          const slots = [];
+          export function useRef(value) { return slots[cursor++] ??= { current: value }; }
+          export function useState(value) {
+            const ref = useRef(value);
+            const set = next => {
+              ref.current = typeof next === 'function' ? next(ref.current) : next;
+            };
+            return [ref.current, set];
+          }
           export function useCallback(fn) { return fn; }
           export function useEffect(fn, deps) {
-            const r = useRef(undefined);
-            if (r.current && deps.every((d, i) => Object.is(d, r.current.deps[i]))) return;
-            r.current?.cleanup?.();
-            r.current = { deps, cleanup: undefined };
-            const slot = r.current;
-            globalThis.pending.push(() => { slot.cleanup = fn(); });
+            const ref = useRef(undefined);
+            const same = ref.current && deps.every((d, i) => Object.is(d, ref.current.deps[i]));
+            if (same) return;
+            ref.current?.cleanup?.();
+            const slot = ref.current = { deps, cleanup: undefined };
+            pending.push(() => { slot.cleanup = fn(); });
           }
-          globalThis.resetCursor = () => { cursor = 0; };
+          globalThis.beginRender = () => { cursor = 0; };
         `,
       }));
     },
   }],
 });
-const mod: { exports: { useDeviceStream: (o: unknown) => unknown } } = { exports: {} as never };
-const g = globalThis as unknown as { pending: (() => void)[]; resetCursor: () => void };
-g.pending = [];
-new Function('module', 'exports', await bundle.outputs[0].text())(mod, mod.exports);
+if (!bundle.success) throw new Error('Could not bundle hook fixture', { cause: bundle.logs });
+const code = await bundle.outputs[0].text();
+
+function harness() {
+  const pending: (() => void)[] = [];
+  const module = { exports: {} as { useDeviceStream: (options: unknown) => unknown } };
+  const context: Record<string, unknown> = { pending, module, exports: module.exports, setTimeout, clearTimeout };
+  runInNewContext(code, context);
+  const render = (options: unknown) => {
+    (context.beginRender as () => void)();
+    module.exports.useDeviceStream(options);
+    for (const run of pending.splice(0)) run();
+  };
+  return { render };
+}
+
+const info = { streamUrl: 'wss://stream.example/ws', streamToken: 'tok', state: 'ready' };
+const noStream = { state: 'booting' };
+const tick = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 
 test('a fresh device handle with the same id does not refetch on rerender', async () => {
   const refresh = mock(async () => info);
-  const render = () => {
-    g.resetCursor();
-    mod.exports.useDeviceStream({ device: { id: 'dev_1', refresh: () => refresh() }, pollIntervalMs: 0 });
-    for (const run of g.pending.splice(0)) run();
-  };
-  render();
-  render();
-  render();
-  await Promise.resolve();
+  const { render } = harness();
+  for (let i = 0; i < 3; i++) render({ device: { id: 'dev_1', refresh }, pollIntervalMs: 0 });
+  await tick();
   expect(refresh).toHaveBeenCalledTimes(1);
+});
+
+test('a client and device id fetch once across rerenders', async () => {
+  const retrieve = mock(async (_id: string) => info);
+  const client = { devices: { retrieve } };
+  const { render } = harness();
+  render({ client, deviceId: 'dev_1', pollIntervalMs: 0 });
+  render({ client, deviceId: 'dev_1', pollIntervalMs: 0 });
+  await tick();
+  expect(retrieve).toHaveBeenCalledTimes(1);
+  expect(retrieve).toHaveBeenCalledWith('dev_1');
+});
+
+test('changing the device id refreshes the new handle and cancels the old poll', async () => {
+  const oldRefresh = mock(async () => noStream);
+  const newRefresh = mock(async () => info);
+  const { render } = harness();
+  render({ device: { id: 'dev_1', refresh: oldRefresh }, pollIntervalMs: 20 });
+  await tick();
+  render({ device: { id: 'dev_2', refresh: newRefresh }, pollIntervalMs: 20 });
+  await tick();
+  await new Promise((resolve) => setTimeout(resolve, 80));
+  expect(newRefresh).toHaveBeenCalledTimes(1);
+  expect(oldRefresh).toHaveBeenCalledTimes(1);
 });
