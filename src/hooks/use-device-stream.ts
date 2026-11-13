@@ -12,11 +12,18 @@ import type { Mobilerun } from '@mobilerun/sdk';
  */
 type SdkDevice = Awaited<ReturnType<Mobilerun['devices']['retrieve']>>;
 
-export interface UseDeviceStreamOptions {
-  /** A configured `@mobilerun/sdk` client instance. */
-  client: Mobilerun;
-  /** The device to stream. */
-  deviceId: string;
+/**
+ * The part of an `@mobilerun/sdk` device object (`sdk.devices.get(id)`) this hook
+ * needs. Structural on purpose, so it also works with SDK versions that predate
+ * the object API.
+ */
+export interface SdkDeviceHandle {
+  id: string;
+  /** Re-fetches the device and resolves with its current info. */
+  refresh(): PromiseLike<SdkDevice>;
+}
+
+interface UseDeviceStreamBase {
   /** Pause fetching when false (e.g. dialog closed). Defaults to true. */
   enabled?: boolean;
   /**
@@ -26,6 +33,34 @@ export interface UseDeviceStreamOptions {
   pollIntervalMs?: number;
   /** Called when a fetch fails. */
   onError?: (error: unknown) => void;
+}
+
+/** Pass either a configured `Mobilerun` client plus `deviceId`, or an SDK device object. */
+export type UseDeviceStreamOptions = UseDeviceStreamBase &
+  (
+    | {
+        /** A configured `@mobilerun/sdk` client instance. */
+        client: Mobilerun;
+        /** The device to stream. */
+        deviceId: string;
+        device?: undefined;
+      }
+    | {
+        /** A device object from `sdk.devices.get(id)` (`@mobilerun/sdk` 6.2+). */
+        device: SdkDeviceHandle;
+        client?: undefined;
+        deviceId?: undefined;
+      }
+  );
+
+/** Fetches the device's current info from whichever source the caller passed. */
+export function fetchDeviceInfo(source: {
+  client?: Mobilerun;
+  deviceId?: string;
+  device?: SdkDeviceHandle;
+}): PromiseLike<SdkDevice> {
+  if (source.device) return source.device.refresh();
+  return source.client!.devices.retrieve(source.deviceId!);
 }
 
 export interface UseDeviceStreamResult {
@@ -53,7 +88,7 @@ export interface UseDeviceStreamResult {
  * polling while the device is still coming up. Pair with `<DeviceStream />`:
  *
  * ```tsx
- * const { streamUrl, streamToken, state, refetch } = useDeviceStream({ client, deviceId });
+ * const { streamUrl, streamToken, state, refetch } = useDeviceStream({ device });
  * return (
  *   <DeviceStream
  *     streamUrl={streamUrl}
@@ -64,10 +99,14 @@ export interface UseDeviceStreamResult {
  *   />
  * );
  * ```
+ *
+ * `device` comes from `sdk.devices.get(id)`. An existing `{ client, deviceId }`
+ * call keeps working.
  */
 export function useDeviceStream({
   client,
   deviceId,
+  device: deviceHandle,
   enabled = true,
   pollIntervalMs = 3000,
   onError,
@@ -84,7 +123,7 @@ export function useDeviceStream({
   const refetch = useCallback(() => setFetchEpoch((e) => e + 1), []);
 
   useEffect(() => {
-    if (!enabled || !deviceId) {
+    if (!enabled || !(deviceHandle || (client && deviceId))) {
       setIsLoading(false);
       return;
     }
@@ -94,7 +133,7 @@ export function useDeviceStream({
 
     const load = async () => {
       try {
-        const next = await client.devices.retrieve(deviceId);
+        const next = await fetchDeviceInfo({ client, deviceId, device: deviceHandle });
         if (cancelled) return;
         setDevice(next);
         setError(undefined);
@@ -118,7 +157,7 @@ export function useDeviceStream({
       cancelled = true;
       if (pollTimer) clearTimeout(pollTimer);
     };
-  }, [client, deviceId, enabled, pollIntervalMs, fetchEpoch]);
+  }, [client, deviceId, deviceHandle, enabled, pollIntervalMs, fetchEpoch]);
 
   return {
     streamUrl: device?.streamUrl || undefined,
