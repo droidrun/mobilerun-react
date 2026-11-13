@@ -2,11 +2,20 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import Mobilerun from '@mobilerun/sdk';
-import React, { useCallback, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 
 // Import straight from source so Bun transpiles + HMRs the package as you edit.
-import { DeviceStream, NavigationBar, useDeviceStream, type RemoteControlHandle } from '../src/index';
+import {
+  DeviceStream,
+  NavigationBar,
+  TaskApproval,
+  useDeviceStream,
+  useTaskApproval,
+  type ApprovalDecision,
+  type PendingApproval,
+  type RemoteControlHandle,
+} from '../src/index';
 // Prebuilt themed stylesheet (run `bun run build:css` once to generate it).
 import '../dist/styles.css';
 // Brand mark (black) — inverted to white in dark mode via CSS.
@@ -45,7 +54,6 @@ const HARNESS_CSS = `
     --muted-foreground: oklch(0.68 0.008 65);
     --primary: oklch(0.72 0.16 265); --primary-foreground: oklch(0.18 0.02 268);
     --accent: oklch(0.28 0.06 268); --accent-foreground: oklch(0.86 0.08 268);
-    --destructive: oklch(0.55 0.18 28);
     --border: oklch(0.25 0.006 60); --input: oklch(0.23 0.006 60);
     --ring: oklch(0.72 0.16 265);
   }
@@ -132,7 +140,16 @@ const HARNESS_CSS = `
   }
   .phone-stage { flex: 1; min-height: 0; position: relative; }
   /* nav bar top seam: hairline highlight against the black screen */
+  .approval-device { height: 100%; display: flex; justify-content: center; }
+  .approval-device .phone { height: 100%; width: auto; max-width: 100%; }
   .device-nav { border-top: none !important; box-shadow: inset 0 0.5px 0 rgba(255,255,255,.06); }
+  /* bottom sheet below md (767px = the component's max-md breakpoint); no styles on desktop */
+  @media (max-width: 767px) {
+    .sheet-backdrop { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; background: rgba(0,0,0,.45); }
+    .sheet { width: 100%; max-height: 92vh; overflow-y: auto; padding: 8px; border-radius: 24px 24px 0 0; background: var(--background); animation: sheet-up .35s cubic-bezier(.2,.7,.2,1); }
+    @keyframes sheet-up { from { transform: translateY(100%); } }
+    @media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
+  }
 `;
 
 type NavAction = 'BACK' | 'HOME' | 'RECENT';
@@ -241,6 +258,165 @@ function StatusLine({ s, active }: { s: Status; active: boolean }) {
         <strong>{text}</strong>
       </div>
       {errText ? <div className="err-text">{errText}</div> : null}
+    </div>
+  );
+}
+
+async function readError(res: Response): Promise<Error> {
+  const body = (await res.json().catch(() => null)) as { detail?: string; error?: string } | null;
+  return new Error(body?.detail ?? body?.error ?? `HTTP ${res.status}`);
+}
+
+// All calls go to this example's own server: the API key never reaches the browser.
+async function fetchApproval(taskId: string): Promise<PendingApproval | null> {
+  const res = await fetch(`/api/v1/tasks/${encodeURIComponent(taskId)}`);
+  if (!res.ok) throw await readError(res);
+  const task = (await res.json()) as { pendingApproval?: PendingApproval | null };
+  return task.pendingApproval ?? null;
+}
+
+async function sendDecision(input: { taskId: string; approvalId: string; decision: ApprovalDecision }) {
+  const res = await fetch(
+    `/api/v1/tasks/${encodeURIComponent(input.taskId)}/approvals/${encodeURIComponent(input.approvalId)}`,
+    { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ decision: input.decision }) },
+  );
+  if (!res.ok) throw await readError(res);
+}
+
+/** The webhook handler pushes a change signal over SSE; the hook then reloads. */
+function subscribeApprovalEvents(taskId: string, onChange: () => void) {
+  const source = new EventSource('/api/v1/events');
+  source.onmessage = (e) => {
+    try {
+      if ((JSON.parse(e.data) as { taskId?: string }).taskId === taskId) onChange();
+    } catch {
+      // ignore malformed events
+    }
+  };
+  return () => source.close();
+}
+
+// Stable reference so SdkStream's status effect doesn't re-run on every render.
+const noopStatus = () => {};
+
+// 767px is the component's `max-md` breakpoint (Tailwind md = 768px).
+const mobileQuery = window.matchMedia('(max-width: 767px)');
+const subscribeMobile = (cb: () => void) => {
+  mobileQuery.addEventListener('change', cb);
+  return () => mobileQuery.removeEventListener('change', cb);
+};
+const getMobile = () => mobileQuery.matches;
+function useIsMobile() {
+  return useSyncExternalStore(subscribeMobile, getMobile);
+}
+
+function ApprovalPanel({ taskId }: { taskId: string }) {
+  const { approval, isLoading, error, decide, isDeciding, decision } = useTaskApproval({
+    taskId,
+    fetchApproval,
+    decide: sendDecision,
+    subscribe: subscribeApprovalEvents,
+    pollIntervalMs: 15000, // safety net next to the SSE push
+  });
+  const isMobile = useIsMobile();
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const open = isMobile && !!approval;
+  // Modal on mobile only: focus the sheet, make everything around it inert, restore on close.
+  useEffect(() => {
+    const sheet = sheetRef.current;
+    if (!open || !sheet) return;
+    const opener = document.activeElement as HTMLElement | null;
+    const inerted: Element[] = [];
+    for (let node: Element = sheet; node !== document.body && node.parentElement; node = node.parentElement) {
+      for (const sib of node.parentElement.children) {
+        if (sib !== node && !sib.hasAttribute('inert')) {
+          sib.setAttribute('inert', '');
+          inerted.push(sib);
+        }
+      }
+    }
+    sheet.focus();
+    return () => {
+      inerted.forEach((el) => el.removeAttribute('inert'));
+      if (opener && document.contains(opener)) opener.focus();
+    };
+  }, [open]);
+  const taskApproval = (
+    <TaskApproval
+      approval={approval}
+      onDecide={decide}
+      isPending={isDeciding}
+      decision={decision}
+      error={error}
+      device={
+        approval?.deviceId ? (
+          <div className="approval-device">
+            <SdkStream
+              apiKey=""
+              baseURL={`${window.location.origin}/api/v1`}
+              deviceId={approval.deviceId}
+              hasControl={false}
+              muted
+              onStatus={noopStatus}
+            />
+          </div>
+        ) : undefined
+      }
+    />
+  );
+  return (
+    <>
+      {!approval && (
+        <>
+          <div className="status">
+            <span className={`dot ${error ? 'err' : 'idle'}`} />
+            <strong>{isLoading ? 'loading…' : 'no pending approval'}</strong>
+          </div>
+          {error instanceof Error && <div className="err-text">{error.message}</div>}
+        </>
+      )}
+      {approval && (
+        <div className="sheet-backdrop">
+          <div
+            ref={sheetRef}
+            className="sheet"
+            tabIndex={-1}
+            {...(isMobile && { role: 'dialog', 'aria-modal': true, 'aria-label': 'Task approval' })}
+          >
+            {taskApproval}
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+function ApprovalSection() {
+  const [taskId, setTaskId] = useState('');
+  const [watching, setWatching] = useState('');
+  return (
+    <div className="card" style={{ width: '100%' }}>
+      <strong>Task approval</strong>
+      <div className="field">
+        <label>task id</label>
+        <input value={taskId} onChange={(e) => setTaskId(e.target.value)} placeholder="task_…" />
+      </div>
+      <p className="hint">
+        <span>
+          Needs <code>MOBILERUN_API_KEY</code> and <code>MOBILERUN_WEBHOOK_SECRET</code> server-side. Point a webhook for{' '}
+          <code>task.run.approval_requested</code> and <code>task.run.approval_resolved</code> at{' '}
+          <code>/webhooks/mobilerun</code>.
+        </span>
+      </p>
+      <div className="row">
+        <button className="btn btn-primary" disabled={!taskId} onClick={() => setWatching(taskId)}>
+          Watch
+        </button>
+        <button className="btn" onClick={() => setWatching('')}>
+          Stop
+        </button>
+      </div>
+      {watching ? <ApprovalPanel taskId={watching} /> : null}
     </div>
   );
 }
@@ -409,6 +585,8 @@ function App() {
 
           {device}
         </div>
+
+        <ApprovalSection />
       </div>
     </div>
   );

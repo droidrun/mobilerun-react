@@ -11,11 +11,15 @@ export {
 } from './components/remote-control';
 export { StreamStatusPill } from './components/stream-status-pill';
 export { NavigationBar } from './components/navigation-bar';
+export { TaskApproval, type TaskApprovalProps, type TaskApprovalLabels } from './components/task-approval';
 export { Button, buttonVariants, type ButtonProps } from './components/ui/button';
 
 // Hooks
 export { useDeviceStream } from './hooks/use-device-stream';
 export type { UseDeviceStreamOptions, UseDeviceStreamResult } from './hooks/use-device-stream';
+export { useTaskApproval } from './hooks/use-task-approval';
+export type { UseTaskApprovalOptions, UseTaskApprovalResult } from './hooks/use-task-approval';
+export type { PendingApproval, ApprovalDecision } from './lib/task-approval';
 export { useStreamReconnect } from './hooks/use-stream-reconnect';
 export {
   STREAM_RECONNECT_MAX_ATTEMPTS,
