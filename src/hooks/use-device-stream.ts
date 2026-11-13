@@ -19,6 +19,8 @@ type SdkDevice = Awaited<ReturnType<Mobilerun['devices']['retrieve']>>;
  */
 export interface SdkDeviceHandle {
   id: string;
+  /** Identifies the client behind the handle; with `id` it keys the effect so a fresh handle per render does not refetch. */
+  api?: unknown;
   /** Re-fetches the device and resolves with its current info. */
   refresh(): PromiseLike<SdkDevice>;
 }
@@ -117,13 +119,18 @@ export function useDeviceStream({
 
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
+  // Latest handle, read by load(); the effect is keyed by id/api, not identity.
+  const deviceHandleRef = useRef(deviceHandle);
+  deviceHandleRef.current = deviceHandle;
+  const handleId = deviceHandle?.id;
+  const handleApi = deviceHandle?.api;
 
   // Bumping this triggers a re-fetch without changing the polling cadence.
   const [fetchEpoch, setFetchEpoch] = useState(0);
   const refetch = useCallback(() => setFetchEpoch((e) => e + 1), []);
 
   useEffect(() => {
-    if (!enabled || !(deviceHandle || (client && deviceId))) {
+    if (!enabled || !(handleId || (client && deviceId))) {
       setIsLoading(false);
       return;
     }
@@ -133,7 +140,7 @@ export function useDeviceStream({
 
     const load = async () => {
       try {
-        const next = await fetchDeviceInfo({ client, deviceId, device: deviceHandle });
+        const next = await fetchDeviceInfo({ client, deviceId, device: deviceHandleRef.current });
         if (cancelled) return;
         setDevice(next);
         setError(undefined);
@@ -157,7 +164,7 @@ export function useDeviceStream({
       cancelled = true;
       if (pollTimer) clearTimeout(pollTimer);
     };
-  }, [client, deviceId, deviceHandle, enabled, pollIntervalMs, fetchEpoch]);
+  }, [client, deviceId, handleId, handleApi, enabled, pollIntervalMs, fetchEpoch]);
 
   return {
     streamUrl: device?.streamUrl || undefined,
