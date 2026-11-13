@@ -12,7 +12,7 @@
 //   browser ──(same-origin)──▶ this server ──(@mobilerun/sdk)──▶ API
 //
 //   • Serves the example UI (Bun bundles index.html + main.tsx).
-//   • Handles GET /api/v1/devices/:deviceId via Mobilerun.devices.retrieve().
+//   • Handles GET /api/v1/devices/:deviceId via sdk.devices.get() (SDK object API).
 //   • Local use only: the server binds to 127.0.0.1 and its task routes and SSE
 //     route are unauthenticated by design. If you expose anything publicly (e.g. a
 //     tunnel for webhook testing), forward only /webhooks/mobilerun, never the
@@ -25,7 +25,7 @@
 // Run:  MOBILERUN_API_KEY=dr_sk_… bun run example  (or put it in a .env file)
 
 import type { Server } from 'bun';
-import Mobilerun from '@mobilerun/sdk';
+import { MobilerunSDK } from '@mobilerun/sdk';
 import { Hono, type Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { streamSSE } from 'hono/streaming';
@@ -36,7 +36,7 @@ const API_KEY = process.env.MOBILERUN_API_KEY;
 const UPSTREAM = process.env.MOBILERUN_API_URL?.replace(/\/+$/, '');
 const WEBHOOK_SECRET = process.env.MOBILERUN_WEBHOOK_SECRET;
 const PORT = Number(process.env.PORT ?? 3000);
-const client = API_KEY ? new Mobilerun({ apiKey: API_KEY, ...(UPSTREAM ? { baseURL: `${UPSTREAM}/v1` } : {}) }) : null;
+const sdk = API_KEY ? new MobilerunSDK({ apiKey: API_KEY, ...(UPSTREAM ? { baseURL: `${UPSTREAM}/v1` } : {}) }) : null;
 
 if (!API_KEY) {
   console.warn(
@@ -49,17 +49,17 @@ if (!API_KEY) {
 const app = new Hono<{ Bindings: Server<unknown> }>();
 
 app.get('/api/v1/devices/:deviceId', async (c) => {
-  if (!client) {
+  if (!sdk) {
     return c.json({ error: 'missing_api_key', detail: 'Set MOBILERUN_API_KEY to use SDK mode.' }, 500);
   }
 
   try {
-    const device = await client.devices.retrieve(c.req.param('deviceId'));
-    return c.json(device);
+    const device = await sdk.devices.get(c.req.param('deviceId'));
+    return c.json(device.info);
   } catch (err) {
     const apiError = err as { status?: number; message?: string };
     const status = apiError.status && apiError.status >= 400 && apiError.status < 600 ? apiError.status : 502;
-    console.error(`✗ devices.retrieve ${c.req.param('deviceId')} failed:`, apiError.message ?? String(err));
+    console.error(`✗ devices.get ${c.req.param('deviceId')} failed:`, apiError.message ?? String(err));
     return c.json({ error: 'device_retrieve_failed', detail: apiError.message ?? String(err) }, status);
   }
 });
@@ -78,14 +78,14 @@ function upstreamFailure(c: Context, error: string, err: unknown) {
 // A real app authenticates the caller and checks that the task belongs to that
 // user/org before forwarding. This example is unauthenticated and local-only.
 app.get('/api/v1/tasks/:taskId', async (c) => {
-  if (!client) {
+  if (!sdk) {
     return c.json({ error: 'missing_api_key', detail: 'Set MOBILERUN_API_KEY to use task approvals.' }, 500);
   }
   const taskId = c.req.param('taskId');
   if (!ID_PATTERN.test(taskId)) return c.json({ error: 'invalid_id' }, 400);
   try {
     // The installed SDK's task type may not carry pendingApproval yet, so read the raw response.
-    const { task } = await client.get<{ task?: { pendingApproval?: unknown } }>(`/tasks/${encodeURIComponent(taskId)}`);
+    const { task } = await sdk.api.get<{ task?: { pendingApproval?: unknown } }>(`/tasks/${encodeURIComponent(taskId)}`);
     return c.json({ pendingApproval: task?.pendingApproval ?? null });
   } catch (err) {
     return upstreamFailure(c, 'task_retrieve_failed', err);
@@ -94,7 +94,7 @@ app.get('/api/v1/tasks/:taskId', async (c) => {
 
 // Same rule as above: authenticate the caller and check task ownership before forwarding.
 app.post('/api/v1/tasks/:taskId/approvals/:approvalId', async (c) => {
-  if (!client) {
+  if (!sdk) {
     return c.json({ error: 'missing_api_key', detail: 'Set MOBILERUN_API_KEY to use task approvals.' }, 500);
   }
   const taskId = c.req.param('taskId');
@@ -106,8 +106,8 @@ app.post('/api/v1/tasks/:taskId/approvals/:approvalId', async (c) => {
     return c.json({ error: 'invalid_decision', detail: "decision must be 'approve' or 'deny'." }, 422);
   }
   try {
-    // Becomes client.tasks.approvals.decide(...) once the SDK ships that method.
-    await client.post(`/tasks/${encodeURIComponent(taskId)}/approvals/${encodeURIComponent(approvalId)}`, {
+    // Becomes sdk.api.tasks.approvals.decide(...) once the SDK ships that method.
+    await sdk.api.post(`/tasks/${encodeURIComponent(taskId)}/approvals/${encodeURIComponent(approvalId)}`, {
       body: { decision },
     });
     return c.body(null, 204);
@@ -145,6 +145,7 @@ app.post('/webhooks/mobilerun', async (c) => {
     return c.json({ error: 'payload_too_large' }, 413);
   }
   // Raw bytes exactly as received; verify before parsing.
+  // TODO: replace with the SDK's `verifyWebhook` helper once it ships.
   const bytes = new Uint8Array(await c.req.arrayBuffer());
   const ok = verifyWebhookSignature({
     secret: WEBHOOK_SECRET,
@@ -176,6 +177,6 @@ Bun.serve({
 });
 
 console.log(`\n  ▸ @mobilerun/react dev harness   http://localhost:${PORT}`);
-console.log(`  ▸ SDK helper    GET /api/v1/devices/:id      →  ${client?.baseURL ?? 'https://api.mobilerun.ai/v1'}/devices/:id`);
+console.log(`  ▸ SDK helper    GET /api/v1/devices/:id      →  ${sdk?.api.baseURL ?? 'https://api.mobilerun.ai/v1'}/devices/:id`);
 console.log('  ▸ approvals     GET/POST /api/v1/tasks/:id…  ·  POST /webhooks/mobilerun  ·  GET /api/v1/events');
 console.log('  ▸ stream WS     direct browser connection using ?token=\n');

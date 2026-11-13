@@ -1,7 +1,7 @@
 // Copyright 2026 Mobilerun
 // SPDX-License-Identifier: Apache-2.0
 
-import Mobilerun from '@mobilerun/sdk';
+import { MobilerunSDK } from '@mobilerun/sdk';
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { createRoot } from 'react-dom/client';
 
@@ -205,14 +205,14 @@ function SdkStream({
   muted: boolean;
   onStatus: (s: Partial<Status>) => void;
 }) {
-  const client = useMemo(
+  const sdk = useMemo(
     // apiKey may be blank when the example SDK helper supplies the real key.
-    () => new Mobilerun({ apiKey: apiKey || 'example-sdk-helper', ...(baseURL ? { baseURL } : {}) }),
+    () => new MobilerunSDK({ apiKey: apiKey || 'example-sdk-helper', ...(baseURL ? { baseURL } : {}) }),
     [apiKey, baseURL],
   );
+  // `fromId` makes no request; a fresh handle each render is fine, the hook keys by id.
   const { streamUrl, streamToken, state, error, isLoading, refetch } = useDeviceStream({
-    client,
-    deviceId,
+    device: sdk.devices.fromId(deviceId),
   });
 
   React.useEffect(() => onStatus({ state, error, isLoading }), [state, error, isLoading, onStatus]);
