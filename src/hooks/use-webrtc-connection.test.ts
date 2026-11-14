@@ -2,37 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { expect, test } from 'bun:test';
-import { runInNewContext } from 'node:vm';
+import { runHook } from './test-hook-runner';
 
-// Isolate the hook and browser globals per test without adding a DOM dependency.
-// The hook runner preserves refs on rerender and runs effect cleanup before setup.
-const bundle = await Bun.build({
-  entrypoints: [import.meta.dir + '/use-webrtc-connection.ts'],
-  target: 'browser',
-  format: 'cjs',
-  plugins: [{
-    name: 'hook-runner',
-    setup(build) {
-      build.onResolve({ filter: /^react$/ }, () => ({ path: 'react', namespace: 'fixture' }));
-      build.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({
-        loader: 'js',
-        contents: `
-          let cursor = 0;
-          const refs = [];
-          export function useRef(value) { return refs[cursor++] ??= { current: value }; }
-          export function useState(value) {
-            const ref = useRef(value);
-            return [ref.current, next => { ref.current = next; stateWrites.push(next); }];
-          }
-          export function useEffect(effect) { effects.push(effect); }
-          globalThis.resetCursor = () => { cursor = 0; };
-        `,
-      }));
-    },
-  }],
-});
-if (!bundle.success) throw new Error('Could not bundle hook fixture', { cause: bundle.logs });
-const code = await bundle.outputs[0].text();
 const tick = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 const event = (message: object) => ({ data: JSON.stringify(message) });
 
@@ -43,7 +14,7 @@ function deferred<T = void>() {
   return { promise, resolve, reject };
 }
 
-function fixture() {
+async function fixture() {
   const sockets: FakeSocket[] = [];
   const peers: FakePeer[] = [];
   const timers = new Map<number, () => void>();
@@ -102,10 +73,8 @@ function fixture() {
   const states: boolean[] = [];
   const failures: boolean[] = [];
   const bindings: (FakePeer | null)[] = [];
-  const effects: (() => () => void)[] = [];
   const video = { current: { srcObject: null, muted: true } };
   const context = {
-    module: { exports: {} as { useWebRtcConnection: (options: object) => { wsRef: { current: FakeSocket | null } } } },
     window: { setTimeout: setTimer, clearTimeout: clearTimer, setInterval: setTimer, clearInterval: clearTimer },
     document: { hidden: false, addEventListener() {}, removeEventListener() {} },
     WebSocket: FakeSocket, RTCPeerConnection: FakePeer,
@@ -113,27 +82,26 @@ function fixture() {
     RTCSessionDescription: class { constructor(value: object) { Object.assign(this, value); } },
     RTCIceCandidate: class { constructor(value: object) { Object.assign(this, value); } },
     setTimeout: setTimer, clearTimeout: clearTimer,
-    console, stateWrites, effects, resetCursor: () => {},
+    console, stateWrites,
   };
-  runInNewContext(code, context);
-  let cleanup = () => {};
+  const runner = await runHook<{ useWebRtcConnection: (options: object) => { wsRef: { current: FakeSocket | null } } }>(
+    import.meta.dir + '/use-webrtc-connection.ts', context, { compareEffectDeps: false },
+  );
   const mount = (id = 'a', openUrl?: string) => {
-    cleanup();
-    context.resetCursor();
-    effects.length = 0;
-    const result = context.module.exports.useWebRtcConnection({
+    runner.unmount();
+    runner.beginRender();
+    const result = runner.module.exports.useWebRtcConnection({
       url: 'wss://example.invalid/' + id, sessionId: id, videoRef: video, openUrl,
       onConnectionStateChange: (state: boolean) => states.push(state),
       onConnectionFailed: () => failures.push(true),
       onPeerConnectionChange: (pc: FakePeer | null) => bindings.push(pc),
     });
-    const cleanups = effects.map(fn => fn());
-    cleanup = () => { cleanups.forEach(fn => fn()); cleanup = () => {}; };
+    runner.flushEffects();
     return result;
   };
   return {
     sockets, peers, timers, states, failures, bindings, stateWrites, video, mount,
-    unmount: () => cleanup(),
+    unmount: runner.unmount,
     fireTimers() { const tasks = [...timers.values()]; timers.clear(); tasks.forEach(fn => fn()); },
     async negotiate(openUrl?: string) { mount('a', openUrl); sockets[0].open(); await tick(); sockets[0].config(); await tick(); },
   };
@@ -142,7 +110,7 @@ function fixture() {
 for (const end of ['unmount', 'switch'] as const) {
   for (const boundary of ['open', 'config', 'offer', 'local'] as const) {
     test(`${end} cancels stale ${boundary} continuation`, async () => {
-      const f = fixture();
+      const f = await fixture();
       f.mount();
       const ws = f.sockets[0];
       const lateOpen = ws.onopen!;
@@ -169,7 +137,7 @@ for (const end of ['unmount', 'switch'] as const) {
 }
 
 test('stop removes a pending configuration listener and both startup deadlines', async () => {
-  const f = fixture();
+  const f = await fixture();
   f.mount();
   const openDeadline = [...f.timers.values()][0];
   f.sockets[0].open(); await tick();
@@ -187,7 +155,7 @@ test('stop removes a pending configuration listener and both startup deadlines',
 });
 
 test('stale channel, peer, socket callbacks and queued frame requests are silent', async () => {
-  const f = fixture();
+  const f = await fixture();
   await f.negotiate('https%3A%2F%2Fexample.invalid');
   const ws = f.sockets[0], pc = f.peers[0];
   const lateMessage = ws.onmessage!;
@@ -212,7 +180,7 @@ test('stale channel, peer, socket callbacks and queued frame requests are silent
 
 for (const boundary of ['offer', 'local', 'reject'] as const) {
   test(`current offer succeeds; stale ICE restart at ${boundary} is cancelled`, async () => {
-    const f = fixture(); await f.negotiate();
+    const f = await fixture(); await f.negotiate();
     const ws = f.sockets[0], pc = f.peers[0];
     pc.offer.resolve({ sdp: 'initial' }); await tick(); pc.local.resolve(); await tick();
     expect(ws.sent.some(m => m.type === 'offer' && m.sdp === 'initial')).toBe(true);
@@ -232,7 +200,7 @@ for (const boundary of ['offer', 'local', 'reject'] as const) {
 }
 
 test('late answer and buffered ICE completion preserve the replacement candidate buffer', async () => {
-  const f = fixture(); await f.negotiate();
+  const f = await fixture(); await f.negotiate();
   const oldWs = f.sockets[0], oldPc = f.peers[0];
   await oldWs.onmessage!(event({ type: 'candidate', candidate: 'old' }));
   const oldAnswer = oldWs.onmessage!(event({ type: 'answer', sdp: 'old' }));
@@ -250,7 +218,7 @@ test('late answer and buffered ICE completion preserve the replacement candidate
 });
 
 test('current control channel sends frame requests and open URL on its own socket', async () => {
-  const f = fixture(); f.mount('a', 'https%3A%2F%2Fexample.invalid');
+  const f = await fixture(); f.mount('a', 'https%3A%2F%2Fexample.invalid');
   f.sockets[0].open(); await tick(); f.sockets[0].config(); await tick();
   f.peers[0].channels[0].onopen(); f.fireTimers();
   expect(f.sockets[0].sent.filter(m => m.type === 'requestFrame')).toHaveLength(12);
@@ -259,7 +227,7 @@ test('current control channel sends frame requests and open URL on its own socke
 });
 
 test('stop between socket resolution and its continuation prevents a configuration request', async () => {
-  const f = fixture(); f.mount();
+  const f = await fixture(); f.mount();
   f.sockets[0].open();
   f.unmount();
   await tick();
@@ -269,7 +237,7 @@ test('stop between socket resolution and its continuation prevents a configurati
 });
 
 test('late remote description cannot mark the replacement ready for ICE', async () => {
-  const f = fixture(); await f.negotiate();
+  const f = await fixture(); await f.negotiate();
   const oldAnswer = f.sockets[0].onmessage!(event({ type: 'answer', sdp: 'old' }));
   f.mount('b'); f.sockets[1].open(); await tick(); f.sockets[1].config(); await tick();
   f.peers[0].remote.resolve(); await oldAnswer;
@@ -280,7 +248,7 @@ test('late remote description cannot mark the replacement ready for ICE', async 
 
 for (const phase of ['open', 'config'] as const) {
   test(`current ${phase} timeout reports failure and clears startup resources`, async () => {
-    const f = fixture(); f.mount();
+    const f = await fixture(); f.mount();
     if (phase === 'config') { f.sockets[0].open(); await tick(); }
     f.fireTimers(); await tick();
     expect(f.failures).toEqual([true]);
@@ -292,7 +260,7 @@ for (const phase of ['open', 'config'] as const) {
 }
 
 test('a queued ICE grace recheck cannot change replacement state', async () => {
-  const f = fixture(); await f.negotiate();
+  const f = await fixture(); await f.negotiate();
   const pc = f.peers[0];
   const restart = f.sockets[0].onmessage!(event({ type: 'rtcConfiguration', rtcConfiguration: { iceServers: [] } }));
   pc.connectionState = 'connecting'; pc.onconnectionstatechange!();
