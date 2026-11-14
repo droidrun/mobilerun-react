@@ -3,7 +3,7 @@
 
 import { expect, mock, test } from 'bun:test';
 import { runInNewContext } from 'node:vm';
-import type { UseDeviceStreamOptions } from './use-device-stream';
+import type { UseDeviceStreamOptions, UseDeviceStreamResult } from './use-device-stream';
 
 // Type-only check: extending the legacy options interface keeps compiling.
 export interface PanelOptions extends UseDeviceStreamOptions {
@@ -43,6 +43,7 @@ const bundle = await Bun.build({
             pending.push(() => { slot.cleanup = fn(); });
           }
           globalThis.beginRender = () => { cursor = 0; };
+          globalThis.unmount = () => { slots.forEach(ref => ref.current?.cleanup?.()); };
         `,
       }));
     },
@@ -53,15 +54,16 @@ const code = await bundle.outputs[0].text();
 
 function harness() {
   const pending: (() => void)[] = [];
-  const module = { exports: {} as { useDeviceStream: (options: unknown) => unknown } };
+  const module = { exports: {} as { useDeviceStream: (options: unknown) => UseDeviceStreamResult } };
   const context: Record<string, unknown> = { pending, module, exports: module.exports, setTimeout, clearTimeout };
   runInNewContext(code, context);
   const render = (options: unknown) => {
     (context.beginRender as () => void)();
-    module.exports.useDeviceStream(options);
+    const result = module.exports.useDeviceStream(options);
     for (const run of pending.splice(0)) run();
+    return result;
   };
-  return { render };
+  return { render, unmount: () => (context.unmount as () => void)() };
 }
 
 const info = { streamUrl: 'wss://stream.example/ws', streamToken: 'tok', state: 'ready' };
@@ -99,3 +101,40 @@ test('changing the device id refreshes the new handle and cancels the old poll',
   expect(newRefresh).toHaveBeenCalledTimes(1);
   expect(oldRefresh).toHaveBeenCalledTimes(1);
 });
+
+test('a failed initial fetch retries, clears its error on success, and stops polling', async () => {
+  const failure = new Error('temporary failure');
+  const refresh = mock(async () => {
+    if (refresh.mock.calls.length === 1) throw failure;
+    return info;
+  });
+  const { render, unmount } = harness();
+  const options = { device: { id: 'dev_1', refresh }, pollIntervalMs: 20 };
+  render(options);
+  await tick();
+  expect(render(options).error).toBe(failure);
+  await new Promise(resolve => setTimeout(resolve, 80));
+  const result = render(options);
+  expect(result.error).toBeUndefined();
+  expect(result.streamUrl).toBe(info.streamUrl);
+  expect(refresh).toHaveBeenCalledTimes(2);
+  await new Promise(resolve => setTimeout(resolve, 60));
+  expect(refresh).toHaveBeenCalledTimes(2);
+  unmount();
+});
+
+for (const end of ['unmount', 'disable', 'id change'] as const) {
+  test(`a failed fetch does not keep polling after ${end}`, async () => {
+    const refresh = mock(async () => { throw new Error('temporary failure'); });
+    const { render, unmount } = harness();
+    const options = { device: { id: 'dev_1', refresh }, pollIntervalMs: 20 };
+    render(options);
+    await tick();
+    if (end === 'unmount') unmount();
+    else if (end === 'disable') render({ ...options, enabled: false });
+    else render({ ...options, device: { id: 'dev_2', refresh: async () => info } });
+    await new Promise(resolve => setTimeout(resolve, 80));
+    expect(refresh).toHaveBeenCalledTimes(1);
+    unmount();
+  });
+}

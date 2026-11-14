@@ -125,12 +125,14 @@ export function useDeviceStream({
     }
 
     let cancelled = false;
+    let hasStream = false;
     let pollTimer: ReturnType<typeof setTimeout> | undefined;
 
     const load = async () => {
       try {
         const next = await (deviceHandle ? deviceHandle.refresh() : client!.devices.retrieve(targetId!));
         if (cancelled) return;
+        hasStream = Boolean(next.streamUrl);
         setDevice(next);
         setError(undefined);
         // Keep polling until the backend hands us a stream URL.
@@ -141,6 +143,9 @@ export function useDeviceStream({
         if (cancelled) return;
         setError(err);
         onErrorRef.current?.(err);
+        if (!hasStream && pollIntervalMs > 0) {
+          pollTimer = setTimeout(load, pollIntervalMs);
+        }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
