@@ -56,10 +56,7 @@ app.get('/api/v1/devices/:deviceId', async (c) => {
     const device = await sdk.devices.get(c.req.param('deviceId'));
     return c.json(device.info);
   } catch (err) {
-    const apiError = err as { status?: number; message?: string };
-    const status = (apiError.status && apiError.status >= 400 && apiError.status < 600 ? apiError.status : 502) as ContentfulStatusCode;
-    console.error(`✗ devices.get ${c.req.param('deviceId')} failed:`, apiError.message ?? String(err));
-    return c.json({ error: 'device_retrieve_failed', detail: apiError.message ?? String(err) }, status);
+    return upstreamFailure(c, 'device_retrieve_failed', err);
   }
 });
 
