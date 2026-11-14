@@ -25,11 +25,10 @@
 // Run:  MOBILERUN_API_KEY=dr_sk_… bun run example  (or put it in a .env file)
 
 import type { Server } from 'bun';
-import { MobilerunSDK } from '@mobilerun/sdk';
+import { MobilerunSDK, verifyWebhook, WebhookVerificationError } from '@mobilerun/sdk';
 import { Hono, type Context } from 'hono';
 import type { ContentfulStatusCode } from 'hono/utils/http-status';
 import { streamSSE } from 'hono/streaming';
-import { verifyWebhookSignature } from './webhook-signature';
 import index from './index.html';
 
 const API_KEY = process.env.MOBILERUN_API_KEY;
@@ -144,22 +143,18 @@ app.post('/webhooks/mobilerun', async (c) => {
   if (Number(c.req.header('Content-Length') ?? 0) > MAX_WEBHOOK_BODY_BYTES) {
     return c.json({ error: 'payload_too_large' }, 413);
   }
-  // Raw bytes exactly as received; verify before parsing.
-  // TODO: replace with the SDK's `verifyWebhook` helper once it ships.
+  // Raw bytes exactly as received; the SDK verifies before parsing.
   const bytes = new Uint8Array(await c.req.arrayBuffer());
-  const ok = verifyWebhookSignature({
-    secret: WEBHOOK_SECRET,
-    timestamp: c.req.header('X-Mobilerun-Timestamp'),
-    signature: c.req.header('X-Mobilerun-Signature'),
-    rawBody: bytes,
-  });
-  if (!ok) return c.json({ error: 'invalid_signature' }, 401);
-
-  let event: { type?: unknown; data?: { taskId?: unknown } } | null = null;
+  let event: { type?: unknown; data?: { taskId?: unknown } } | null;
   try {
-    event = JSON.parse(new TextDecoder().decode(bytes));
-  } catch {
-    // Verified but not JSON: nothing to broadcast.
+    event = await verifyWebhook({
+      body: bytes,
+      headers: c.req.raw.headers,
+      secret: WEBHOOK_SECRET,
+    }) as typeof event;
+  } catch (err) {
+    if (err instanceof WebhookVerificationError) return c.json({ error: 'invalid_signature' }, 401);
+    throw err;
   }
   const taskId = event?.data?.taskId;
   if (typeof event?.type === 'string' && APPROVAL_EVENTS.has(event.type) && typeof taskId === 'string') {

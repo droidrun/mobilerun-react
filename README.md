@@ -103,11 +103,13 @@ A task can pause and wait for a human to approve a step, for example entering a 
 
 In your Mobilerun webhook settings, point an endpoint at your backend and filter it to the two approval events: `task.run.approval_requested` and `task.run.approval_resolved`. Events only tell the browser to reload; the fetched approval is the source of truth.
 
-Each delivery carries `X-Mobilerun-Timestamp` (Unix ms) and `X-Mobilerun-Signature: sha256=<hex>`, an HMAC-SHA256 of `"{timestamp}.{rawBody}"` with the endpoint secret. Verify it on the raw body before parsing, and reject timestamps more than 5 minutes off. `example/webhook-signature.ts` has a ready-made verifier (a dedicated SDK helper, `verifyWebhook`, is planned).
+Each delivery carries `X-Mobilerun-Timestamp` (Unix ms) and `X-Mobilerun-Signature: sha256=<hex>`, an HMAC-SHA256 of `"{timestamp}.{rawBody}"` with the endpoint secret. Verify it on the raw body before parsing, and reject timestamps more than 5 minutes off. The example uses `verifyWebhook` from `@mobilerun/sdk` to verify the signature and return the parsed payload.
 
 ### 2. Backend sketch
 
 ```ts
+import { verifyWebhook, WebhookVerificationError } from '@mobilerun/sdk';
+
 const ID = /^[A-Za-z0-9_-]+$/;
 
 // 1. Webhook: verify the raw bytes, then push a change signal to the user's browser (SSE, ...)
@@ -115,15 +117,16 @@ app.post('/webhooks/mobilerun', async (c) => {
   const secret = process.env.MOBILERUN_WEBHOOK_SECRET;
   if (!secret) return c.json({ error: 'missing_webhook_secret' }, 500);
   const bytes = new Uint8Array(await c.req.arrayBuffer());
-  const ok = verifyWebhookSignature({
-    secret,
-    rawBody: bytes,
-    timestamp: c.req.header('X-Mobilerun-Timestamp'),
-    signature: c.req.header('X-Mobilerun-Signature'),
-  });
-  if (!ok) return c.body(null, 401);
-  const event = JSON.parse(new TextDecoder().decode(bytes));
-  if (event.type === 'task.run.approval_requested' || event.type === 'task.run.approval_resolved') {
+  let event;
+  try {
+    event = await verifyWebhook({
+      body: bytes, headers: c.req.raw.headers, secret,
+    }) as { type?: string; data?: { taskId?: string } } | null;
+  } catch (err) {
+    if (err instanceof WebhookVerificationError) return c.body(null, 401);
+    throw err;
+  }
+  if ((event?.type === 'task.run.approval_requested' || event?.type === 'task.run.approval_resolved') && event.data?.taskId) {
     push({ taskId: event.data.taskId });
   }
   return c.body(null, 204);

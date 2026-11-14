@@ -2,43 +2,31 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { describe, expect, test } from 'bun:test';
-import { signWebhook, verifyWebhookSignature } from './webhook-signature';
+import { createHmac } from 'node:crypto';
+import { verifyWebhook, WebhookVerificationError } from '@mobilerun/sdk';
 
 const secret = 'whsec_test';
 const now = 1_800_000_000_000;
-const ts = String(now);
+const timestamp = String(now);
 const body = '{"type":"task.run.approval_requested","data":{"taskId":"t1"}}';
-const good = () => ({ secret, timestamp: ts, signature: signWebhook(secret, ts, body), rawBody: body, nowMs: now });
+const signature = `sha256=${createHmac('sha256', secret).update(`${timestamp}.${body}`).digest('hex')}`;
+const options = {
+  body: new TextEncoder().encode(body),
+  headers: { 'x-mobilerun-timestamp': timestamp, 'x-mobilerun-signature': signature },
+  secret,
+  now,
+};
 
-describe('verifyWebhookSignature', () => {
-  test('accepts a valid signature', () => {
-    expect(verifyWebhookSignature(good())).toBe(true);
+describe('SDK webhook verification used by the example', () => {
+  test('accepts signed raw bytes and returns the payload', async () => {
+    expect(await verifyWebhook(options)).toEqual(JSON.parse(body));
   });
-  test('rejects a wrong secret', () => {
-    expect(verifyWebhookSignature({ ...good(), secret: 'other' })).toBe(false);
+
+  test('rejects a tampered body', async () => {
+    await expect(verifyWebhook({ ...options, body: body.replace('t1', 't2') })).rejects.toBeInstanceOf(WebhookVerificationError);
   });
-  test('rejects an empty secret even when the signature matches it', () => {
-    expect(verifyWebhookSignature({ ...good(), secret: '', signature: signWebhook('', ts, body) })).toBe(false);
-  });
-  test('verifies raw bytes', () => {
-    const bytes = new TextEncoder().encode(body);
-    expect(verifyWebhookSignature({ ...good(), rawBody: bytes })).toBe(true);
-  });
-  test('rejects a tampered body', () => {
-    expect(verifyWebhookSignature({ ...good(), rawBody: body.replace('t1', 't2') })).toBe(false);
-  });
-  test('rejects a missing sha256= prefix', () => {
-    const g = good();
-    expect(verifyWebhookSignature({ ...g, signature: g.signature.slice('sha256='.length) })).toBe(false);
-  });
-  test('rejects missing headers and wrong length', () => {
-    expect(verifyWebhookSignature({ ...good(), signature: null })).toBe(false);
-    expect(verifyWebhookSignature({ ...good(), timestamp: undefined })).toBe(false);
-    expect(verifyWebhookSignature({ ...good(), signature: 'sha256=abcd' })).toBe(false);
-  });
-  test('rejects drift over 5 minutes, accepts just under', () => {
-    expect(verifyWebhookSignature({ ...good(), nowMs: now + 5 * 60_000 + 1 })).toBe(false);
-    expect(verifyWebhookSignature({ ...good(), nowMs: now - 5 * 60_000 - 1 })).toBe(false);
-    expect(verifyWebhookSignature({ ...good(), nowMs: now + 5 * 60_000 - 1 })).toBe(true);
+
+  test('rejects a timestamp outside the five-minute window', async () => {
+    await expect(verifyWebhook({ ...options, now: now + 300_001 })).rejects.toBeInstanceOf(WebhookVerificationError);
   });
 });
