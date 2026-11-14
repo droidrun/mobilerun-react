@@ -127,7 +127,7 @@ A task can pause and wait for a human to approve a step, for example entering a 
 
 In your Mobilerun webhook settings, point an endpoint at your backend and filter it to the two approval events: `task.run.approval_requested` and `task.run.approval_resolved`. Events only tell the browser to reload; the fetched approval is the source of truth.
 
-Each delivery carries `X-Mobilerun-Timestamp` (Unix ms) and `X-Mobilerun-Signature: sha256=<hex>`, an HMAC-SHA256 of `"{timestamp}.{rawBody}"` with the endpoint secret. `verifyWebhook` from `@mobilerun/sdk` checks the signature and the 5-minute timestamp window and returns the parsed payload; pass it the body bytes exactly as received.
+Each delivery carries `X-Mobilerun-Timestamp` (Unix ms) and `X-Mobilerun-Signature: sha256=<hex>`, an HMAC-SHA256 of `"{timestamp}.{rawBody}"` with the endpoint secret. `verifyWebhook` from `@mobilerun/sdk` checks the signature and the 5-minute timestamp window and returns the parsed payload; pass it the body bytes exactly as received. SDK 6.2.1 or later distinguishes `invalid_json` (a signed but unparsable body), which the handler answers with HTTP 400.
 
 ### 2. Backend sketch
 
@@ -151,7 +151,10 @@ app.post('/webhooks/mobilerun', async (c) => {
       secret,
     }) as { type?: string; data?: { taskId?: string } } | null;
   } catch (err) {
-    if (err instanceof WebhookVerificationError) return c.body(null, 401);
+    if (err instanceof WebhookVerificationError) {
+      if (err.reason === 'invalid_json') return c.json({ error: 'invalid_json' }, 400);
+      return c.json({ error: 'invalid_signature' }, 401);
+    }
     throw err;
   }
   const taskId = event?.data?.taskId;

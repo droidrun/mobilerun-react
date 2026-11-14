@@ -152,7 +152,10 @@ app.post('/webhooks/mobilerun', async (c) => {
       secret: WEBHOOK_SECRET,
     })) as WebhookEvent;
   } catch (err) {
-    if (err instanceof WebhookVerificationError) return c.json({ error: 'invalid_signature' }, 401);
+    if (err instanceof WebhookVerificationError) {
+      if (err.reason === 'invalid_json') return c.json({ error: 'invalid_json' }, 400);
+      return c.json({ error: 'invalid_signature' }, 401);
+    }
     throw err;
   }
   const taskId = event?.data?.taskId;
