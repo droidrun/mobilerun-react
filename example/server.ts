@@ -57,7 +57,7 @@ app.get('/api/v1/devices/:deviceId', async (c) => {
     return c.json(device.info);
   } catch (err) {
     const apiError = err as { status?: number; message?: string };
-    const status = apiError.status && apiError.status >= 400 && apiError.status < 600 ? apiError.status : 502;
+    const status = (apiError.status && apiError.status >= 400 && apiError.status < 600 ? apiError.status : 502) as ContentfulStatusCode;
     console.error(`✗ devices.get ${c.req.param('deviceId')} failed:`, apiError.message ?? String(err));
     return c.json({ error: 'device_retrieve_failed', detail: apiError.message ?? String(err) }, status);
   }
@@ -126,7 +126,7 @@ app.get('/api/v1/events', (c) => {
   return streamSSE(c, async (stream) => {
     const send = (signal: ApprovalSignal) => void stream.writeSSE({ data: JSON.stringify(signal) });
     subscribers.add(send);
-    stream.onAbort(() => subscribers.delete(send));
+    stream.onAbort(() => { subscribers.delete(send); });
     // Keep the connection open until the client goes away.
     while (!stream.aborted && !stream.closed) {
       await stream.writeSSE({ event: 'ping', data: '' });
@@ -135,6 +135,8 @@ app.get('/api/v1/events', (c) => {
     subscribers.delete(send);
   });
 });
+
+type WebhookEvent = { type?: unknown; data?: { taskId?: unknown } } | null;
 
 const APPROVAL_EVENTS = new Set(['task.run.approval_requested', 'task.run.approval_resolved']);
 
@@ -145,13 +147,13 @@ app.post('/webhooks/mobilerun', async (c) => {
   }
   // Raw bytes exactly as received; the SDK verifies before parsing.
   const bytes = new Uint8Array(await c.req.arrayBuffer());
-  let event: { type?: unknown; data?: { taskId?: unknown } } | null;
+  let event: WebhookEvent;
   try {
-    event = await verifyWebhook({
+    event = (await verifyWebhook({
       body: bytes,
       headers: c.req.raw.headers,
       secret: WEBHOOK_SECRET,
-    }) as typeof event;
+    })) as WebhookEvent;
   } catch (err) {
     if (err instanceof WebhookVerificationError) return c.json({ error: 'invalid_signature' }, 401);
     throw err;
