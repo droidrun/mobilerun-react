@@ -33,10 +33,12 @@ interface UseDeviceStreamBase {
   enabled?: boolean;
   /**
    * While the device has no `streamUrl` yet (still spinning up), re-fetch every
-   * `pollIntervalMs`. Set to 0 to disable polling. Defaults to 3000ms.
+   * `pollIntervalMs`. Failed fetches retry at the same interval for transient
+   * errors, excluding 4xx statuses except 408/429. Set to 0 to disable polling.
+   * Defaults to 3000ms.
    */
   pollIntervalMs?: number;
-  /** Called when a fetch fails. */
+  /** Called for every failed fetch attempt. */
   onError?: (error: unknown) => void;
 }
 
@@ -125,14 +127,12 @@ export function useDeviceStream({
     }
 
     let cancelled = false;
-    let hasStream = false;
     let pollTimer: ReturnType<typeof setTimeout> | undefined;
 
     const load = async () => {
       try {
         const next = await (deviceHandle ? deviceHandle.refresh() : client!.devices.retrieve(targetId!));
         if (cancelled) return;
-        hasStream = Boolean(next.streamUrl);
         setDevice(next);
         setError(undefined);
         // Keep polling until the backend hands us a stream URL.
@@ -143,7 +143,9 @@ export function useDeviceStream({
         if (cancelled) return;
         setError(err);
         onErrorRef.current?.(err);
-        if (!hasStream && pollIntervalMs > 0) {
+        const status = (err as { status?: number } | null | undefined)?.status;
+        const permanent = typeof status === 'number' && status >= 400 && status < 500 && status !== 408 && status !== 429;
+        if (pollIntervalMs > 0 && !permanent) {
           pollTimer = setTimeout(load, pollIntervalMs);
         }
       } finally {

@@ -85,7 +85,7 @@ import '@mobilerun/react/styles.css';
 export function DevicePanel({ deviceId }: { deviceId: string }) {
   const sdk = useMemo(() => new MobilerunSDK({
     apiKey: 'example-sdk-helper', // placeholder, not a Mobilerun API key
-    baseURL: typeof window === 'undefined' ? '/api/v1' : `${window.location.origin}/api/v1`,
+    baseURL: typeof window === 'undefined' ? '/api/v1' : `${window.location.origin}/api/v1`, // SSR placeholder; the hook only fetches in the browser
   }), []);
   const { streamUrl, streamToken, state, refetch } = useDeviceStream({
     device: sdk.devices.fromId(deviceId), // no request yet
