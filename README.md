@@ -56,7 +56,7 @@ The object API helpers (`MobilerunSDK`, `devices.fromId`, `verifyWebhook`) requi
 
 Keep the API key on your backend. The browser's SDK calls your backend for the device's stream credentials, and `useDeviceStream` refreshes them when the stream reconnects.
 
-> ⚠️ **`MOBILERUN_API_KEY` is a secret API key — never ship it to the browser.** Only the server reads it. The browser receives the device's stream URL and short-lived stream token, scoped to that device; its SDK uses a placeholder key to call your backend.
+> ⚠️ **`MOBILERUN_API_KEY` is a secret API key — never ship it to the browser.** Only the server reads it. The device endpoint returns only `id`, `state`, `streamUrl`, and `streamToken` to the browser, with missing values set to `null`. The stream token is short-lived and scoped to that device; the browser SDK uses a placeholder key to call your backend.
 
 On your backend, register this handler for `GET /api/v1/devices/:id`, passing the routed device ID:
 
@@ -68,7 +68,12 @@ const sdk = new MobilerunSDK(); // reads MOBILERUN_API_KEY, server only
 export async function getDevice(id: string): Promise<Response> {
   // Authenticate the caller and check the device belongs to them before returning stream credentials.
   const device = await sdk.devices.get(id);
-  return Response.json(device.info);
+  return Response.json({
+    id: device.info?.id ?? null,
+    state: device.info?.state ?? null,
+    streamUrl: device.info?.streamUrl ?? null,
+    streamToken: device.info?.streamToken ?? null,
+  });
 }
 ```
 
@@ -137,6 +142,19 @@ import { MobilerunSDK, verifyWebhook, WebhookVerificationError } from '@mobileru
 const sdk = new MobilerunSDK(); // reads MOBILERUN_API_KEY
 const APPROVAL_EVENTS = new Set(['task.run.approval_requested', 'task.run.approval_resolved']);
 const ID = /^[A-Za-z0-9_-]+$/;
+
+// Device credentials: return only the fields needed for streaming.
+app.get('/api/v1/devices/:id', async (c) => {
+  const id = c.req.param('id');
+  // Authenticate the caller and check the device belongs to them before returning stream credentials.
+  const device = await sdk.devices.get(id);
+  return c.json({
+    id: device.info?.id ?? null,
+    state: device.info?.state ?? null,
+    streamUrl: device.info?.streamUrl ?? null,
+    streamToken: device.info?.streamToken ?? null,
+  });
+});
 
 // 1. Webhook: verify the raw bytes, then push a change signal to the user's browser (SSE, ...)
 app.post('/webhooks/mobilerun', async (c) => {

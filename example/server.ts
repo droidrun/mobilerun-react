@@ -54,7 +54,12 @@ app.get('/api/v1/devices/:deviceId', async (c) => {
 
   try {
     const device = await sdk.devices.get(c.req.param('deviceId'));
-    return c.json(device.info);
+    return c.json({
+      id: device.info?.id ?? null,
+      state: device.info?.state ?? null,
+      streamUrl: device.info?.streamUrl ?? null,
+      streamToken: device.info?.streamToken ?? null,
+    });
   } catch (err) {
     return upstreamFailure(c, 'device_retrieve_failed', err);
   }
