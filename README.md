@@ -52,20 +52,42 @@ npm install @mobilerun/react @mobilerun/sdk react react-dom
 
 ## 🚀 Quick start
 
-The SDK's device object already carries everything the stream needs (`device.info.streamUrl` + `device.info.streamToken`). Pass it to `useDeviceStream`, which loads the credentials and refreshes them when the stream reconnects:
+Keep the API key on your backend. The browser's SDK calls your backend for the device's stream credentials, and `useDeviceStream` refreshes them when the stream reconnects.
 
-> ⚠️ **`MOBILERUN_API_KEY` is a secret API key — never ship it to the browser.** It grants full account access, so the snippet below assumes a server-only context (RSC, route handler, SSR). In a client component, resolve `streamUrl` + `streamToken` on your backend instead and pass only those to `<DeviceStream />` — they're short-lived and scoped to a single device. See [Without the hook](#without-the-hook).
+> ⚠️ **`MOBILERUN_API_KEY` is a secret API key — never ship it to the browser.** Only the server reads it. The browser receives the device's stream URL and short-lived stream token, scoped to that device; its SDK uses a placeholder key to call your backend.
+
+On your backend, register this handler for `GET /api/v1/devices/:id`, passing the routed device ID:
+
+```ts
+import { MobilerunSDK } from '@mobilerun/sdk';
+
+const sdk = new MobilerunSDK(); // reads MOBILERUN_API_KEY, server only
+
+export async function getDevice(id: string): Promise<Response> {
+  // Authenticate the caller and check the device belongs to them before returning stream credentials.
+  const device = await sdk.devices.get(id);
+  return Response.json(device.info);
+}
+```
+
+In your client component, point the SDK at that backend route, as in the example app:
 
 ```tsx
+'use client';
+
+import { useMemo } from 'react';
 import { MobilerunSDK } from '@mobilerun/sdk';
 import { DeviceStream, useDeviceStream } from '@mobilerun/react';
 import '@mobilerun/react/styles.css';
 
-const sdk = new MobilerunSDK(); // reads MOBILERUN_API_KEY
-
 export function DevicePanel({ deviceId }: { deviceId: string }) {
-  const device = sdk.devices.fromId(deviceId); // no request yet
-  const { streamUrl, streamToken, state, refetch } = useDeviceStream({ device });
+  const sdk = useMemo(() => new MobilerunSDK({
+    apiKey: 'example-sdk-helper', // placeholder, not a Mobilerun API key
+    baseURL: typeof window === 'undefined' ? '/api/v1' : `${window.location.origin}/api/v1`,
+  }), []);
+  const { streamUrl, streamToken, state, refetch } = useDeviceStream({
+    device: sdk.devices.fromId(deviceId), // no request yet
+  });
 
   return (
     <div style={{ width: 360, height: 780 }}>
