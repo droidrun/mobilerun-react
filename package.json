@@ -1,6 +1,6 @@
 {
   "name": "@mobilerun/react",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "React components for embedding Mobilerun's native device streaming (WebRTC + scrcpy) and task approvals — plug-and-play with @mobilerun/sdk.",
   "license": "Apache-2.0",
   "author": "Mobilerun <support@droidrun.ai>",
