@@ -12,20 +12,50 @@ import type { Mobilerun } from '@mobilerun/sdk';
  */
 type SdkDevice = Awaited<ReturnType<Mobilerun['devices']['retrieve']>>;
 
-export interface UseDeviceStreamOptions {
-  /** A configured `@mobilerun/sdk` client instance. */
-  client: Mobilerun;
-  /** The device to stream. */
-  deviceId: string;
+/**
+ * The part of an `@mobilerun/sdk` device object (`sdk.devices.get(id)`) this
+ * hook needs. Structural so these types compile against `@mobilerun/sdk` < 6.2,
+ * which has no `Device` export.
+ */
+export interface SdkDeviceHandle {
+  id: string;
+  /**
+   * The client behind the handle. With `id` it keys the effect, so a fresh
+   * handle per render does not refetch.
+   */
+  api?: unknown;
+  /** Re-fetches the device and resolves with its current info. */
+  refresh(): PromiseLike<SdkDevice>;
+}
+
+interface UseDeviceStreamBase {
   /** Pause fetching when false (e.g. dialog closed). Defaults to true. */
   enabled?: boolean;
   /**
    * While the device has no `streamUrl` yet (still spinning up), re-fetch every
-   * `pollIntervalMs`. Set to 0 to disable polling. Defaults to 3000ms.
+   * `pollIntervalMs`. Failed fetches retry at the same interval for transient
+   * errors, excluding 4xx statuses except 408/429. Set to 0 to disable polling.
+   * Defaults to 3000ms.
    */
   pollIntervalMs?: number;
-  /** Called when a fetch fails. */
+  /** Called for every failed fetch attempt. */
   onError?: (error: unknown) => void;
+}
+
+/** Options for a configured `Mobilerun` client plus a device id. */
+export interface UseDeviceStreamOptions extends UseDeviceStreamBase {
+  /** A configured `@mobilerun/sdk` client instance. */
+  client: Mobilerun;
+  /** The device to stream. */
+  deviceId: string;
+  device?: undefined;
+}
+
+/** Options for an SDK device object from `sdk.devices.get(id)` (SDK 6.2+). */
+export interface UseDeviceStreamDeviceOptions extends UseDeviceStreamBase {
+  device: SdkDeviceHandle;
+  client?: undefined;
+  deviceId?: undefined;
 }
 
 export interface UseDeviceStreamResult {
@@ -53,7 +83,7 @@ export interface UseDeviceStreamResult {
  * polling while the device is still coming up. Pair with `<DeviceStream />`:
  *
  * ```tsx
- * const { streamUrl, streamToken, state, refetch } = useDeviceStream({ client, deviceId });
+ * const { streamUrl, streamToken, state, refetch } = useDeviceStream({ device });
  * return (
  *   <DeviceStream
  *     streamUrl={streamUrl}
@@ -64,27 +94,34 @@ export interface UseDeviceStreamResult {
  *   />
  * );
  * ```
+ *
+ * `device` comes from `sdk.devices.get(id)`. An existing `{ client, deviceId }`
+ * call keeps working.
  */
 export function useDeviceStream({
   client,
   deviceId,
+  device: deviceHandle,
   enabled = true,
   pollIntervalMs = 3000,
   onError,
-}: UseDeviceStreamOptions): UseDeviceStreamResult {
+}: UseDeviceStreamOptions | UseDeviceStreamDeviceOptions): UseDeviceStreamResult {
   const [device, setDevice] = useState<SdkDevice | undefined>(undefined);
   const [isLoading, setIsLoading] = useState<boolean>(enabled);
   const [error, setError] = useState<unknown>(undefined);
 
   const onErrorRef = useRef(onError);
   onErrorRef.current = onError;
+  // Keyed by id + client, not handle identity: a fresh handle per render is fine.
+  const targetId = deviceHandle?.id ?? deviceId;
+  const source = deviceHandle?.api ?? client;
 
   // Bumping this triggers a re-fetch without changing the polling cadence.
   const [fetchEpoch, setFetchEpoch] = useState(0);
   const refetch = useCallback(() => setFetchEpoch((e) => e + 1), []);
 
   useEffect(() => {
-    if (!enabled || !deviceId) {
+    if (!enabled || !targetId) {
       setIsLoading(false);
       return;
     }
@@ -94,7 +131,7 @@ export function useDeviceStream({
 
     const load = async () => {
       try {
-        const next = await client.devices.retrieve(deviceId);
+        const next = await (deviceHandle ? deviceHandle.refresh() : client!.devices.retrieve(targetId!));
         if (cancelled) return;
         setDevice(next);
         setError(undefined);
@@ -106,6 +143,11 @@ export function useDeviceStream({
         if (cancelled) return;
         setError(err);
         onErrorRef.current?.(err);
+        const status = (err as { status?: number } | null | undefined)?.status;
+        const permanent = typeof status === 'number' && status >= 400 && status < 500 && status !== 408 && status !== 429;
+        if (pollIntervalMs > 0 && !permanent) {
+          pollTimer = setTimeout(load, pollIntervalMs);
+        }
       } finally {
         if (!cancelled) setIsLoading(false);
       }
@@ -118,7 +160,7 @@ export function useDeviceStream({
       cancelled = true;
       if (pollTimer) clearTimeout(pollTimer);
     };
-  }, [client, deviceId, enabled, pollIntervalMs, fetchEpoch]);
+  }, [source, targetId, enabled, pollIntervalMs, fetchEpoch]);
 
   return {
     streamUrl: device?.streamUrl || undefined,

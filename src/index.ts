@@ -16,7 +16,12 @@ export { Button, buttonVariants, type ButtonProps } from './components/ui/button
 
 // Hooks
 export { useDeviceStream } from './hooks/use-device-stream';
-export type { UseDeviceStreamOptions, UseDeviceStreamResult } from './hooks/use-device-stream';
+export type {
+  SdkDeviceHandle,
+  UseDeviceStreamDeviceOptions,
+  UseDeviceStreamOptions,
+  UseDeviceStreamResult,
+} from './hooks/use-device-stream';
 export { useTaskApproval } from './hooks/use-task-approval';
 export type { UseTaskApprovalOptions, UseTaskApprovalResult } from './hooks/use-task-approval';
 export type { PendingApproval, ApprovalDecision } from './lib/task-approval';

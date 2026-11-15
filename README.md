@@ -52,19 +52,49 @@ npm install @mobilerun/react @mobilerun/sdk react react-dom
 
 ## 🚀 Quick start
 
-The SDK's `Device` already carries everything the stream needs (`streamUrl` + `streamToken`). `useDeviceStream` fetches them and refreshes them when the stream reconnects:
+The object API helpers (`MobilerunSDK`, `devices.fromId`, `verifyWebhook`) require `@mobilerun/sdk` 6.2 or later. The `{ client, deviceId }` hook form works with older SDKs; the peer dependency range remains `>=2.0.0`.
 
-> ⚠️ **`MOBILERUN_API_KEY` is a secret API key — never ship it to the browser.** It grants full account access, so the snippet below assumes a server-only context (RSC, route handler, SSR). In a client component, resolve `streamUrl` + `streamToken` on your backend instead and pass only those to `<DeviceStream />` — they're short-lived and scoped to a single device. See [Without the hook](#without-the-hook).
+Keep the API key on your backend. The browser's SDK calls your backend for the device's stream credentials, and `useDeviceStream` refreshes them when the stream reconnects.
+
+> ⚠️ **`MOBILERUN_API_KEY` is a secret API key — never ship it to the browser.** Only the server reads it. The device endpoint returns only `id`, `state`, `streamUrl`, and `streamToken` to the browser, with missing values set to `null`. The stream token is short-lived and scoped to that device; the browser SDK uses a placeholder key to call your backend.
+
+On your backend, register this handler for `GET /api/v1/devices/:id`, passing the routed device ID:
+
+```ts
+import { MobilerunSDK } from '@mobilerun/sdk';
+
+const sdk = new MobilerunSDK(); // reads MOBILERUN_API_KEY, server only
+
+export async function getDevice(id: string): Promise<Response> {
+  // Authenticate the caller and check the device belongs to them before returning stream credentials.
+  const device = await sdk.devices.get(id);
+  return Response.json({
+    id: device.info?.id ?? null,
+    state: device.info?.state ?? null,
+    streamUrl: device.info?.streamUrl ?? null,
+    streamToken: device.info?.streamToken ?? null,
+  });
+}
+```
+
+In your client component, point the SDK at that backend route, as in the example app:
 
 ```tsx
-import Mobilerun from '@mobilerun/sdk';
+'use client';
+
+import { useMemo } from 'react';
+import { MobilerunSDK } from '@mobilerun/sdk';
 import { DeviceStream, useDeviceStream } from '@mobilerun/react';
 import '@mobilerun/react/styles.css';
 
-const client = new Mobilerun({ apiKey: process.env.MOBILERUN_API_KEY });
-
 export function DevicePanel({ deviceId }: { deviceId: string }) {
-  const { streamUrl, streamToken, state, refetch } = useDeviceStream({ client, deviceId });
+  const sdk = useMemo(() => new MobilerunSDK({
+    apiKey: 'example-sdk-helper', // placeholder, not a Mobilerun API key
+    baseURL: typeof window === 'undefined' ? '/api/v1' : `${window.location.origin}/api/v1`, // SSR placeholder; the hook only fetches in the browser
+  }), []);
+  const { streamUrl, streamToken, state, refetch } = useDeviceStream({
+    device: sdk.devices.fromId(deviceId), // no request yet
+  });
 
   return (
     <div style={{ width: 360, height: 780 }}>
@@ -85,10 +115,12 @@ export function DevicePanel({ deviceId }: { deviceId: string }) {
 Already have the device? Feed its fields straight in — no hook required:
 
 ```tsx
-const device = await client.devices.retrieve(deviceId);
+const device = await sdk.devices.get(deviceId);
 
-<DeviceStream streamUrl={device.streamUrl} streamToken={device.streamToken} hasControl />;
+<DeviceStream streamUrl={device.info?.streamUrl} streamToken={device.info?.streamToken} hasControl />;
 ```
+
+`useDeviceStream` also still accepts `{ client, deviceId }` with a plain `Mobilerun` client, so existing code keeps working.
 
 ## ✅ Task approvals
 
@@ -100,29 +132,51 @@ A task can pause and wait for a human to approve a step, for example entering a 
 
 In your Mobilerun webhook settings, point an endpoint at your backend and filter it to the two approval events: `task.run.approval_requested` and `task.run.approval_resolved`. Events only tell the browser to reload; the fetched approval is the source of truth.
 
-Each delivery carries `X-Mobilerun-Timestamp` (Unix ms) and `X-Mobilerun-Signature: sha256=<hex>`, an HMAC-SHA256 of `"{timestamp}.{rawBody}"` with the endpoint secret. Verify it on the raw body before parsing, and reject timestamps more than 5 minutes off. `example/webhook-signature.ts` has a ready-made verifier.
+Each delivery carries `X-Mobilerun-Timestamp` (Unix ms) and `X-Mobilerun-Signature: sha256=<hex>`, an HMAC-SHA256 of `"{timestamp}.{rawBody}"` with the endpoint secret. `verifyWebhook` from `@mobilerun/sdk` checks the signature and the 5-minute timestamp window and returns the parsed payload; pass it the body bytes exactly as received. SDK 6.2.1 or later distinguishes `invalid_json` (a signed but unparsable body), which the handler answers with HTTP 400.
 
 ### 2. Backend sketch
 
 ```ts
+import { MobilerunSDK, verifyWebhook, WebhookVerificationError } from '@mobilerun/sdk';
+
+const sdk = new MobilerunSDK(); // reads MOBILERUN_API_KEY
+const APPROVAL_EVENTS = new Set(['task.run.approval_requested', 'task.run.approval_resolved']);
 const ID = /^[A-Za-z0-9_-]+$/;
+
+// Device credentials: return only the fields needed for streaming.
+app.get('/api/v1/devices/:id', async (c) => {
+  const id = c.req.param('id');
+  // Authenticate the caller and check the device belongs to them before returning stream credentials.
+  const device = await sdk.devices.get(id);
+  return c.json({
+    id: device.info?.id ?? null,
+    state: device.info?.state ?? null,
+    streamUrl: device.info?.streamUrl ?? null,
+    streamToken: device.info?.streamToken ?? null,
+  });
+});
 
 // 1. Webhook: verify the raw bytes, then push a change signal to the user's browser (SSE, ...)
 app.post('/webhooks/mobilerun', async (c) => {
   const secret = process.env.MOBILERUN_WEBHOOK_SECRET;
   if (!secret) return c.json({ error: 'missing_webhook_secret' }, 500);
   const bytes = new Uint8Array(await c.req.arrayBuffer());
-  const ok = verifyWebhookSignature({
-    secret,
-    rawBody: bytes,
-    timestamp: c.req.header('X-Mobilerun-Timestamp'),
-    signature: c.req.header('X-Mobilerun-Signature'),
-  });
-  if (!ok) return c.body(null, 401);
-  const event = JSON.parse(new TextDecoder().decode(bytes));
-  if (event.type === 'task.run.approval_requested' || event.type === 'task.run.approval_resolved') {
-    push({ taskId: event.data.taskId });
+  let event;
+  try {
+    event = await verifyWebhook({
+      body: bytes,
+      headers: c.req.raw.headers,
+      secret,
+    }) as { type?: string; data?: { taskId?: string } } | null;
+  } catch (err) {
+    if (err instanceof WebhookVerificationError) {
+      if (err.reason === 'invalid_json') return c.json({ error: 'invalid_json' }, 400);
+      return c.json({ error: 'invalid_signature' }, 401);
+    }
+    throw err;
   }
+  const taskId = event?.data?.taskId;
+  if (taskId && APPROVAL_EVENTS.has(event?.type ?? '')) push({ taskId });
   return c.body(null, 204);
 });
 
@@ -131,7 +185,7 @@ app.get('/api/tasks/:id', async (c) => {
   const id = c.req.param('id');
   if (!ID.test(id)) return c.json({ error: 'invalid_id' }, 400);
   // Authenticate the caller and check the task belongs to their user/org first.
-  const { task } = await mobilerunGet(`/tasks/${encodeURIComponent(id)}`);
+  const { task } = await sdk.api.get<{ task?: { pendingApproval?: unknown } }>(`/tasks/${encodeURIComponent(id)}`);
   return c.json({ pendingApproval: task?.pendingApproval ?? null });
 });
 
@@ -144,7 +198,7 @@ app.post('/api/tasks/:id/approvals/:approvalId', async (c) => {
   if (decision !== 'approve' && decision !== 'deny') return c.json({ error: 'invalid_decision' }, 422);
   // Authenticate the caller and check the task belongs to their user/org first.
   const url = `/tasks/${encodeURIComponent(id)}/approvals/${encodeURIComponent(approvalId)}`;
-  await mobilerunPost(url, { decision });
+  await sdk.api.post(url, { body: { decision } });
   return c.body(null, 204);
 });
 ```
@@ -247,7 +301,7 @@ bun install
 bun run example     # serves the playground at http://localhost:3000
 ```
 
-In SDK mode the example server exposes one narrow helper endpoint backed by `@mobilerun/sdk` so the API key can stay server-side while retrieving `streamUrl` and `streamToken`. The stream WebSocket itself is opened directly by the browser against `streamUrl`; the component appends `streamToken` as `?token=`. The same server also demonstrates [task approvals](#-task-approvals) (set `MOBILERUN_WEBHOOK_SECRET` for the webhook route). The server binds to `127.0.0.1` and its task and SSE routes are unauthenticated by design. If you need webhooks delivered to your machine, expose only `/webhooks/mobilerun` (for example through a tunnel that forwards just that path), never the whole server.
+In SDK mode the example server exposes one narrow helper endpoint backed by `@mobilerun/sdk` (`sdk.devices.get(id)`) so the API key can stay server-side while retrieving `streamUrl` and `streamToken`. The stream WebSocket itself is opened directly by the browser against `streamUrl`; the component appends `streamToken` as `?token=`. The same server also demonstrates [task approvals](#-task-approvals) (set `MOBILERUN_WEBHOOK_SECRET` for the webhook route). The server binds to `127.0.0.1` and its task and SSE routes are unauthenticated by design. If you need webhooks delivered to your machine, expose only `/webhooks/mobilerun` (for example through a tunnel that forwards just that path), never the whole server.
 
 ## 🎨 Styling & theming
 
