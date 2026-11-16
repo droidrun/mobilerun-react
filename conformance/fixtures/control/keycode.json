@@ -1,0 +1,204 @@
+{
+  "cases": [
+    {
+      "name": "home down",
+      "args": {
+        "action": 0,
+        "keycode": 3,
+        "repeat": 0,
+        "metaState": 0
+      },
+      "hex": "0000030000000000000000000000"
+    },
+    {
+      "name": "home up",
+      "args": {
+        "action": 1,
+        "keycode": 3,
+        "repeat": 0,
+        "metaState": 0
+      },
+      "hex": "0001030000000000000000000000"
+    },
+    {
+      "name": "back down",
+      "args": {
+        "action": 0,
+        "keycode": 4,
+        "repeat": 0,
+        "metaState": 0
+      },
+      "hex": "0000040000000000000000000000"
+    },
+    {
+      "name": "app switch down",
+      "args": {
+        "action": 0,
+        "keycode": 187,
+        "repeat": 0,
+        "metaState": 0
+      },
+      "hex": "0000bb0000000000000000000000"
+    },
+    {
+      "name": "menu down",
+      "args": {
+        "action": 0,
+        "keycode": 82,
+        "repeat": 0,
+        "metaState": 0
+      },
+      "hex": "0000520000000000000000000000"
+    },
+    {
+      "name": "enter down",
+      "args": {
+        "action": 0,
+        "keycode": 66,
+        "repeat": 0,
+        "metaState": 0
+      },
+      "hex": "0000420000000000000000000000"
+    },
+    {
+      "name": "backspace down",
+      "args": {
+        "action": 0,
+        "keycode": 67,
+        "repeat": 0,
+        "metaState": 0
+      },
+      "hex": "0000430000000000000000000000"
+    },
+    {
+      "name": "letter a down, no meta",
+      "args": {
+        "action": 0,
+        "keycode": 29,
+        "repeat": 0,
+        "metaState": 0
+      },
+      "hex": "00001d0000000000000000000000"
+    },
+    {
+      "name": "letter a down, shift",
+      "args": {
+        "action": 0,
+        "keycode": 29,
+        "repeat": 0,
+        "metaState": 1
+      },
+      "hex": "00001d0000000000000001000000"
+    },
+    {
+      "name": "letter c down, ctrl",
+      "args": {
+        "action": 0,
+        "keycode": 31,
+        "repeat": 0,
+        "metaState": 4096
+      },
+      "hex": "00001f0000000000000000100000"
+    },
+    {
+      "name": "letter c up, ctrl",
+      "args": {
+        "action": 1,
+        "keycode": 31,
+        "repeat": 0,
+        "metaState": 4096
+      },
+      "hex": "00011f0000000000000000100000"
+    },
+    {
+      "name": "letter z down, alt",
+      "args": {
+        "action": 0,
+        "keycode": 54,
+        "repeat": 0,
+        "metaState": 2
+      },
+      "hex": "0000360000000000000002000000"
+    },
+    {
+      "name": "letter v down, meta (command)",
+      "args": {
+        "action": 0,
+        "keycode": 50,
+        "repeat": 0,
+        "metaState": 65536
+      },
+      "hex": "0000320000000000000000000100"
+    },
+    {
+      "name": "all modifiers",
+      "args": {
+        "action": 0,
+        "keycode": 29,
+        "repeat": 0,
+        "metaState": 69635
+      },
+      "hex": "00001d0000000000000003100100"
+    },
+    {
+      "name": "shift+ctrl",
+      "args": {
+        "action": 0,
+        "keycode": 61,
+        "repeat": 0,
+        "metaState": 4097
+      },
+      "hex": "00003d0000000000000001100000"
+    },
+    {
+      "name": "repeat 5",
+      "args": {
+        "action": 0,
+        "keycode": 67,
+        "repeat": 5,
+        "metaState": 0
+      },
+      "hex": "0000430000000500000000000000"
+    },
+    {
+      "name": "arrow up",
+      "args": {
+        "action": 0,
+        "keycode": 19,
+        "repeat": 0,
+        "metaState": 0
+      },
+      "hex": "0000130000000000000000000000"
+    },
+    {
+      "name": "f12",
+      "args": {
+        "action": 0,
+        "keycode": 142,
+        "repeat": 0,
+        "metaState": 0
+      },
+      "hex": "00008e0000000000000000000000"
+    },
+    {
+      "name": "highest keycode (soft sleep 276)",
+      "args": {
+        "action": 0,
+        "keycode": 276,
+        "repeat": 0,
+        "metaState": 0
+      },
+      "hex": "0000140100000000000000000000"
+    },
+    {
+      "name": "unknown keycode 0",
+      "args": {
+        "action": 0,
+        "keycode": 0,
+        "repeat": 0,
+        "metaState": 0
+      },
+      "hex": "0000000000000000000000000000"
+    }
+  ]
+}

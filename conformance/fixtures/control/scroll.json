@@ -1,0 +1,238 @@
+{
+  "cases": [
+    {
+      "name": "zero",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "hscrollTicks": 0,
+        "vscrollTicks": 0,
+        "buttons": 0
+      },
+      "hex": "031c020000b0040000380460090000000000000000"
+    },
+    {
+      "name": "one tick up (vscroll +1)",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "hscrollTicks": 0,
+        "vscrollTicks": 1,
+        "buttons": 0
+      },
+      "hex": "031c020000b0040000380460090000000800000000"
+    },
+    {
+      "name": "one tick down (vscroll -1)",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "hscrollTicks": 0,
+        "vscrollTicks": -1,
+        "buttons": 0
+      },
+      "hex": "031c020000b004000038046009000000f800000000"
+    },
+    {
+      "name": "one tick left (hscroll +1)",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "hscrollTicks": 1,
+        "vscrollTicks": 0,
+        "buttons": 0
+      },
+      "hex": "031c020000b0040000380460090008000000000000"
+    },
+    {
+      "name": "one tick right (hscroll -1)",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "hscrollTicks": -1,
+        "vscrollTicks": 0,
+        "buttons": 0
+      },
+      "hex": "031c020000b00400003804600900f8000000000000"
+    },
+    {
+      "name": "both axes",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "hscrollTicks": 2,
+        "vscrollTicks": -3,
+        "buttons": 0
+      },
+      "hex": "031c020000b004000038046009001000e800000000"
+    },
+    {
+      "name": "fractional trackpad ticks",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "hscrollTicks": 0.3,
+        "vscrollTicks": -0.07,
+        "buttons": 0
+      },
+      "hex": "031c020000b004000038046009660271ff00000000"
+    },
+    {
+      "name": "half tick",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "hscrollTicks": 0.5,
+        "vscrollTicks": -0.5,
+        "buttons": 0
+      },
+      "hex": "031c020000b004000038046009000400fc00000000"
+    },
+    {
+      "name": "eight ticks",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "hscrollTicks": 8,
+        "vscrollTicks": -8,
+        "buttons": 0
+      },
+      "hex": "031c020000b004000038046009004000c000000000"
+    },
+    {
+      "name": "15 ticks",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "hscrollTicks": 0,
+        "vscrollTicks": 15,
+        "buttons": 0
+      },
+      "hex": "031c020000b0040000380460090000007800000000"
+    },
+    {
+      "name": "exactly 16 ticks clamps positive (0x7fff)",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "hscrollTicks": 16,
+        "vscrollTicks": 16,
+        "buttons": 0
+      },
+      "hex": "031c020000b004000038046009ff7fff7f00000000"
+    },
+    {
+      "name": "exactly -16 ticks (-0x8000)",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "hscrollTicks": -16,
+        "vscrollTicks": -16,
+        "buttons": 0
+      },
+      "hex": "031c020000b0040000380460090080008000000000"
+    },
+    {
+      "name": "positive extreme clamped",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "hscrollTicks": 1000,
+        "vscrollTicks": 1000,
+        "buttons": 0
+      },
+      "hex": "031c020000b004000038046009ff7fff7f00000000"
+    },
+    {
+      "name": "negative extreme clamped",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "hscrollTicks": -1000,
+        "vscrollTicks": -1000,
+        "buttons": 0
+      },
+      "hex": "031c020000b0040000380460090080008000000000"
+    },
+    {
+      "name": "mixed extremes",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "hscrollTicks": 1000,
+        "vscrollTicks": -1000,
+        "buttons": 0
+      },
+      "hex": "031c020000b004000038046009ff7f008000000000"
+    },
+    {
+      "name": "with primary button held",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "hscrollTicks": 0,
+        "vscrollTicks": 1,
+        "buttons": 1
+      },
+      "hex": "031c020000b0040000380460090000000801000000"
+    },
+    {
+      "name": "at origin",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 0,
+        "y": 0,
+        "hscrollTicks": 0,
+        "vscrollTicks": 1,
+        "buttons": 0
+      },
+      "hex": "030000000000000000380460090000000800000000"
+    },
+    {
+      "name": "fractional position rounds",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 10.5,
+        "y": 20.5,
+        "hscrollTicks": 0,
+        "vscrollTicks": 1,
+        "buttons": 0
+      },
+      "hex": "030b00000015000000380460090000000800000000"
+    }
+  ]
+}

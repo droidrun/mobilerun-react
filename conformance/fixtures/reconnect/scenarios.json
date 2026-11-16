@@ -1,0 +1,1298 @@
+{
+  "events": [
+    "attempt_mounted",
+    "connected",
+    "disconnected",
+    "failure",
+    "wake",
+    "retry",
+    "disable",
+    "dispose"
+  ],
+  "scenarios": [
+    {
+      "name": "connect watchdog › an attempt that never connects fails after the timeout and schedules a retry",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 0,
+          "after_steps": 1,
+          "status": "connecting",
+          "attempt": 0,
+          "heal_calls": 0,
+          "remount_calls": 0
+        },
+        {
+          "at_ms": 45000,
+          "after_steps": 1,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 0
+        },
+        {
+          "at_ms": 46000,
+          "after_steps": 1,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 1
+        }
+      ]
+    },
+    {
+      "name": "connect watchdog › terminal failure signal retries faster than the watchdog",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 100,
+          "event": "failure"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 100,
+          "after_steps": 2,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 0
+        },
+        {
+          "at_ms": 1100,
+          "after_steps": 2,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 1
+        }
+      ]
+    },
+    {
+      "name": "backoff escalation and exhaustion › consecutive failures escalate delays and end unavailable",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "failure"
+        },
+        {
+          "at_ms": 1000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 1000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 3000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 3000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 7000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 7000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 15000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 15000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 31000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 31000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 61000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 61000,
+          "event": "failure"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 0,
+          "after_steps": 2,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 0
+        },
+        {
+          "at_ms": 999,
+          "after_steps": 2,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 0
+        },
+        {
+          "at_ms": 1000,
+          "after_steps": 2,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 1
+        },
+        {
+          "at_ms": 1000,
+          "after_steps": 4,
+          "status": "reconnecting",
+          "attempt": 2,
+          "heal_calls": 1,
+          "remount_calls": 1
+        },
+        {
+          "at_ms": 2999,
+          "after_steps": 4,
+          "status": "reconnecting",
+          "attempt": 2,
+          "heal_calls": 1,
+          "remount_calls": 1
+        },
+        {
+          "at_ms": 3000,
+          "after_steps": 4,
+          "status": "reconnecting",
+          "attempt": 2,
+          "heal_calls": 1,
+          "remount_calls": 2
+        },
+        {
+          "at_ms": 3000,
+          "after_steps": 6,
+          "status": "reconnecting",
+          "attempt": 3,
+          "heal_calls": 1,
+          "remount_calls": 2
+        },
+        {
+          "at_ms": 6999,
+          "after_steps": 6,
+          "status": "reconnecting",
+          "attempt": 3,
+          "heal_calls": 1,
+          "remount_calls": 2
+        },
+        {
+          "at_ms": 7000,
+          "after_steps": 6,
+          "status": "reconnecting",
+          "attempt": 3,
+          "heal_calls": 1,
+          "remount_calls": 3
+        },
+        {
+          "at_ms": 7000,
+          "after_steps": 8,
+          "status": "reconnecting",
+          "attempt": 4,
+          "heal_calls": 1,
+          "remount_calls": 3
+        },
+        {
+          "at_ms": 14999,
+          "after_steps": 8,
+          "status": "reconnecting",
+          "attempt": 4,
+          "heal_calls": 1,
+          "remount_calls": 3
+        },
+        {
+          "at_ms": 15000,
+          "after_steps": 8,
+          "status": "reconnecting",
+          "attempt": 4,
+          "heal_calls": 1,
+          "remount_calls": 4
+        },
+        {
+          "at_ms": 15000,
+          "after_steps": 10,
+          "status": "reconnecting",
+          "attempt": 5,
+          "heal_calls": 1,
+          "remount_calls": 4
+        },
+        {
+          "at_ms": 30999,
+          "after_steps": 10,
+          "status": "reconnecting",
+          "attempt": 5,
+          "heal_calls": 1,
+          "remount_calls": 4
+        },
+        {
+          "at_ms": 31000,
+          "after_steps": 10,
+          "status": "reconnecting",
+          "attempt": 5,
+          "heal_calls": 1,
+          "remount_calls": 5
+        },
+        {
+          "at_ms": 31000,
+          "after_steps": 12,
+          "status": "reconnecting",
+          "attempt": 6,
+          "heal_calls": 1,
+          "remount_calls": 5
+        },
+        {
+          "at_ms": 60999,
+          "after_steps": 12,
+          "status": "reconnecting",
+          "attempt": 6,
+          "heal_calls": 1,
+          "remount_calls": 5
+        },
+        {
+          "at_ms": 61000,
+          "after_steps": 12,
+          "status": "reconnecting",
+          "attempt": 6,
+          "heal_calls": 1,
+          "remount_calls": 6
+        },
+        {
+          "at_ms": 61000,
+          "after_steps": 14,
+          "status": "unavailable",
+          "attempt": 7,
+          "heal_calls": 1,
+          "remount_calls": 6
+        },
+        {
+          "at_ms": 661000,
+          "after_steps": 14,
+          "status": "unavailable",
+          "attempt": 7,
+          "heal_calls": 1,
+          "remount_calls": 6
+        }
+      ]
+    },
+    {
+      "name": "backoff escalation and exhaustion › failure signals collapse into one backoff step per attempt",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "failure"
+        },
+        {
+          "at_ms": 0,
+          "event": "failure"
+        },
+        {
+          "at_ms": 0,
+          "event": "disconnected"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 0,
+          "after_steps": 4,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 0
+        }
+      ]
+    },
+    {
+      "name": "disconnect handling › non-connected states during negotiation are not failures",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "disconnected"
+        },
+        {
+          "at_ms": 0,
+          "event": "disconnected"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 0,
+          "after_steps": 3,
+          "status": "connecting",
+          "attempt": 0,
+          "heal_calls": 0,
+          "remount_calls": 0
+        }
+      ]
+    },
+    {
+      "name": "disconnect handling › a drop after connecting counts and reconnects",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "connected"
+        },
+        {
+          "at_ms": 0,
+          "event": "disconnected"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 0,
+          "after_steps": 2,
+          "status": "connected",
+          "attempt": 0,
+          "heal_calls": 0,
+          "remount_calls": 0
+        },
+        {
+          "at_ms": 0,
+          "after_steps": 3,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 0
+        },
+        {
+          "at_ms": 1000,
+          "after_steps": 3,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 1
+        }
+      ]
+    },
+    {
+      "name": "disconnect handling › a stable connection refills the retry budget",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "failure"
+        },
+        {
+          "at_ms": 1000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 1000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 3000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 3000,
+          "event": "connected"
+        },
+        {
+          "at_ms": 33000,
+          "event": "disconnected"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 3000,
+          "after_steps": 6,
+          "status": "connected",
+          "attempt": 2,
+          "heal_calls": 1,
+          "remount_calls": 2
+        },
+        {
+          "at_ms": 33000,
+          "after_steps": 6,
+          "status": "connected",
+          "attempt": 0,
+          "heal_calls": 1,
+          "remount_calls": 2
+        },
+        {
+          "at_ms": 33000,
+          "after_steps": 7,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 2,
+          "remount_calls": 2
+        }
+      ]
+    },
+    {
+      "name": "disconnect handling › a quick drop before stability keeps escalating",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "failure"
+        },
+        {
+          "at_ms": 1000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 1000,
+          "event": "connected"
+        },
+        {
+          "at_ms": 2000,
+          "event": "disconnected"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 2000,
+          "after_steps": 5,
+          "status": "reconnecting",
+          "attempt": 2,
+          "heal_calls": 1,
+          "remount_calls": 1
+        }
+      ]
+    },
+    {
+      "name": "disconnect handling › self-recovery during a backoff wait cancels the pending remount",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "connected"
+        },
+        {
+          "at_ms": 0,
+          "event": "disconnected"
+        },
+        {
+          "at_ms": 0,
+          "event": "connected"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 0,
+          "after_steps": 3,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 0
+        },
+        {
+          "at_ms": 0,
+          "after_steps": 4,
+          "status": "connected",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 0
+        },
+        {
+          "at_ms": 60000,
+          "after_steps": 4,
+          "status": "connected",
+          "attempt": 0,
+          "heal_calls": 1,
+          "remount_calls": 0
+        }
+      ]
+    },
+    {
+      "name": "wake and manual retry › wake during a backoff wait retries immediately",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "connected"
+        },
+        {
+          "at_ms": 0,
+          "event": "disconnected"
+        },
+        {
+          "at_ms": 0,
+          "event": "failure"
+        },
+        {
+          "at_ms": 0,
+          "event": "wake"
+        },
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "connected"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 0,
+          "after_steps": 4,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 0
+        },
+        {
+          "at_ms": 0,
+          "after_steps": 5,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 1
+        },
+        {
+          "at_ms": 60000,
+          "after_steps": 7,
+          "status": "connected",
+          "attempt": 0,
+          "heal_calls": 1,
+          "remount_calls": 1
+        }
+      ]
+    },
+    {
+      "name": "wake and manual retry › wake while unavailable starts a fresh cycle",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "failure"
+        },
+        {
+          "at_ms": 1000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 1000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 3000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 3000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 7000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 7000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 15000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 15000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 31000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 31000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 61000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 61000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 91000,
+          "event": "wake"
+        },
+        {
+          "at_ms": 91000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 91000,
+          "event": "connected"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 91000,
+          "after_steps": 14,
+          "status": "unavailable",
+          "attempt": 7,
+          "heal_calls": 1,
+          "remount_calls": 6
+        },
+        {
+          "at_ms": 91000,
+          "after_steps": 15,
+          "status": "reconnecting",
+          "attempt": 0,
+          "heal_calls": 2,
+          "remount_calls": 7
+        },
+        {
+          "at_ms": 91000,
+          "after_steps": 17,
+          "status": "connected",
+          "attempt": 0,
+          "heal_calls": 2,
+          "remount_calls": 7
+        }
+      ]
+    },
+    {
+      "name": "wake and manual retry › retry() only acts when unavailable",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "retry"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 0,
+          "after_steps": 2,
+          "status": "connecting",
+          "attempt": 0,
+          "heal_calls": 0,
+          "remount_calls": 0
+        }
+      ]
+    },
+    {
+      "name": "wake and manual retry › wake while connected is a no-op",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "connected"
+        },
+        {
+          "at_ms": 0,
+          "event": "wake"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 0,
+          "after_steps": 3,
+          "status": "connected",
+          "attempt": 0,
+          "heal_calls": 0,
+          "remount_calls": 0
+        }
+      ]
+    },
+    {
+      "name": "target changes › applies target changes immediately while connected or connecting",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "connected"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 0,
+          "after_steps": 1,
+          "status": "connecting",
+          "attempt": 0,
+          "heal_calls": 0,
+          "remount_calls": 0,
+          "defer_target_change": false
+        },
+        {
+          "at_ms": 0,
+          "after_steps": 2,
+          "status": "connected",
+          "attempt": 0,
+          "heal_calls": 0,
+          "remount_calls": 0,
+          "defer_target_change": false
+        }
+      ]
+    },
+    {
+      "name": "target changes › defers target changes during a backoff wait and while unavailable",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "failure"
+        },
+        {
+          "at_ms": 1000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 1000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 3000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 3000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 7000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 7000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 15000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 15000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 31000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 31000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 61000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 61000,
+          "event": "failure"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 0,
+          "after_steps": 2,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 0,
+          "defer_target_change": true
+        },
+        {
+          "at_ms": 91000,
+          "after_steps": 14,
+          "status": "unavailable",
+          "attempt": 7,
+          "heal_calls": 1,
+          "remount_calls": 6,
+          "defer_target_change": true
+        }
+      ]
+    },
+    {
+      "name": "target changes › applies credentials that arrive after the backoff to the in-flight retry",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "failure"
+        },
+        {
+          "at_ms": 1000,
+          "event": "attempt_mounted"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 0,
+          "after_steps": 2,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 0,
+          "defer_target_change": true
+        },
+        {
+          "at_ms": 1000,
+          "after_steps": 3,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 1,
+          "defer_target_change": false
+        }
+      ]
+    },
+    {
+      "name": "target changes › applies credentials that arrive after wake to the in-flight fresh cycle",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "failure"
+        },
+        {
+          "at_ms": 1000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 1000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 3000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 3000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 7000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 7000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 15000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 15000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 31000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 31000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 61000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 61000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 91000,
+          "event": "wake"
+        },
+        {
+          "at_ms": 91000,
+          "event": "attempt_mounted"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 91000,
+          "after_steps": 14,
+          "status": "unavailable",
+          "attempt": 7,
+          "heal_calls": 1,
+          "remount_calls": 6
+        },
+        {
+          "at_ms": 91000,
+          "after_steps": 16,
+          "status": "reconnecting",
+          "attempt": 0,
+          "heal_calls": 2,
+          "remount_calls": 7,
+          "defer_target_change": false
+        }
+      ]
+    },
+    {
+      "name": "target changes › a rotation remount flips connected back to connecting",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "connected"
+        },
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 0,
+          "after_steps": 3,
+          "status": "connecting",
+          "attempt": 0,
+          "heal_calls": 0,
+          "remount_calls": 0
+        }
+      ]
+    },
+    {
+      "name": "disable and dispose › disabling stops timers and resets state",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "failure"
+        },
+        {
+          "at_ms": 0,
+          "event": "disable"
+        },
+        {
+          "at_ms": 600000,
+          "event": "failure"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 0,
+          "after_steps": 3,
+          "status": "connecting",
+          "attempt": 0,
+          "heal_calls": 1,
+          "remount_calls": 0
+        },
+        {
+          "at_ms": 600000,
+          "after_steps": 3,
+          "status": "connecting",
+          "attempt": 0,
+          "heal_calls": 1,
+          "remount_calls": 0
+        },
+        {
+          "at_ms": 600000,
+          "after_steps": 4,
+          "status": "connecting",
+          "attempt": 0,
+          "heal_calls": 1,
+          "remount_calls": 0
+        }
+      ]
+    },
+    {
+      "name": "disable and dispose › dispose clears all pending timers",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "failure"
+        },
+        {
+          "at_ms": 0,
+          "event": "dispose"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 0,
+          "after_steps": 3,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 0,
+          "pending_timers": 0
+        }
+      ]
+    },
+    {
+      "name": "disable and dispose › a StrictMode-style mount during a wait does not disturb it",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "connected"
+        },
+        {
+          "at_ms": 0,
+          "event": "disconnected"
+        },
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 999,
+          "after_steps": 4,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 0
+        },
+        {
+          "at_ms": 1000,
+          "after_steps": 4,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 1
+        }
+      ]
+    },
+    {
+      "name": "heal cadence › one heal per recovery cycle, again after stability reset and on wake",
+      "random": 0.5,
+      "steps": [
+        {
+          "at_ms": 0,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 0,
+          "event": "failure"
+        },
+        {
+          "at_ms": 1000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 1000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 3000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 3000,
+          "event": "connected"
+        },
+        {
+          "at_ms": 33000,
+          "event": "disconnected"
+        },
+        {
+          "at_ms": 35000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 35000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 39000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 39000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 47000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 47000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 63000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 63000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 93000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 93000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 123000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 123000,
+          "event": "failure"
+        },
+        {
+          "at_ms": 123000,
+          "event": "wake"
+        },
+        {
+          "at_ms": 123000,
+          "event": "attempt_mounted"
+        },
+        {
+          "at_ms": 123000,
+          "event": "failure"
+        }
+      ],
+      "expect": [
+        {
+          "at_ms": 0,
+          "after_steps": 2,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 1,
+          "remount_calls": 0
+        },
+        {
+          "at_ms": 1000,
+          "after_steps": 4,
+          "status": "reconnecting",
+          "attempt": 2,
+          "heal_calls": 1,
+          "remount_calls": 1
+        },
+        {
+          "at_ms": 33000,
+          "after_steps": 7,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 2,
+          "remount_calls": 2
+        },
+        {
+          "at_ms": 123000,
+          "after_steps": 19,
+          "status": "unavailable",
+          "attempt": 7,
+          "heal_calls": 2,
+          "remount_calls": 8
+        },
+        {
+          "at_ms": 123000,
+          "after_steps": 20,
+          "status": "reconnecting",
+          "attempt": 0,
+          "heal_calls": 3,
+          "remount_calls": 9
+        },
+        {
+          "at_ms": 123000,
+          "after_steps": 22,
+          "status": "reconnecting",
+          "attempt": 1,
+          "heal_calls": 3,
+          "remount_calls": 9
+        }
+      ]
+    }
+  ]
+}

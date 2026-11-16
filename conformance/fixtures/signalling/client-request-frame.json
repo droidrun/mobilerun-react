@@ -1,0 +1,26 @@
+{
+  "type": "requestFrame",
+  "direction": "client_to_server",
+  "description": "Asks the encoder for a fresh frame. Sent 12 times, 125 ms apart, starting when the control data channel opens.",
+  "fields": [
+    {
+      "name": "type",
+      "type": "string (constant \"requestFrame\")",
+      "required": true
+    },
+    {
+      "name": "sessionId",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "examples": [
+    {
+      "name": "requestFrame",
+      "json": {
+        "type": "requestFrame",
+        "sessionId": "sess_0123456789abcdef"
+      }
+    }
+  ]
+}

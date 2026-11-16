@@ -1,0 +1,29 @@
+{
+  "type": "answer",
+  "direction": "server_to_client",
+  "description": "SDP answer to the latest offer (initial or ICE-restart).",
+  "fields": [
+    {
+      "name": "type",
+      "type": "string (constant \"answer\")",
+      "required": true
+    },
+    {
+      "name": "sdp",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "examples": [
+    {
+      "name": "answer",
+      "json": {
+        "type": "answer",
+        "sdp": "v=0\r\no=- 7614219274584779017 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0 1\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\n"
+      }
+    }
+  ],
+  "notes": [
+    "A failing setRemoteDescription (e.g. a stale answer) is ignored; buffered candidates stay buffered."
+  ]
+}

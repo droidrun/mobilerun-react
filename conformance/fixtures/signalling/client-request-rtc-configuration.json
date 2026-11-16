@@ -1,0 +1,33 @@
+{
+  "type": "requestRtcConfiguration",
+  "direction": "client_to_server",
+  "description": "First message after the WebSocket opens. Asks the server for the RTCConfiguration (ICE servers).",
+  "fields": [
+    {
+      "name": "type",
+      "type": "string (constant \"requestRtcConfiguration\")",
+      "required": true
+    },
+    {
+      "name": "sessionId",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "supportsLiveRtcRefresh",
+      "type": "boolean (constant true)",
+      "required": true,
+      "notes": "Opt-in to unsolicited mid-session rtcConfiguration pushes. The client always sends true."
+    }
+  ],
+  "examples": [
+    {
+      "name": "as produced by createRTCConfigurationRequest",
+      "json": {
+        "type": "requestRtcConfiguration",
+        "sessionId": "sess_0123456789abcdef",
+        "supportsLiveRtcRefresh": true
+      }
+    }
+  ]
+}

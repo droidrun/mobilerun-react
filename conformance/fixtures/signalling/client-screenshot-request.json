@@ -1,0 +1,31 @@
+{
+  "type": "screenshot",
+  "direction": "client_to_server",
+  "description": "Requests a screenshot. The reply (screenshot or screenshotError) carries the same id.",
+  "fields": [
+    {
+      "name": "type",
+      "type": "string (constant \"screenshot\")",
+      "required": true
+    },
+    {
+      "name": "id",
+      "type": "string",
+      "required": true,
+      "notes": "Client-chosen correlation id; React uses \"ui-ss-<epoch ms>-<7 random base36 chars>\""
+    }
+  ],
+  "examples": [
+    {
+      "name": "screenshot request",
+      "json": {
+        "type": "screenshot",
+        "id": "ui-ss-1700000000000-k3j9x2a"
+      }
+    }
+  ],
+  "notes": [
+    "No sessionId in this message.",
+    "The client rejects the pending request after 30000 ms without a reply."
+  ]
+}

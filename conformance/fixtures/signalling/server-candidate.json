@@ -1,0 +1,41 @@
+{
+  "type": "candidate",
+  "direction": "server_to_client",
+  "description": "A remote ICE candidate. Buffered until the remote description is set, then applied.",
+  "fields": [
+    {
+      "name": "type",
+      "type": "string (constant \"candidate\")",
+      "required": true
+    },
+    {
+      "name": "candidate",
+      "type": "string",
+      "required": true,
+      "notes": "SDP candidate line, passed as RTCIceCandidateInit.candidate"
+    },
+    {
+      "name": "sdpMid",
+      "type": "string | null",
+      "required": true,
+      "notes": "May be null"
+    },
+    {
+      "name": "sdpMLineIndex",
+      "type": "integer | null",
+      "required": true,
+      "notes": "May be null"
+    }
+  ],
+  "examples": [
+    {
+      "name": "remote candidate",
+      "json": {
+        "type": "candidate",
+        "candidate": "candidate:842163049 1 udp 1677729535 203.0.113.7 46154 typ srflx raddr 0.0.0.0 rport 0 generation 0",
+        "sdpMid": "0",
+        "sdpMLineIndex": 0
+      }
+    }
+  ]
+}

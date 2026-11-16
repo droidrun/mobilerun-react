@@ -328,7 +328,12 @@ Retheme by overriding the CSS variables on an ancestor (e.g. `--background`, `--
 bun install
 bun run build       # tsup (JS + d.ts) + Tailwind (styles.css) → dist/
 bun run typecheck
+bun test
 ```
+
+## 🧬 Conformance
+
+The control messages, signalling frames, reconnect policy and input routing are replayed against the shared [conformance fixtures](https://github.com/droidrun/mobilerun-sdk-conformance) that the native SDKs also pass. The vendored copy lives in `conformance/fixtures` (version in `conformance/VERSION`, currently v0.2.0) and runs with `bun test`. To move to another release, run `scripts/sync-conformance.sh TAG`.
 
 ## 📄 License
 

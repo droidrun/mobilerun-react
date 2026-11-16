@@ -1,0 +1,37 @@
+{
+  "type": "screenshot",
+  "direction": "server_to_client",
+  "description": "Successful screenshot reply.",
+  "fields": [
+    {
+      "name": "type",
+      "type": "string (constant \"screenshot\")",
+      "required": true
+    },
+    {
+      "name": "id",
+      "type": "string",
+      "required": true,
+      "notes": "Must match a pending request, otherwise ignored"
+    },
+    {
+      "name": "dataUri",
+      "type": "string",
+      "required": true,
+      "notes": "e.g. \"data:image/png;base64,...\""
+    }
+  ],
+  "examples": [
+    {
+      "name": "screenshot",
+      "json": {
+        "type": "screenshot",
+        "id": "ui-ss-1700000000000-k3j9x2a",
+        "dataUri": "data:image/png;base64,iVBORw0KGgo="
+      }
+    }
+  ],
+  "notes": [
+    "A message missing a string id or string dataUri is ignored."
+  ]
+}

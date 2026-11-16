@@ -1,0 +1,378 @@
+{
+  "cases": [
+    {
+      "name": "empty",
+      "operation": "commit",
+      "text": "",
+      "expect": []
+    },
+    {
+      "name": "ascii",
+      "operation": "commit",
+      "text": "hello",
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010500000068656c6c6f"
+        }
+      ]
+    },
+    {
+      "name": "unicode",
+      "operation": "commit",
+      "text": "é中😀é",
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010c000000c3a9e4b8adf09f988065cc81"
+        }
+      ]
+    },
+    {
+      "name": "lf",
+      "operation": "commit",
+      "text": "\n",
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001420000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "cr",
+      "operation": "commit",
+      "text": "\r",
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001420000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "crlf",
+      "operation": "commit",
+      "text": "\r\n",
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001420000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "tab",
+      "operation": "commit",
+      "text": "\t",
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00003d0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00013d0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "mixed",
+      "operation": "commit",
+      "text": "a\r\nb\rc\nd\te",
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010100000061"
+        },
+        {
+          "channel": "control",
+          "hex": "0000420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "010100000062"
+        },
+        {
+          "channel": "control",
+          "hex": "0000420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "010100000063"
+        },
+        {
+          "channel": "control",
+          "hex": "0000420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "010100000064"
+        },
+        {
+          "channel": "control",
+          "hex": "00003d0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00013d0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "010100000065"
+        }
+      ]
+    },
+    {
+      "name": "consecutive breaks",
+      "operation": "commit",
+      "text": "\r\n\r\n\n\r\t\t",
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0000420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0000420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0000420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00003d0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00013d0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00003d0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00013d0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "c0 controls dropped",
+      "operation": "commit",
+      "text": "a\u0000\u0001\b\u001bb",
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "01020000006162"
+        }
+      ]
+    },
+    {
+      "name": "del and c1 dropped",
+      "operation": "commit",
+      "text": "ab",
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "01020000006162"
+        }
+      ]
+    },
+    {
+      "name": "only dropped controls",
+      "operation": "commit",
+      "text": "\u0000\u001f",
+      "expect": []
+    },
+    {
+      "name": "controls between separators",
+      "operation": "commit",
+      "text": "a\u0000\tb\nc",
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010100000061"
+        },
+        {
+          "channel": "control",
+          "hex": "00003d0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00013d0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "010100000062"
+        },
+        {
+          "channel": "control",
+          "hex": "0000420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "010100000063"
+        }
+      ]
+    },
+    {
+      "name": "unicode line separators printable",
+      "operation": "commit",
+      "text": "a b c",
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010900000061e280a862e280a963"
+        }
+      ]
+    },
+    {
+      "name": "lone surrogate replacement",
+      "operation": "commit",
+      "text": "a\ud83d\tb",
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010400000061efbfbd"
+        },
+        {
+          "channel": "control",
+          "hex": "00003d0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00013d0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "010100000062"
+        }
+      ]
+    },
+    {
+      "name": "empty marked composition delete",
+      "operation": "delete",
+      "composition_text": "",
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000430000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001430000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "nonempty marked composition delete stays local",
+      "operation": "delete",
+      "composition_text": "a",
+      "expect": []
+    },
+    {
+      "name": "composition update stays local",
+      "operation": "composition_update",
+      "text": "に",
+      "expect": []
+    },
+    {
+      "name": "composition finalized",
+      "operation": "composition_end",
+      "text": "日本語😀",
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010d000000e697a5e69cace8aa9ef09f9880"
+        }
+      ]
+    },
+    {
+      "name": "composition finalized splits and drops",
+      "operation": "composition_end",
+      "text": "a\t\nb\u0000",
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010100000061"
+        },
+        {
+          "channel": "control",
+          "hex": "00003d0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00013d0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0000420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "010100000062"
+        }
+      ]
+    },
+    {
+      "name": "composition empty",
+      "operation": "composition_end",
+      "text": "",
+      "expect": []
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "type": "rtcConfiguration",
+  "direction": "server_to_client",
+  "description": "ICE configuration. The first one is the reply to requestRtcConfiguration. Later ones are unsolicited mid-session credential refreshes (only sent to clients that advertised supportsLiveRtcRefresh).",
+  "fields": [
+    {
+      "name": "type",
+      "type": "string (constant \"rtcConfiguration\")",
+      "required": true
+    },
+    {
+      "name": "rtcConfiguration",
+      "type": "object (RTCConfiguration)",
+      "required": true,
+      "notes": "Initial reply: the whole object is given to the RTCPeerConnection constructor. Refresh: only iceServers is read."
+    },
+    {
+      "name": "rtcConfiguration.iceServers",
+      "type": "array of {urls: string | string[], username?: string, credential?: string}",
+      "required": false,
+      "notes": "Required for a refresh to have any effect: a refresh without iceServers is ignored."
+    }
+  ],
+  "examples": [
+    {
+      "name": "initial reply or refresh",
+      "json": {
+        "type": "rtcConfiguration",
+        "rtcConfiguration": {
+          "iceServers": [
+            {
+              "urls": [
+                "stun:stun.example.test:3478"
+              ]
+            },
+            {
+              "urls": [
+                "turn:turn.example.test:3478?transport=udp",
+                "turns:turn.example.test:5349?transport=tcp"
+              ],
+              "username": "1700000000:user",
+              "credential": "cred-example"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "name": "refresh without iceServers (ignored)",
+      "json": {
+        "type": "rtcConfiguration",
+        "rtcConfiguration": {}
+      }
+    }
+  ],
+  "notes": [
+    "Which of the two it is depends on the connection phase, not on the content: the first rtcConfiguration after requestRtcConfiguration is the initial reply. Once the peer connection and the general message handler exist (happy_path step 6) any further rtcConfiguration is a refresh. A refresh can therefore never be handled before that point."
+  ]
+}

@@ -1,0 +1,136 @@
+{
+  "max_attempts": 6,
+  "connect_timeout_ms": 45000,
+  "stability_ms": 30000,
+  "backoff": {
+    "base_delay_ms": 1000,
+    "max_delay_ms": 30000,
+    "formula": "round(min(base_delay_ms * 2^(max(1, attempt) - 1), max_delay_ms) * (0.75 + random * 0.5)); random in [0, 1), random = 1 only as the upper-bound limit case",
+    "rounding": "round half toward +infinity (Math.round)"
+  },
+  "delay_cases": [
+    {
+      "attempt": 1,
+      "random": 0,
+      "delay_ms": 750
+    },
+    {
+      "attempt": 1,
+      "random": 0.5,
+      "delay_ms": 1000
+    },
+    {
+      "attempt": 1,
+      "random": 1,
+      "delay_ms": 1250
+    },
+    {
+      "attempt": 2,
+      "random": 0,
+      "delay_ms": 1500
+    },
+    {
+      "attempt": 2,
+      "random": 0.5,
+      "delay_ms": 2000
+    },
+    {
+      "attempt": 2,
+      "random": 1,
+      "delay_ms": 2500
+    },
+    {
+      "attempt": 3,
+      "random": 0,
+      "delay_ms": 3000
+    },
+    {
+      "attempt": 3,
+      "random": 0.5,
+      "delay_ms": 4000
+    },
+    {
+      "attempt": 3,
+      "random": 1,
+      "delay_ms": 5000
+    },
+    {
+      "attempt": 4,
+      "random": 0,
+      "delay_ms": 6000
+    },
+    {
+      "attempt": 4,
+      "random": 0.5,
+      "delay_ms": 8000
+    },
+    {
+      "attempt": 4,
+      "random": 1,
+      "delay_ms": 10000
+    },
+    {
+      "attempt": 5,
+      "random": 0,
+      "delay_ms": 12000
+    },
+    {
+      "attempt": 5,
+      "random": 0.5,
+      "delay_ms": 16000
+    },
+    {
+      "attempt": 5,
+      "random": 1,
+      "delay_ms": 20000
+    },
+    {
+      "attempt": 6,
+      "random": 0,
+      "delay_ms": 22500
+    },
+    {
+      "attempt": 6,
+      "random": 0.5,
+      "delay_ms": 30000
+    },
+    {
+      "attempt": 6,
+      "random": 1,
+      "delay_ms": 37500
+    },
+    {
+      "attempt": 7,
+      "random": 0,
+      "delay_ms": 22500
+    },
+    {
+      "attempt": 7,
+      "random": 0.5,
+      "delay_ms": 30000
+    },
+    {
+      "attempt": 7,
+      "random": 1,
+      "delay_ms": 37500
+    },
+    {
+      "attempt": 10,
+      "random": 0,
+      "delay_ms": 22500
+    },
+    {
+      "attempt": 10,
+      "random": 0.5,
+      "delay_ms": 30000
+    },
+    {
+      "attempt": 10,
+      "random": 1,
+      "delay_ms": 37500
+    }
+  ],
+  "invariants": [
+    "connect_timeout_ms > ws_open_timeout_ms + rtc_config_timeout_ms (the two handshake timeouts are defined in signalling/sequence.json timing)"
+  ]
+}
