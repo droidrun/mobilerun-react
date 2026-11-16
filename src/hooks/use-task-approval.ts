@@ -13,7 +13,7 @@ export interface UseTaskApprovalOptions {
   decide: (input: { taskId: string; approvalId: string; decision: ApprovalDecision }) => Promise<void>;
   /** Optional push source (e.g. SSE fed by your webhook handler). Call onChange when an approval event for this task arrives; return an unsubscribe. */
   subscribe?: (taskId: string, onChange: () => void) => () => void;
-  /** Poll interval while enabled. Default 0 (off) when `subscribe` is given, else 3000. If `subscribe` throws, the error goes to `onError` and polling runs at this interval (3000 when unset or 0). */
+  /** Poll interval while enabled. Default 0 (off) when `subscribe` is given, else 3000. If `subscribe` throws, the error goes to `onError` and polling runs at this interval; an explicit 0 then falls back to 3000 (0 only means "no polling" while `subscribe` works). */
   pollIntervalMs?: number;
   enabled?: boolean;
   onError?: (error: unknown) => void;
@@ -135,7 +135,6 @@ export function useTaskApproval({
 
     reloadRef.current = () => void load();
     setIsLoading(true);
-    void load();
     let unsubscribe: (() => void) | undefined;
     try {
       unsubscribe = subscribeRef.current?.(taskId, () => {
@@ -147,6 +146,8 @@ export function useTaskApproval({
       onErrorRef.current?.(err);
       pollMs = pollIntervalMs || DEFAULT_POLL_INTERVAL_MS;
     }
+    // After the subscription setup, so `pollMs` is final when the first load settles.
+    void load();
 
     return () => {
       cancelled = true;

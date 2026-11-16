@@ -14,6 +14,10 @@ export function createRTCConfigurationRequest(sessionId: string) {
   } as const;
 }
 
+export function createScreenshotRequest(id: string) {
+  return { type: 'screenshot', id } as const;
+}
+
 export function createTouchControlMessage(
   action: number,
   pointerId: number,

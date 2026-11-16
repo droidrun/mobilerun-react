@@ -2,7 +2,8 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { expect, test } from 'bun:test';
-import { deferred, event, fixture, tick } from './webrtc-test-fixture';
+import { tick } from './test-hook-runner';
+import { deferred, event, fixture } from './webrtc-test-fixture';
 
 for (const end of ['unmount', 'switch'] as const) {
   for (const boundary of ['open', 'config', 'offer', 'local'] as const) {
@@ -53,7 +54,7 @@ test('stop removes a pending configuration listener and both startup deadlines',
 
 test('stale channel, peer, socket callbacks and queued frame requests are silent', async () => {
   const f = await fixture();
-  await f.negotiate('https%3A%2F%2Fexample.invalid');
+  await f.negotiate('a', 'https%3A%2F%2Fexample.invalid');
   const ws = f.sockets[0], pc = f.peers[0];
   const lateMessage = ws.onmessage!;
   pc.channels[0].onopen();

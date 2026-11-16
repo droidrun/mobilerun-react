@@ -3,9 +3,7 @@
 
 import { describe, expect, test } from 'bun:test';
 import type { UseTaskApprovalOptions } from './use-task-approval';
-import { runHook } from './test-hook-runner';
-
-const tick = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+import { runHook, tick } from './test-hook-runner';
 
 async function setup(options: Partial<UseTaskApprovalOptions>) {
   const timers = new Map<number, { fn: () => void; ms: number }>();
@@ -77,6 +75,22 @@ describe('working subscribe', () => {
   test('without subscribe the default is 3 s', async () => {
     const f = await setup({});
     expect([...f.timers.values()].map((t) => t.ms)).toEqual([3000]);
+    f.unmount();
+  });
+});
+
+describe('subscribe failure with a synchronously throwing fetch', () => {
+  test('still arms the fallback poll, and firing it fetches again', async () => {
+    let attempts = 0;
+    const f = await setup({
+      subscribe: failing,
+      fetchApproval: () => { attempts++; throw new Error('fetch down'); },
+    });
+    expect(attempts).toBe(1);
+    expect(f.errors.map((e) => (e as Error).message)).toEqual(['stream down', 'fetch down']);
+    expect([...f.timers.values()].map((t) => t.ms)).toEqual([3000]);
+    await f.fire();
+    expect(attempts).toBe(2);
     f.unmount();
   });
 });

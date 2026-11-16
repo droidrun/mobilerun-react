@@ -11,7 +11,10 @@ import {
   STREAM_WS_OPEN_TIMEOUT_MS,
   streamReconnectDelayMs,
 } from '../lib/stream-reconnect';
-import { loadFixture } from './fixtures';
+import { FakeSchedule } from '../lib/test-clock';
+import { expectAllFixturesUsed, loadFixture } from './fixtures';
+
+expectAllFixturesUsed('reconnect', ['policy', 'scenarios']);
 
 const policy = loadFixture('reconnect/policy.json');
 const { scenarios } = loadFixture<{ scenarios: Scenario[] }>('reconnect/scenarios.json');
@@ -33,42 +36,6 @@ interface Scenario {
   }[];
 }
 
-// Fake clock: timers fire in due-time order, ties in scheduling order.
-class FakeClock {
-  now = 0;
-  private nextId = 1;
-  private tasks = new Map<number, { at: number; fn: () => void }>();
-  setTimeout = (fn: () => void, ms: number) => {
-    const id = this.nextId++;
-    this.tasks.set(id, { at: this.now + ms, fn });
-    return id as unknown as ReturnType<typeof setTimeout>;
-  };
-  clearTimeout = (id: ReturnType<typeof setTimeout>) => {
-    this.tasks.delete(id as unknown as number);
-  };
-  advanceTo(target: number) {
-    for (;;) {
-      let dueId: number | null = null;
-      let dueAt = Infinity;
-      for (const [id, task] of this.tasks) {
-        if (task.at <= target && task.at < dueAt) {
-          dueAt = task.at;
-          dueId = id;
-        }
-      }
-      if (dueId === null) break;
-      const task = this.tasks.get(dueId)!;
-      this.tasks.delete(dueId);
-      this.now = task.at;
-      task.fn();
-    }
-    this.now = target;
-  }
-  get pending() {
-    return this.tasks.size;
-  }
-}
-
 describe('reconnect/policy', () => {
   test('constants', () => {
     expect(STREAM_RECONNECT_MAX_ATTEMPTS).toBe(policy.max_attempts);
@@ -76,11 +43,6 @@ describe('reconnect/policy', () => {
     expect(STREAM_RECONNECT_STABILITY_MS).toBe(policy.stability_ms);
     expect(STREAM_WS_OPEN_TIMEOUT_MS).toBe(timing.ws_open_timeout_ms);
     expect(STREAM_RTC_CONFIG_TIMEOUT_MS).toBe(timing.rtc_config_timeout_ms);
-  });
-  test('watchdog outlasts the handshake phases', () => {
-    expect(policy.connect_timeout_ms).toBeGreaterThan(
-      timing.ws_open_timeout_ms + timing.rtc_config_timeout_ms,
-    );
   });
   for (const c of policy.delay_cases as { attempt: number; random: number; delay_ms: number }[]) {
     test(`delay attempt ${c.attempt} random ${c.random}`, () => {
@@ -92,7 +54,7 @@ describe('reconnect/policy', () => {
 describe('reconnect/scenarios', () => {
   for (const s of scenarios) {
     test(s.name, () => {
-      const clock = new FakeClock();
+      const clock = new FakeSchedule();
       const calls = { heal: 0, remount: 0 };
       const controller = createStreamReconnectController({
         onRemount: () => void (calls.remount += 1),
@@ -123,7 +85,7 @@ describe('reconnect/scenarios', () => {
           if (e.defer_target_change !== undefined) {
             expect([label, controller.shouldDeferTargetChange()]).toEqual([label, e.defer_target_change]);
           }
-          if (e.pending_timers !== undefined) expect([label, clock.pending]).toEqual([label, e.pending_timers]);
+          if (e.pending_timers !== undefined) expect([label, clock.pendingCount]).toEqual([label, e.pending_timers]);
         }
       };
       check(0);

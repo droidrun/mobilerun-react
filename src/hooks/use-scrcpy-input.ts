@@ -8,6 +8,7 @@ import { useEffect, useRef } from 'react';
 import {
   createKeyRouter,
   createPointerRouter,
+  MOUSE_POINTER_ID,
   mapClientPoint,
   pasteMessages,
   routeScroll,
@@ -112,16 +113,10 @@ export function useScrcpyInput({
     event.preventDefault();
     event.stopPropagation();
 
-    if (
-      !dataChannelRef.current ||
-      dataChannelRef.current.readyState !== 'open' ||
-      !videoRef.current
-    ) {
-      return;
-    }
-
+    // No channel check: the router must see every release, or a gesture ended
+    // while the channel was closed would stay active. `send` drops while closed.
     const video = videoRef.current;
-    if (!video.videoWidth || !video.videoHeight) return; // Video dimensions not ready
+    if (!video) return;
 
     const route = (input: Omit<PointerInput, 'point'>, clientX: number, clientY: number) => {
       const mapped = getVideoPoint(video, clientX, clientY);
@@ -189,7 +184,7 @@ export function useScrcpyInput({
       default:
         return;
     }
-    route({ type, id: -1, mouse: true, button, buttons: event.buttons }, event.clientX, event.clientY);
+    route({ type, id: MOUSE_POINTER_ID, mouse: true, button, buttons: event.buttons }, event.clientX, event.clientY);
   };
 
   // Native wheel listener — attached with passive:false in an effect so we
@@ -203,13 +198,7 @@ export function useScrcpyInput({
       event.preventDefault();
       event.stopPropagation();
 
-      if (
-        !dataChannelRef.current ||
-        dataChannelRef.current.readyState !== 'open' ||
-        !videoRef.current
-      ) {
-        return;
-      }
+      if (!videoRef.current) return;
 
       const mapped = getVideoPoint(videoRef.current, event.clientX, event.clientY);
       if (!mapped) return;

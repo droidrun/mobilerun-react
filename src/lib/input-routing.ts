@@ -115,8 +115,11 @@ const graphemes =
     ? new Intl.Segmenter(undefined, { granularity: 'grapheme' })
     : null;
 
-// A named key (`ContextMenu`, `Dead`) is more than one UTF-16 unit but is not text.
-function isGraphemeText(key: string): boolean {
+// One UTF-16 unit is always text; a longer value only when it is exactly one
+// printable grapheme (emoji, ZWJ/skin-tone sequence, NFD pair). Named keys
+// (`ContextMenu`, `Dead`) are several graphemes and stay keys.
+function isText(key: string): boolean {
+  if (key.length === 1) return true;
   if (key.length < 2 || !graphemes || /\p{Cc}/u.test(key)) return false;
   const iterator = graphemes.segment(key)[Symbol.iterator]();
   iterator.next();
@@ -188,7 +191,7 @@ export function createKeyRouter() {
       }
 
       // Printable characters go as text (Unicode, fast typing, no up/down pairs).
-      if (!isControlKey(e) && (e.key.length === 1 || isGraphemeText(e.key))) {
+      if (!isControlKey(e) && isText(e.key)) {
         return { kind: 'messages', messages: [control(createInjectTextMessage(e.key))] };
       }
 
@@ -217,7 +220,7 @@ export interface PointerInput {
   buttons: number;
 }
 
-export const MAX_TOUCH_SLOTS = 10;
+const MAX_TOUCH_SLOTS = 10;
 export const MOUSE_POINTER_ID = -1;
 
 /**
@@ -292,8 +295,6 @@ export function createPointerRouter() {
         ),
       ];
     },
-    /** Whether the mouse currently holds a gesture. */
-    hasMouseGesture: () => active.has('mouse'),
   };
 }
 

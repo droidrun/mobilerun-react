@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { expect, mock, test } from 'bun:test';
-import { runHook } from './test-hook-runner';
+import { runHook, tick } from './test-hook-runner';
 import type { UseDeviceStreamOptions, UseDeviceStreamResult } from './use-device-stream';
 
 // Type-only check: extending the legacy options interface keeps compiling.
@@ -38,7 +38,6 @@ async function harness() {
 
 const info = { streamUrl: 'wss://stream.example/ws', streamToken: 'tok', state: 'ready' };
 const noStream = { state: 'booting' };
-const tick = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 
 test('a fresh device handle with the same id does not refetch on rerender', async () => {
   const refresh = mock(async () => info);

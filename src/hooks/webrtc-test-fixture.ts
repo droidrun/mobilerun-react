@@ -1,9 +1,8 @@
 // Copyright 2026 Mobilerun
 // SPDX-License-Identifier: Apache-2.0
 
-import { runHook } from './test-hook-runner';
+import { runHook, tick } from './test-hook-runner';
 
-export const tick = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
 export const event = (message: object) => ({ data: JSON.stringify(message) });
 
 export function deferred<T = void>() {
@@ -18,7 +17,15 @@ export async function fixture() {
   const peers: FakePeer[] = [];
   const timers = new Map<number, () => void>();
   let nextTimer = 0;
-  const setTimer = (fn: () => void) => { timers.set(++nextTimer, fn); return nextTimer; };
+  // Every scheduled delay, in order, so tests can check timings the fake never waits out.
+  const scheduled: { kind: 'timeout' | 'interval'; ms: number }[] = [];
+  const schedule = (kind: 'timeout' | 'interval') => (fn: () => void, ms: number) => {
+    scheduled.push({ kind, ms });
+    timers.set(++nextTimer, fn);
+    return nextTimer;
+  };
+  const setTimer = schedule('timeout');
+  const setIntervalTimer = schedule('interval');
   const clearTimer = (id: number) => { timers.delete(id); };
   class FakeSocket {
     static OPEN = 1;
@@ -48,6 +55,7 @@ export async function fixture() {
     closed = false;
     connectionState = 'new';
     channels: FakeChannel[] = [];
+    channelOptions: { label: string; options: Record<string, unknown> }[] = [];
     offer = deferred<{ sdp: string }>();
     local = deferred();
     remote = deferred();
@@ -63,7 +71,7 @@ export async function fixture() {
     ontrack = (_event: object) => {};
     constructor() { peers.push(this); }
     addTransceiver() { return { receiver: {} }; }
-    createDataChannel() { const c = new FakeChannel(); this.channels.push(c); return c; }
+    createDataChannel(label: string, options: Record<string, unknown>) { this.channelOptions.push({ label, options }); const c = new FakeChannel(); this.channels.push(c); return c; }
     createOffer() { return this.offer.promise; }
     setLocalDescription() { this.localCalls++; return this.local.promise; }
     setRemoteDescription(arg: Record<string, unknown>) { this.remoteArgs.push(arg); return this.remote.promise; }
@@ -77,7 +85,7 @@ export async function fixture() {
   const bindings: (FakePeer | null)[] = [];
   const video = { current: { srcObject: null, muted: true } };
   const context = {
-    window: { setTimeout: setTimer, clearTimeout: clearTimer, setInterval: setTimer, clearInterval: clearTimer },
+    window: { setTimeout: setTimer, clearTimeout: clearTimer, setInterval: setIntervalTimer, clearInterval: clearTimer },
     document: { hidden: false, addEventListener() {}, removeEventListener() {} },
     WebSocket: FakeSocket, RTCPeerConnection: FakePeer,
     RTCRtpReceiver: { getCapabilities: () => null },
@@ -102,9 +110,9 @@ export async function fixture() {
     return result;
   };
   return {
-    sockets, peers, timers, states, failures, bindings, stateWrites, video, mount,
+    sockets, peers, timers, scheduled, states, failures, bindings, stateWrites, video, mount,
     unmount: runner.unmount,
     fireTimers() { const tasks = [...timers.values()]; timers.clear(); tasks.forEach(fn => fn()); },
-    async negotiate(openUrl?: string) { mount('a', openUrl); sockets[0].open(); await tick(); sockets[0].config(); await tick(); },
+    async negotiate(id = 'a', openUrl?: string) { mount(id, openUrl); sockets[0].open(); await tick(); sockets[0].config(); await tick(); },
   };
 }

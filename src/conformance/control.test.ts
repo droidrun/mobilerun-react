@@ -11,7 +11,7 @@ import {
   createSetClipboardMessage,
   createTouchControlMessage,
 } from '../webrtc-messages';
-import { loadFixture, toHex } from './fixtures';
+import { expectAllFixturesUsed, loadFixture, toHex } from './fixtures';
 
 interface Case {
   name: string;
@@ -48,6 +48,8 @@ const builders: Record<string, (a: Record<string, any>) => ArrayBuffer> = {
   text: (a) => createInjectTextMessage(a.text),
   'set-clipboard': (a) => createSetClipboardMessage(a.text, a.paste),
 };
+
+expectAllFixturesUsed('control', Object.keys(builders));
 
 describe('constants', () => {
   const constants = loadFixture('constants.json');

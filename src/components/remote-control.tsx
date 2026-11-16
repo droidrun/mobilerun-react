@@ -7,7 +7,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'rea
 import { StreamStatusPill } from './stream-status-pill';
 
 import { ANDROID_KEYS, codeMap } from '../constants';
-import { createInjectKeycodeMessage } from '../webrtc-messages';
+import { createInjectKeycodeMessage, createScreenshotRequest } from '../webrtc-messages';
 import { useScrcpyInput } from '../hooks/use-scrcpy-input';
 import { useWebRtcConnection } from '../hooks/use-webrtc-connection';
 
@@ -280,10 +280,7 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
           }
 
           const id = `ui-ss-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
-          const request = {
-            type: 'screenshot', // Matches the type expected by instance API
-            id: id,
-          };
+          const request = createScreenshotRequest(id);
 
           pendingScreenshotResolversRef.current.set(id, resolve);
           pendingScreenshotRejectersRef.current.set(id, reject);

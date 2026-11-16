@@ -8,10 +8,13 @@ import {
   mapClientPoint,
   pasteMessages,
   routeScroll,
+  wheelToTicks,
   type RoutedMessage,
   type VideoPoint,
 } from '../lib/input-routing';
-import { loadFixture, toHex } from './fixtures';
+import { expectAllFixturesUsed, loadFixture, toHex } from './fixtures';
+
+expectAllFixturesUsed('input', ['geometry', 'ime', 'keys', 'pointers', 'scroll']);
 
 interface Expected {
   channel: 'control' | 'hover';
@@ -77,10 +80,11 @@ describe('input/pointers', () => {
       const router = createPointerRouter();
       const out: RoutedMessage[] = [];
       for (const e of c.events) {
-        // The fixture positions are upright video pixels; the DOM layer maps client points the same way.
-        const inside = c.video_width > 0 && c.video_height > 0 &&
-          e.x >= 0 && e.x <= c.video_width && e.y >= 0 && e.y <= c.video_height;
-        const point: VideoPoint | null = inside ? { x: e.x, y: e.y } : null;
+        // Fixture positions are upright video pixels: view == video, no letterbox.
+        const point = mapClientPoint(
+          { left: 0, top: 0, width: c.video_width, height: c.video_height },
+          c.video_width, c.video_height, e.x, e.y,
+        );
         out.push(...router.route({ ...e, point }, c.video_width, c.video_height));
       }
       expect(wire(out)).toEqual(c.expect);
@@ -136,9 +140,33 @@ interface ScrollCase {
 describe('input/scroll', () => {
   for (const c of loadFixture<{ cases: ScrollCase[] }>('input/scroll.json').cases) {
     test(c.name, () => {
-      const inside = c.x >= 0 && c.x <= c.video_width && c.y >= 0 && c.y <= c.video_height;
-      const point = inside ? { x: c.x, y: c.y } : null;
+      const point = mapClientPoint(
+        { left: 0, top: 0, width: c.video_width, height: c.video_height },
+        c.video_width, c.video_height, c.x, c.y,
+      );
       expect(wire(routeScroll(c.video_width, c.video_height, point, c.h, c.v, c.buttons))).toEqual(c.expect);
+    });
+  }
+});
+
+// Browser wheel deltas → scroll bytes. Literal expectations: the vectors above start
+// at abstract ticks, so sign and per-mode scaling are pinned here.
+// Frame: type 3, x=540, y=1200, 1080x2400, hscroll i16, vscroll i16, buttons 0.
+describe('wheel conversion', () => {
+  const frame = (h: string, v: string) => `031c020000b004000038046009${h}${v}00000000`;
+  const table: [string, number, number, number, string][] = [
+    ['pixel: 100px down is one tick down', 0, 0, 100, frame('0000', '00f8')],
+    ['pixel: 100px up is one tick up', 0, 0, -100, frame('0000', '0008')],
+    ['pixel: 100px right scrolls left', 0, 100, 0, frame('00f8', '0000')],
+    ['pixel: 50px left is half a tick', 0, -50, 0, frame('0004', '0000')],
+    ['line: 3 lines down are 3 ticks', 1, 0, 3, frame('0000', '00e8')],
+    ['page: one page is 3 ticks', 2, 0, 1, frame('0000', '00e8')],
+  ];
+  for (const [name, mode, dx, dy, hex] of table) {
+    test(name, () => {
+      const { h, v } = wheelToTicks(mode, dx, dy);
+      const point = { x: 540, y: 1200 };
+      expect(wire(routeScroll(1080, 2400, point, h, v, 0))).toEqual([{ channel: 'control', hex }]);
     });
   }
 });
