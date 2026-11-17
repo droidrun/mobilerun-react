@@ -1,0 +1,204 @@
+{
+  "timing": {
+    "ws_open_timeout_ms": 15000,
+    "rtc_config_timeout_ms": 15000,
+    "request_frame_count": 12,
+    "request_frame_interval_ms": 125,
+    "keep_alive_interval_ms": 10000,
+    "ice_restart_grace_ms": 15000,
+    "screenshot_timeout_ms": 30000
+  },
+  "channels": {
+    "control": {
+      "label": "control",
+      "id": 1,
+      "negotiated": true,
+      "ordered": true,
+      "maxRetransmits": null,
+      "notes": "reliable, ordered; carries all binary control messages"
+    },
+    "hover": {
+      "label": "hover",
+      "id": 2,
+      "negotiated": true,
+      "ordered": false,
+      "maxRetransmits": 0,
+      "notes": "unordered, no retransmits; carries hover messages only, dropped (never sent on control) while not open"
+    }
+  },
+  "peer_connection": {
+    "transceivers": [
+      {
+        "kind": "audio",
+        "direction": "recvonly"
+      },
+      {
+        "kind": "video",
+        "direction": "recvonly",
+        "notes": "codec preference order: VP9, H265/HEVC, H264/AVC, then the rest"
+      }
+    ],
+    "ice_servers_from": "rtcConfiguration reply"
+  },
+  "happy_path": [
+    {
+      "n": 1,
+      "actor": "client",
+      "action": "open WebSocket (token, if any, as query parameter \"token\")",
+      "message": null,
+      "notes": "fail if not open within 15000 ms or if closed before open"
+    },
+    {
+      "n": 2,
+      "actor": "client",
+      "action": "start keepAlive timer (first tick 10000 ms after mount), paused while the page is hidden",
+      "message": null,
+      "notes": "timer is armed at mount, not after the control channel opens; ticks are skipped unless the socket is open"
+    },
+    {
+      "n": 3,
+      "actor": "client",
+      "action": "send",
+      "message": "client-request-rtc-configuration"
+    },
+    {
+      "n": 4,
+      "actor": "server",
+      "action": "send",
+      "message": "server-rtc-configuration",
+      "notes": "fail if no reply within 15000 ms"
+    },
+    {
+      "n": 5,
+      "actor": "client",
+      "action": "create peer connection with the received configuration; add recvonly audio and video transceivers; create negotiated data channels control (id 1) and hover (id 2)",
+      "message": null
+    },
+    {
+      "n": 6,
+      "actor": "client",
+      "action": "attach message handler (answer, candidate, screenshot, screenshotError, later rtcConfiguration)",
+      "message": null
+    },
+    {
+      "n": 7,
+      "actor": "client",
+      "action": "create offer, set local description, send",
+      "message": "client-offer"
+    },
+    {
+      "n": 8,
+      "actor": "client",
+      "action": "send each locally gathered ICE candidate immediately",
+      "message": "client-candidate",
+      "notes": "may start before the answer arrives"
+    },
+    {
+      "n": 9,
+      "actor": "server",
+      "action": "send",
+      "message": "server-answer"
+    },
+    {
+      "n": 10,
+      "actor": "server",
+      "action": "send zero or more (may arrive before the answer)",
+      "message": "server-candidate",
+      "notes": "candidates arriving before the answer is applied are buffered, then added in arrival order right after setRemoteDescription"
+    },
+    {
+      "n": 11,
+      "actor": "client",
+      "action": "set remote description from the answer, then flush buffered remote candidates",
+      "message": null
+    },
+    {
+      "n": 12,
+      "actor": "client",
+      "action": "control data channel opens: send requestFrame 12 times, 125 ms apart (+0, +125, ... +1375 ms)",
+      "message": "client-request-frame"
+    },
+    {
+      "n": 13,
+      "actor": "client",
+      "action": "if an URL to open was supplied, send right after step 12 scheduling",
+      "message": "client-open-url"
+    },
+    {
+      "n": 14,
+      "actor": "client",
+      "action": "peer connection state \"connected\": report connected",
+      "message": null
+    },
+    {
+      "n": 15,
+      "actor": "client",
+      "action": "keepAlive every 10000 ms",
+      "message": "client-keep-alive"
+    }
+  ],
+  "refresh": [
+    {
+      "n": 1,
+      "actor": "server",
+      "action": "send unsolicited credential refresh (only effective once happy_path step 6 is done: before that the next rtcConfiguration is the initial reply)",
+      "message": "server-rtc-configuration"
+    },
+    {
+      "n": 2,
+      "actor": "client",
+      "action": "ignore if rtcConfiguration.iceServers is missing; otherwise setConfiguration({iceServers}); if that throws, stop here",
+      "message": null
+    },
+    {
+      "n": 3,
+      "actor": "client",
+      "action": "suppress non-terminal connection-state dips for 15000 ms (grace window)",
+      "message": null,
+      "notes": "\"failed\" and \"closed\" always pass through; a re-check at the end of the window reports a non-connected state"
+    },
+    {
+      "n": 4,
+      "actor": "client",
+      "action": "create offer with iceRestart: true, set local description",
+      "message": null
+    },
+    {
+      "n": 5,
+      "actor": "client",
+      "action": "mark remote description as not set; drop buffered candidates; send",
+      "message": "client-offer",
+      "notes": "candidates arriving from now on are buffered until the answer"
+    },
+    {
+      "n": 6,
+      "actor": "server",
+      "action": "send",
+      "message": "server-answer"
+    },
+    {
+      "n": 7,
+      "actor": "client",
+      "action": "set remote description; flush buffered candidates",
+      "message": null
+    },
+    {
+      "n": 8,
+      "actor": "client",
+      "action": "on \"connected\" the grace window ends immediately",
+      "message": null
+    }
+  ],
+  "failure_triggers": [
+    "WebSocket fails to open in time or closes before open",
+    "rtcConfiguration reply missing after the timeout, or a message received while awaiting it is not valid JSON",
+    "offer creation / negotiation setup throws",
+    "WebSocket closes while the peer connection state is not \"connected\"",
+    "peer connection state becomes \"failed\" or \"closed\""
+  ],
+  "ignored": [
+    "Per connection phase. While awaiting the initial rtcConfiguration (happy_path steps 3-4): a message that is not valid JSON fails startup (a failure, see failure_triggers); valid messages of any other type are ignored.",
+    "After the general message handler is attached (happy_path step 6 onward): messages that are not valid JSON are dropped, and so are messages with an unknown type.",
+    "answer or candidate while there is no peer connection is dropped."
+  ]
+}

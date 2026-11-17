@@ -1,0 +1,439 @@
+{
+  "cases": [
+    {
+      "name": "mouse down",
+      "args": {
+        "action": 0,
+        "pointerId": -1,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "pressure": 1,
+        "actionButton": 1,
+        "buttons": 1
+      },
+      "hex": "0200ffffffffffffffff1c020000b004000038046009ffff0100000001000000"
+    },
+    {
+      "name": "mouse move",
+      "args": {
+        "action": 2,
+        "pointerId": -1,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 541.25,
+        "y": 1210.75,
+        "pressure": 1,
+        "actionButton": 1,
+        "buttons": 1
+      },
+      "hex": "0202ffffffffffffffff1d020000bb04000038046009ffff0100000001000000"
+    },
+    {
+      "name": "mouse up",
+      "args": {
+        "action": 1,
+        "pointerId": -1,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 541,
+        "y": 1211,
+        "pressure": 1,
+        "actionButton": 1,
+        "buttons": 1
+      },
+      "hex": "0201ffffffffffffffff1d020000bb04000038046009ffff0100000001000000"
+    },
+    {
+      "name": "mouse cancel",
+      "args": {
+        "action": 3,
+        "pointerId": -1,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 541,
+        "y": 1211,
+        "pressure": 1,
+        "actionButton": 1,
+        "buttons": 1
+      },
+      "hex": "0203ffffffffffffffff1d020000bb04000038046009ffff0100000001000000"
+    },
+    {
+      "name": "mouse defaults only (no buttons)",
+      "args": {
+        "action": 0,
+        "pointerId": -1,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 10,
+        "y": 20,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "0200ffffffffffffffff0a0000001400000038046009ffff0000000000000000"
+    },
+    {
+      "name": "touch id 0 down",
+      "args": {
+        "action": 0,
+        "pointerId": 0,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 100,
+        "y": 200,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "0200000000000000000064000000c800000038046009ffff0000000000000000"
+    },
+    {
+      "name": "touch id 0 move",
+      "args": {
+        "action": 2,
+        "pointerId": 0,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 110,
+        "y": 220,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "020200000000000000006e000000dc00000038046009ffff0000000000000000"
+    },
+    {
+      "name": "touch id 0 up",
+      "args": {
+        "action": 1,
+        "pointerId": 0,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 110,
+        "y": 220,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "020100000000000000006e000000dc00000038046009ffff0000000000000000"
+    },
+    {
+      "name": "touch id 1 down",
+      "args": {
+        "action": 0,
+        "pointerId": 1,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 300,
+        "y": 400,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "020000000000000000012c0100009001000038046009ffff0000000000000000"
+    },
+    {
+      "name": "touch id 1 move",
+      "args": {
+        "action": 2,
+        "pointerId": 1,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 310,
+        "y": 410,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "02020000000000000001360100009a01000038046009ffff0000000000000000"
+    },
+    {
+      "name": "touch id 1 up",
+      "args": {
+        "action": 1,
+        "pointerId": 1,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 310,
+        "y": 410,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "02010000000000000001360100009a01000038046009ffff0000000000000000"
+    },
+    {
+      "name": "touch id 1 cancel",
+      "args": {
+        "action": 3,
+        "pointerId": 1,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 310,
+        "y": 410,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "02030000000000000001360100009a01000038046009ffff0000000000000000"
+    },
+    {
+      "name": "touch id 9 down",
+      "args": {
+        "action": 0,
+        "pointerId": 9,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 800,
+        "y": 900,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "02000000000000000009200300008403000038046009ffff0000000000000000"
+    },
+    {
+      "name": "touch id 9 up",
+      "args": {
+        "action": 1,
+        "pointerId": 9,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 800,
+        "y": 900,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "02010000000000000009200300008403000038046009ffff0000000000000000"
+    },
+    {
+      "name": "touch id 1 pointer down",
+      "args": {
+        "action": 5,
+        "pointerId": 1,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 300,
+        "y": 400,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "020500000000000000012c0100009001000038046009ffff0000000000000000"
+    },
+    {
+      "name": "touch id 1 pointer up",
+      "args": {
+        "action": 6,
+        "pointerId": 1,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 300,
+        "y": 400,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "020600000000000000012c0100009001000038046009ffff0000000000000000"
+    },
+    {
+      "name": "x,y round half up (2.5, 3.5)",
+      "args": {
+        "action": 2,
+        "pointerId": 0,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 2.5,
+        "y": 3.5,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "02020000000000000000030000000400000038046009ffff0000000000000000"
+    },
+    {
+      "name": "x,y round negative half (-0.5, -1.5)",
+      "args": {
+        "action": 2,
+        "pointerId": 0,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": -0.5,
+        "y": -1.5,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "0202000000000000000000000000ffffffff38046009ffff0000000000000000"
+    },
+    {
+      "name": "x,y round down (10.4, 10.49)",
+      "args": {
+        "action": 2,
+        "pointerId": 0,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 10.4,
+        "y": 10.49,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "020200000000000000000a0000000a00000038046009ffff0000000000000000"
+    },
+    {
+      "name": "origin",
+      "args": {
+        "action": 0,
+        "pointerId": 0,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 0,
+        "y": 0,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "02000000000000000000000000000000000038046009ffff0000000000000000"
+    },
+    {
+      "name": "max coordinates",
+      "args": {
+        "action": 0,
+        "pointerId": 0,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 1080,
+        "y": 2400,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "02000000000000000000380400006009000038046009ffff0000000000000000"
+    },
+    {
+      "name": "negative coordinates",
+      "args": {
+        "action": 2,
+        "pointerId": 0,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": -5,
+        "y": -10,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "02020000000000000000fbfffffff6ffffff38046009ffff0000000000000000"
+    },
+    {
+      "name": "large video size",
+      "args": {
+        "action": 0,
+        "pointerId": 0,
+        "videoWidth": 4096,
+        "videoHeight": 3072,
+        "x": 4000,
+        "y": 3000,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "02000000000000000000a00f0000b80b00000010000cffff0000000000000000"
+    },
+    {
+      "name": "landscape video size",
+      "args": {
+        "action": 0,
+        "pointerId": 0,
+        "videoWidth": 2400,
+        "videoHeight": 1080,
+        "x": 1000,
+        "y": 500,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "02000000000000000000e8030000f401000060093804ffff0000000000000000"
+    },
+    {
+      "name": "pressure 0.5",
+      "args": {
+        "action": 2,
+        "pointerId": 0,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 50,
+        "y": 50,
+        "pressure": 0.5,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "0202000000000000000032000000320000003804600900800000000000000000"
+    },
+    {
+      "name": "pressure 0",
+      "args": {
+        "action": 2,
+        "pointerId": 0,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 50,
+        "y": 50,
+        "pressure": 0,
+        "actionButton": 0,
+        "buttons": 0
+      },
+      "hex": "0202000000000000000032000000320000003804600900000000000000000000"
+    },
+    {
+      "name": "secondary button",
+      "args": {
+        "action": 0,
+        "pointerId": -1,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 50,
+        "y": 50,
+        "pressure": 1,
+        "actionButton": 2,
+        "buttons": 2
+      },
+      "hex": "0200ffffffffffffffff320000003200000038046009ffff0200000002000000"
+    },
+    {
+      "name": "tertiary button",
+      "args": {
+        "action": 0,
+        "pointerId": -1,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 50,
+        "y": 50,
+        "pressure": 1,
+        "actionButton": 4,
+        "buttons": 4
+      },
+      "hex": "0200ffffffffffffffff320000003200000038046009ffff0400000004000000"
+    },
+    {
+      "name": "combined buttons",
+      "args": {
+        "action": 2,
+        "pointerId": -1,
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 50,
+        "y": 50,
+        "pressure": 1,
+        "actionButton": 0,
+        "buttons": 3
+      },
+      "hex": "0202ffffffffffffffff320000003200000038046009ffff0000000003000000"
+    }
+  ]
+}

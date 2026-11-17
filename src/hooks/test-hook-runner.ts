@@ -36,6 +36,9 @@ const fixtureSource = `
   };
 `;
 
+/** Let queued promise continuations run. */
+export const tick = async () => { for (let i = 0; i < 8; i++) await Promise.resolve(); };
+
 const bundles = new Map<string, Promise<string>>();
 
 async function bundleHook(entry: string): Promise<string> {

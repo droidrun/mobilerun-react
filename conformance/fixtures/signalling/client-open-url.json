@@ -1,0 +1,36 @@
+{
+  "type": "openUrl",
+  "direction": "client_to_server",
+  "description": "Optional. Sent once when the control data channel opens, only if the embedding app supplied a URL to open.",
+  "fields": [
+    {
+      "name": "type",
+      "type": "string (constant \"openUrl\")",
+      "required": true
+    },
+    {
+      "name": "url",
+      "type": "string",
+      "required": true,
+      "notes": "The supplied URL after decodeURIComponent; if decoding throws, the supplied value unchanged"
+    },
+    {
+      "name": "sessionId",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "examples": [
+    {
+      "name": "percent-encoded input",
+      "json": {
+        "type": "openUrl",
+        "url": "https://example.test/path?q=a b",
+        "sessionId": "sess_0123456789abcdef"
+      }
+    }
+  ],
+  "notes": [
+    "Input \"https%3A%2F%2Fexample.test%2Fpath%3Fq%3Da%20b\" yields the shown url."
+  ]
+}

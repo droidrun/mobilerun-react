@@ -1,0 +1,32 @@
+{
+  "type": "offer",
+  "direction": "client_to_server",
+  "description": "SDP offer. Sent once after the peer connection is set up, and again for every mid-session ICE-restart.",
+  "fields": [
+    {
+      "name": "type",
+      "type": "string (constant \"offer\")",
+      "required": true
+    },
+    {
+      "name": "sdp",
+      "type": "string",
+      "required": true
+    },
+    {
+      "name": "sessionId",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "examples": [
+    {
+      "name": "initial offer",
+      "json": {
+        "type": "offer",
+        "sdp": "v=0\r\no=- 4611731400430051336 2 IN IP4 127.0.0.1\r\ns=-\r\nt=0 0\r\na=group:BUNDLE 0 1\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\n",
+        "sessionId": "sess_0123456789abcdef"
+      }
+    }
+  ]
+}

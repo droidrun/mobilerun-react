@@ -1,0 +1,47 @@
+{
+  "type": "candidate",
+  "direction": "client_to_server",
+  "description": "A locally gathered ICE candidate, sent as soon as it is gathered (trickle ICE). The end-of-candidates null event is not sent.",
+  "fields": [
+    {
+      "name": "type",
+      "type": "string (constant \"candidate\")",
+      "required": true
+    },
+    {
+      "name": "candidate",
+      "type": "string",
+      "required": true,
+      "notes": "SDP candidate line, passed as RTCIceCandidateInit.candidate"
+    },
+    {
+      "name": "sdpMid",
+      "type": "string | null",
+      "required": true,
+      "notes": "May be null"
+    },
+    {
+      "name": "sdpMLineIndex",
+      "type": "integer | null",
+      "required": true,
+      "notes": "May be null"
+    },
+    {
+      "name": "sessionId",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "examples": [
+    {
+      "name": "srflx candidate",
+      "json": {
+        "type": "candidate",
+        "candidate": "candidate:842163049 1 udp 1677729535 203.0.113.7 46154 typ srflx raddr 0.0.0.0 rport 0 generation 0",
+        "sdpMid": "0",
+        "sdpMLineIndex": 0,
+        "sessionId": "sess_0123456789abcdef"
+      }
+    }
+  ]
+}

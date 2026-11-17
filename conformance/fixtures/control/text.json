@@ -1,0 +1,158 @@
+{
+  "cases": [
+    {
+      "name": "empty",
+      "args": {
+        "text": ""
+      },
+      "hex": "0100000000"
+    },
+    {
+      "name": "single ascii char",
+      "args": {
+        "text": "a"
+      },
+      "hex": "010100000061"
+    },
+    {
+      "name": "ascii sentence",
+      "args": {
+        "text": "Hello, World!"
+      },
+      "hex": "010d00000048656c6c6f2c20576f726c6421"
+    },
+    {
+      "name": "ascii punctuation and symbols",
+      "args": {
+        "text": "!@#$%^&*()_+-=[]{}|;':\",./<>?`~\\"
+      },
+      "hex": "012000000021402324255e262a28295f2b2d3d5b5d7b7d7c3b273a222c2e2f3c3e3f607e5c"
+    },
+    {
+      "name": "digits",
+      "args": {
+        "text": "0123456789"
+      },
+      "hex": "010a00000030313233343536373839"
+    },
+    {
+      "name": "space only",
+      "args": {
+        "text": " "
+      },
+      "hex": "010100000020"
+    },
+    {
+      "name": "newline and tab",
+      "args": {
+        "text": "line1\nline2\tend"
+      },
+      "hex": "010f0000006c696e65310a6c696e653209656e64"
+    },
+    {
+      "name": "latin-1 two-byte",
+      "args": {
+        "text": "héllo wörld ñ"
+      },
+      "hex": "011000000068c3a96c6c6f2077c3b6726c6420c3b1"
+    },
+    {
+      "name": "cyrillic",
+      "args": {
+        "text": "Привет"
+      },
+      "hex": "010c000000d09fd180d0b8d0b2d0b5d182"
+    },
+    {
+      "name": "cjk three-byte",
+      "args": {
+        "text": "日本語のテキスト"
+      },
+      "hex": "0118000000e697a5e69cace8aa9ee381aee38386e382ade382b9e38388"
+    },
+    {
+      "name": "emoji four-byte",
+      "args": {
+        "text": "😀"
+      },
+      "hex": "0104000000f09f9880"
+    },
+    {
+      "name": "emoji between ascii",
+      "args": {
+        "text": "a😀b"
+      },
+      "hex": "010600000061f09f988062"
+    },
+    {
+      "name": "emoji zwj sequence",
+      "args": {
+        "text": "👨‍👩‍👧‍👦"
+      },
+      "hex": "0119000000f09f91a8e2808df09f91a9e2808df09f91a7e2808df09f91a6"
+    },
+    {
+      "name": "emoji with skin tone",
+      "args": {
+        "text": "👍🏽"
+      },
+      "hex": "0108000000f09f918df09f8fbd"
+    },
+    {
+      "name": "flag regional indicators",
+      "args": {
+        "text": "🇩🇪"
+      },
+      "hex": "0108000000f09f87a9f09f87aa"
+    },
+    {
+      "name": "combining accent",
+      "args": {
+        "text": "é"
+      },
+      "hex": "010300000065cc81"
+    },
+    {
+      "name": "nul character",
+      "args": {
+        "text": "a\u0000b"
+      },
+      "hex": "0103000000610062"
+    },
+    {
+      "name": "long ascii (300 chars)",
+      "args": {
+        "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      },
+      "hex": "012c010000787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878"
+    },
+    {
+      "name": "lone high surrogate",
+      "args": {
+        "text": "\ud83d"
+      },
+      "hex": "0103000000efbfbd"
+    },
+    {
+      "name": "lone low surrogate inside text",
+      "args": {
+        "text": "a\udc00b"
+      },
+      "hex": "010500000061efbfbd62"
+    },
+    {
+      "name": "high surrogate at end after ascii",
+      "args": {
+        "text": "ok\ud83d"
+      },
+      "hex": "01050000006f6befbfbd"
+    },
+    {
+      "name": "reversed surrogate pair",
+      "args": {
+        "text": "\ude00\ud83d"
+      },
+      "hex": "0106000000efbfbdefbfbd"
+    }
+  ]
+}

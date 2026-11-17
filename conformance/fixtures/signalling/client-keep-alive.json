@@ -1,0 +1,26 @@
+{
+  "type": "keepAlive",
+  "direction": "client_to_server",
+  "description": "Sent every 10000 ms while the page is visible and the socket is open.",
+  "fields": [
+    {
+      "name": "type",
+      "type": "string (constant \"keepAlive\")",
+      "required": true
+    },
+    {
+      "name": "sessionId",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "examples": [
+    {
+      "name": "keepAlive",
+      "json": {
+        "type": "keepAlive",
+        "sessionId": "sess_0123456789abcdef"
+      }
+    }
+  ]
+}

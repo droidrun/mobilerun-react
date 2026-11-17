@@ -12,47 +12,7 @@ import {
   streamReconnectDelayMs,
   type StreamReconnectSnapshot,
 } from './stream-reconnect';
-
-// Deterministic scheduler: timers fire in due-time order via advance().
-class FakeSchedule {
-  now = 0;
-  private nextId = 1;
-  private tasks = new Map<number, { at: number; fn: () => void }>();
-
-  setTimeout = (fn: () => void, ms: number) => {
-    const id = this.nextId++;
-    this.tasks.set(id, { at: this.now + ms, fn });
-    return id as unknown as ReturnType<typeof setTimeout>;
-  };
-
-  clearTimeout = (id: ReturnType<typeof setTimeout>) => {
-    this.tasks.delete(id as unknown as number);
-  };
-
-  advance(ms: number) {
-    const target = this.now + ms;
-    for (;;) {
-      let dueId: number | null = null;
-      let dueAt = Infinity;
-      for (const [id, task] of this.tasks) {
-        if (task.at <= target && task.at < dueAt) {
-          dueAt = task.at;
-          dueId = id;
-        }
-      }
-      if (dueId === null) break;
-      const task = this.tasks.get(dueId)!;
-      this.tasks.delete(dueId);
-      this.now = task.at;
-      task.fn();
-    }
-    this.now = target;
-  }
-
-  get pendingCount() {
-    return this.tasks.size;
-  }
-}
+import { FakeSchedule } from './test-clock';
 
 // random() => 0.5 makes the jitter factor exactly 1.0.
 const NO_JITTER = () => 0.5;

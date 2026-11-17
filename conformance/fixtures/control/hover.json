@@ -1,0 +1,70 @@
+{
+  "cases": [
+    {
+      "name": "center",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 540,
+        "y": 1200,
+        "buttons": 0
+      },
+      "hex": "151c020000b00400003804600900000000"
+    },
+    {
+      "name": "origin",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 0,
+        "y": 0,
+        "buttons": 0
+      },
+      "hex": "1500000000000000003804600900000000"
+    },
+    {
+      "name": "max corner",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 1080,
+        "y": 2400,
+        "buttons": 0
+      },
+      "hex": "1538040000600900003804600900000000"
+    },
+    {
+      "name": "fractional rounds",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 12.5,
+        "y": 99.49,
+        "buttons": 0
+      },
+      "hex": "150d000000630000003804600900000000"
+    },
+    {
+      "name": "with primary button",
+      "args": {
+        "videoWidth": 1080,
+        "videoHeight": 2400,
+        "x": 100,
+        "y": 100,
+        "buttons": 1
+      },
+      "hex": "1564000000640000003804600901000000"
+    },
+    {
+      "name": "landscape",
+      "args": {
+        "videoWidth": 2400,
+        "videoHeight": 1080,
+        "x": 1200,
+        "y": 400,
+        "buttons": 0
+      },
+      "hex": "15b0040000900100006009380400000000"
+    }
+  ]
+}

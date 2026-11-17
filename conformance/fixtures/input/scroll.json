@@ -1,0 +1,315 @@
+{
+  "cases": [
+    {
+      "name": "zero",
+      "h": 0,
+      "v": 0,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 10.5,
+      "y": 20.49,
+      "buttons": 0,
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "030b00000014000000380460090000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "up",
+      "h": 0,
+      "v": 1,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 10.5,
+      "y": 20.49,
+      "buttons": 0,
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "030b00000014000000380460090000000800000000"
+        }
+      ]
+    },
+    {
+      "name": "down",
+      "h": 0,
+      "v": -1,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 10.5,
+      "y": 20.49,
+      "buttons": 0,
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "030b0000001400000038046009000000f800000000"
+        }
+      ]
+    },
+    {
+      "name": "left",
+      "h": 1,
+      "v": 0,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 10.5,
+      "y": 20.49,
+      "buttons": 0,
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "030b00000014000000380460090008000000000000"
+        }
+      ]
+    },
+    {
+      "name": "right",
+      "h": -1,
+      "v": 0,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 10.5,
+      "y": 20.49,
+      "buttons": 0,
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "030b000000140000003804600900f8000000000000"
+        }
+      ]
+    },
+    {
+      "name": "fractional",
+      "h": 0.3,
+      "v": -0.07,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 10.5,
+      "y": 20.49,
+      "buttons": 0,
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "030b0000001400000038046009660271ff00000000"
+        }
+      ]
+    },
+    {
+      "name": "half",
+      "h": 0.5,
+      "v": -0.5,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 10.5,
+      "y": 20.49,
+      "buttons": 0,
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "030b0000001400000038046009000400fc00000000"
+        }
+      ]
+    },
+    {
+      "name": "both axes",
+      "h": 2,
+      "v": -3,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 10.5,
+      "y": 20.49,
+      "buttons": 0,
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "030b0000001400000038046009001000e800000000"
+        }
+      ]
+    },
+    {
+      "name": "positive limit",
+      "h": 16,
+      "v": 16,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 10.5,
+      "y": 20.49,
+      "buttons": 0,
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "030b0000001400000038046009ff7fff7f00000000"
+        }
+      ]
+    },
+    {
+      "name": "negative limit",
+      "h": -16,
+      "v": -16,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 10.5,
+      "y": 20.49,
+      "buttons": 0,
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "030b00000014000000380460090080008000000000"
+        }
+      ]
+    },
+    {
+      "name": "saturated",
+      "h": 1000,
+      "v": -1000,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 10.5,
+      "y": 20.49,
+      "buttons": 0,
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "030b0000001400000038046009ff7f008000000000"
+        }
+      ]
+    },
+    {
+      "name": "positive half quantum",
+      "h": 0.000244140625,
+      "v": 0,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 10.5,
+      "y": 20.49,
+      "buttons": 0,
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "030b00000014000000380460090100000000000000"
+        }
+      ]
+    },
+    {
+      "name": "negative half quantum",
+      "h": -0.000244140625,
+      "v": 0,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 10.5,
+      "y": 20.49,
+      "buttons": 0,
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "030b00000014000000380460090000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "below quantum",
+      "h": 0.0001220703125,
+      "v": -0.0001220703125,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 10.5,
+      "y": 20.49,
+      "buttons": 0,
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "030b00000014000000380460090000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "buttons and bounds",
+      "h": 0,
+      "v": 1,
+      "video_width": 2400,
+      "video_height": 1080,
+      "x": 2400,
+      "y": 1080,
+      "buttons": 3,
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "036009000038040000600938040000000803000000"
+        }
+      ]
+    },
+    {
+      "name": "origin inclusive",
+      "h": 0,
+      "v": 1,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 0,
+      "y": 0,
+      "buttons": 0,
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "030000000000000000380460090000000800000000"
+        }
+      ]
+    },
+    {
+      "name": "outside left",
+      "h": 0,
+      "v": 1,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": -1,
+      "y": 20.49,
+      "buttons": 0,
+      "expect": []
+    },
+    {
+      "name": "outside right",
+      "h": 0,
+      "v": 1,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 1081,
+      "y": 20.49,
+      "buttons": 0,
+      "expect": []
+    },
+    {
+      "name": "outside top",
+      "h": 0,
+      "v": 1,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 10.5,
+      "y": -1,
+      "buttons": 0,
+      "expect": []
+    },
+    {
+      "name": "outside bottom",
+      "h": 0,
+      "v": 1,
+      "video_width": 1080,
+      "video_height": 2400,
+      "x": 10.5,
+      "y": 2401,
+      "buttons": 0,
+      "expect": []
+    },
+    {
+      "name": "video not ready",
+      "h": 0,
+      "v": 1,
+      "video_width": 0,
+      "video_height": 0,
+      "x": 0,
+      "y": 0,
+      "buttons": 0,
+      "expect": []
+    }
+  ]
+}

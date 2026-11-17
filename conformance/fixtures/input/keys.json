@@ -1,0 +1,4571 @@
+{
+  "cases": [
+    {
+      "name": "single character U+0061",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "a",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "a",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010100000061"
+        }
+      ]
+    },
+    {
+      "name": "single character U+0041",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "A",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "A",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010100000041"
+        }
+      ]
+    },
+    {
+      "name": "single character U+00e9",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "é",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "é",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0102000000c3a9"
+        }
+      ]
+    },
+    {
+      "name": "single character U+4e2d",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "中",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "中",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0103000000e4b8ad"
+        }
+      ]
+    },
+    {
+      "name": "single character U+0020",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": " ",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": " ",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010100000020"
+        }
+      ]
+    },
+    {
+      "name": "single character U+0021",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "!",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "!",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010100000021"
+        }
+      ]
+    },
+    {
+      "name": "single character U+0000",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "\u0000",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "\u0000",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010100000000"
+        }
+      ]
+    },
+    {
+      "name": "single character U+0001",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "\u0001",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "\u0001",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010100000001"
+        }
+      ]
+    },
+    {
+      "name": "single character U+0009",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "\t",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "\t",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010100000009"
+        }
+      ]
+    },
+    {
+      "name": "single character U+000a",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "\n",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "\n",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "01010000000a"
+        }
+      ]
+    },
+    {
+      "name": "single character U+000d",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "\r",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "\r",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "01010000000d"
+        }
+      ]
+    },
+    {
+      "name": "single character U+001b",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "\u001b",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "\u001b",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "01010000001b"
+        }
+      ]
+    },
+    {
+      "name": "single character U+007f",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "01010000007f"
+        }
+      ]
+    },
+    {
+      "name": "single character U+0085",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0102000000c285"
+        }
+      ]
+    },
+    {
+      "name": "single character U+d83d",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "\ud83d",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "\ud83d",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0103000000efbfbd"
+        }
+      ]
+    },
+    {
+      "name": "unknown code printable",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Unidentified",
+          "key": "a",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Unidentified",
+          "key": "a",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010100000061"
+        }
+      ]
+    },
+    {
+      "name": "unknown code control character",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Unidentified",
+          "key": "\u0001",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Unidentified",
+          "key": "\u0001",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010100000001"
+        }
+      ]
+    },
+    {
+      "name": "unknown code nontext",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Unidentified",
+          "key": "Unidentified",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Unidentified",
+          "key": "Unidentified",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": []
+    },
+    {
+      "name": "unknown code named control",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Unidentified",
+          "key": "Enter",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Unidentified",
+          "key": "Enter",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": []
+    },
+    {
+      "name": "unknown code ctrl combo",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Unidentified",
+          "key": "a",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Unidentified",
+          "key": "a",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": []
+    },
+    {
+      "name": "uppercase f control heuristic",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyF",
+          "key": "F",
+          "shift": true,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyF",
+          "key": "F",
+          "shift": true,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000220000000000000001000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001220000000000000001000000"
+        }
+      ]
+    },
+    {
+      "name": "dead key mapped fallback",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Quote",
+          "key": "Dead",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Quote",
+          "key": "Dead",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00004b0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00014b0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "dead key unknown fallback",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Unidentified",
+          "key": "Dead",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Unidentified",
+          "key": "Dead",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": []
+    },
+    {
+      "name": "emoji grapheme",
+      "sdk_decisions": [
+        "grapheme_text"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "😀",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "😀",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0104000000f09f9880"
+        }
+      ]
+    },
+    {
+      "name": "emoji unknown code grapheme",
+      "sdk_decisions": [
+        "grapheme_text"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Unidentified",
+          "key": "😀",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Unidentified",
+          "key": "😀",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0104000000f09f9880"
+        }
+      ]
+    },
+    {
+      "name": "emoji zwj grapheme",
+      "sdk_decisions": [
+        "grapheme_text"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "👨‍👩‍👧‍👦",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "👨‍👩‍👧‍👦",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0119000000f09f91a8e2808df09f91a9e2808df09f91a7e2808df09f91a6"
+        }
+      ]
+    },
+    {
+      "name": "emoji skin tone grapheme",
+      "sdk_decisions": [
+        "grapheme_text"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "👍🏽",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "👍🏽",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0108000000f09f918df09f8fbd"
+        }
+      ]
+    },
+    {
+      "name": "nfd grapheme",
+      "sdk_decisions": [
+        "grapheme_text"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyE",
+          "key": "é",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyE",
+          "key": "é",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010300000065cc81"
+        }
+      ]
+    },
+    {
+      "name": "multiple graphemes fallback",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "ab",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "ab",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00001d0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00011d0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "empty key fallback",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00001d0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00011d0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "caps lock unmapped",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "CapsLock",
+          "key": "CapsLock",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "CapsLock",
+          "key": "CapsLock",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": []
+    },
+    {
+      "name": "context menu fallback",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ContextMenu",
+          "key": "ContextMenu",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ContextMenu",
+          "key": "ContextMenu",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000520000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001520000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "numpad no text fallback",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Numpad1",
+          "key": "Unidentified",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Numpad1",
+          "key": "Unidentified",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000910000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001910000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "numpad decimal no text fallback",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "NumpadDecimal",
+          "key": "",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "NumpadDecimal",
+          "key": "",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00009e0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00019e0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "alt no char fallback",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "",
+          "shift": false,
+          "alt": true,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "",
+          "shift": false,
+          "alt": true,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00001d0000000000000002000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00011d0000000000000002000000"
+        }
+      ]
+    },
+    {
+      "name": "alt caps no char fallback",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyC",
+          "key": "",
+          "shift": false,
+          "alt": true,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": true,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyC",
+          "key": "",
+          "shift": false,
+          "alt": true,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": true,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00001f0000000000000003000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00011f0000000000000003000000"
+        }
+      ]
+    },
+    {
+      "name": "backspace",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Backspace",
+          "key": "Backspace",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Backspace",
+          "key": "Backspace",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000430000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001430000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "delete",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Delete",
+          "key": "Delete",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Delete",
+          "key": "Delete",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000700000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001700000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "enter",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Enter",
+          "key": "Enter",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Enter",
+          "key": "Enter",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000420000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001420000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "tab",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Tab",
+          "key": "Tab",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Tab",
+          "key": "Tab",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00003d0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00013d0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "escape",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Escape",
+          "key": "Escape",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Escape",
+          "key": "Escape",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00006f0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00016f0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "home",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Home",
+          "key": "Home",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Home",
+          "key": "Home",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00007a0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00017a0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "end",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "End",
+          "key": "End",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "End",
+          "key": "End",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00007b0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00017b0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "pageup",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "PageUp",
+          "key": "PageUp",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "PageUp",
+          "key": "PageUp",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00005c0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00015c0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "pagedown",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "PageDown",
+          "key": "PageDown",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "PageDown",
+          "key": "PageDown",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00005d0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00015d0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "insert",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Insert",
+          "key": "Insert",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Insert",
+          "key": "Insert",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00007c0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00017c0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "arrowup",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowUp",
+          "key": "ArrowUp",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowUp",
+          "key": "ArrowUp",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000130000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001130000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "arrowdown",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowDown",
+          "key": "ArrowDown",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowDown",
+          "key": "ArrowDown",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000140000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001140000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "arrowleft",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "arrowright",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowRight",
+          "key": "ArrowRight",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowRight",
+          "key": "ArrowRight",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000160000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001160000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "numpad enter",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "NumpadEnter",
+          "key": "Enter",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "NumpadEnter",
+          "key": "Enter",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000a00000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001a00000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "f1",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "F1",
+          "key": "F1",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "F1",
+          "key": "F1",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000830000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001830000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "f2",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "F2",
+          "key": "F2",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "F2",
+          "key": "F2",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000840000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001840000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "f3",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "F3",
+          "key": "F3",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "F3",
+          "key": "F3",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000850000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001850000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "f4",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "F4",
+          "key": "F4",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "F4",
+          "key": "F4",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000860000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001860000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "f5",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "F5",
+          "key": "F5",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "F5",
+          "key": "F5",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000870000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001870000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "f6",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "F6",
+          "key": "F6",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "F6",
+          "key": "F6",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000880000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001880000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "f7",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "F7",
+          "key": "F7",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "F7",
+          "key": "F7",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000890000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001890000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "f8",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "F8",
+          "key": "F8",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "F8",
+          "key": "F8",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00008a0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00018a0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "f9",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "F9",
+          "key": "F9",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "F9",
+          "key": "F9",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00008b0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00018b0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "f10",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "F10",
+          "key": "F10",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "F10",
+          "key": "F10",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00008c0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00018c0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "f11",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "F11",
+          "key": "F11",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "F11",
+          "key": "F11",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00008d0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00018d0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "f12",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "F12",
+          "key": "F12",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "F12",
+          "key": "F12",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00008e0000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00018e0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "unmapped function representative",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "F13",
+          "key": "F13",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "F13",
+          "key": "F13",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": []
+    },
+    {
+      "name": "shift left",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ShiftLeft",
+          "key": "Shift",
+          "shift": true,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ShiftLeft",
+          "key": "Shift",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00003b0000000000000001000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00013b0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "shift right",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ShiftRight",
+          "key": "Shift",
+          "shift": true,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ShiftRight",
+          "key": "Shift",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00003c0000000000000001000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00013c0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "control left",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ControlLeft",
+          "key": "Control",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ControlLeft",
+          "key": "Control",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000710000000000000000100000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001710000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "control right",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ControlRight",
+          "key": "Control",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ControlRight",
+          "key": "Control",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000720000000000000000100000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001720000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "alt left",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "AltLeft",
+          "key": "Alt",
+          "shift": false,
+          "alt": true,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "AltLeft",
+          "key": "Alt",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000390000000000000002000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001390000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "alt right",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "AltRight",
+          "key": "Alt",
+          "shift": false,
+          "alt": true,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "AltRight",
+          "key": "Alt",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00003a0000000000000002000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00013a0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "meta left",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "MetaLeft",
+          "key": "Meta",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "MetaLeft",
+          "key": "Meta",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000750000000000000000000100"
+        },
+        {
+          "channel": "control",
+          "hex": "0001750000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "meta right",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "MetaRight",
+          "key": "Meta",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "MetaRight",
+          "key": "Meta",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000760000000000000000000100"
+        },
+        {
+          "channel": "control",
+          "hex": "0001760000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "modifier mask 0",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "modifier mask 1",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": true,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": true,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000001000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000001000000"
+        }
+      ]
+    },
+    {
+      "name": "modifier mask 2",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": true,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": true,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000002000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000002000000"
+        }
+      ]
+    },
+    {
+      "name": "modifier mask 3",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": true,
+          "alt": true,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": true,
+          "alt": true,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000003000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000003000000"
+        }
+      ]
+    },
+    {
+      "name": "modifier mask 4",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000000100000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000000100000"
+        }
+      ]
+    },
+    {
+      "name": "modifier mask 5",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": true,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": true,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000001100000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000001100000"
+        }
+      ]
+    },
+    {
+      "name": "modifier mask 6",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": true,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": true,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000002100000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000002100000"
+        }
+      ]
+    },
+    {
+      "name": "modifier mask 7",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": true,
+          "alt": true,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": true,
+          "alt": true,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000003100000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000003100000"
+        }
+      ]
+    },
+    {
+      "name": "modifier mask 8",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000000000100"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000000000100"
+        }
+      ]
+    },
+    {
+      "name": "modifier mask 9",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": true,
+          "alt": false,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": true,
+          "alt": false,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000001000100"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000001000100"
+        }
+      ]
+    },
+    {
+      "name": "modifier mask 10",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": true,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": true,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000002000100"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000002000100"
+        }
+      ]
+    },
+    {
+      "name": "modifier mask 11",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": true,
+          "alt": true,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": true,
+          "alt": true,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000003000100"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000003000100"
+        }
+      ]
+    },
+    {
+      "name": "modifier mask 12",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000000100100"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000000100100"
+        }
+      ]
+    },
+    {
+      "name": "modifier mask 13",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": true,
+          "alt": false,
+          "ctrl": true,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": true,
+          "alt": false,
+          "ctrl": true,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000001100100"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000001100100"
+        }
+      ]
+    },
+    {
+      "name": "modifier mask 14",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": true,
+          "ctrl": true,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": true,
+          "ctrl": true,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000002100100"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000002100100"
+        }
+      ]
+    },
+    {
+      "name": "modifier mask 15",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": true,
+          "alt": true,
+          "ctrl": true,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": true,
+          "alt": true,
+          "ctrl": true,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000003100100"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000003100100"
+        }
+      ]
+    },
+    {
+      "name": "letter shift false caps false",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyC",
+          "key": "c",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyC",
+          "key": "c",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00001f0000000000000000100000"
+        },
+        {
+          "channel": "control",
+          "hex": "00011f0000000000000000100000"
+        }
+      ]
+    },
+    {
+      "name": "letter shift false caps true",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyC",
+          "key": "c",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": true,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyC",
+          "key": "c",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": true,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00001f0000000000000001100000"
+        },
+        {
+          "channel": "control",
+          "hex": "00011f0000000000000001100000"
+        }
+      ]
+    },
+    {
+      "name": "letter shift true caps false",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyC",
+          "key": "c",
+          "shift": true,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyC",
+          "key": "c",
+          "shift": true,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00001f0000000000000001100000"
+        },
+        {
+          "channel": "control",
+          "hex": "00011f0000000000000001100000"
+        }
+      ]
+    },
+    {
+      "name": "letter shift true caps true",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyC",
+          "key": "c",
+          "shift": true,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": true,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyC",
+          "key": "c",
+          "shift": true,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": true,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "00001f0000000000000000100000"
+        },
+        {
+          "channel": "control",
+          "hex": "00011f0000000000000000100000"
+        }
+      ]
+    },
+    {
+      "name": "caps lock nonletter",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Digit1",
+          "key": "Unidentified",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": true,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Digit1",
+          "key": "Unidentified",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": true,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000080000000000000000100000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001080000000000000000100000"
+        }
+      ]
+    },
+    {
+      "name": "caps lock nonletter shift",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Digit1",
+          "key": "Unidentified",
+          "shift": true,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": true,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Digit1",
+          "key": "Unidentified",
+          "shift": true,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": true,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000080000000000000001100000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001080000000000000001100000"
+        }
+      ]
+    },
+    {
+      "name": "alt printable",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyQ",
+          "key": "@",
+          "shift": false,
+          "alt": true,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyQ",
+          "key": "@",
+          "shift": false,
+          "alt": true,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010100000040"
+        }
+      ]
+    },
+    {
+      "name": "ctrl v letter released first",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ControlLeft",
+          "key": "Control",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keydown",
+          "code": "KeyV",
+          "key": "v",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keyup",
+          "code": "KeyV",
+          "key": "v",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keyup",
+          "code": "ControlLeft",
+          "key": "Control",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000710000000000000000100000"
+        },
+        {
+          "channel": "control",
+          "hex": "090000000000000000010000000b68c3a96c6c6f0af09f9880"
+        },
+        {
+          "channel": "control",
+          "hex": "0001710000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "ctrl v modifier released first",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ControlLeft",
+          "key": "Control",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keydown",
+          "code": "KeyV",
+          "key": "v",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keyup",
+          "code": "ControlLeft",
+          "key": "Control",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyV",
+          "key": "v",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000710000000000000000100000"
+        },
+        {
+          "channel": "control",
+          "hex": "090000000000000000010000000b68c3a96c6c6f0af09f9880"
+        },
+        {
+          "channel": "control",
+          "hex": "0001710000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "ctrl m letter released first",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ControlLeft",
+          "key": "Control",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keydown",
+          "code": "KeyM",
+          "key": "m",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keyup",
+          "code": "KeyM",
+          "key": "m",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keyup",
+          "code": "ControlLeft",
+          "key": "Control",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000710000000000000000100000"
+        },
+        {
+          "channel": "control",
+          "hex": "0000520000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001520000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001710000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "ctrl m modifier released first",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ControlLeft",
+          "key": "Control",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keydown",
+          "code": "KeyM",
+          "key": "m",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keyup",
+          "code": "ControlLeft",
+          "key": "Control",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyM",
+          "key": "m",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000710000000000000000100000"
+        },
+        {
+          "channel": "control",
+          "hex": "0000520000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001520000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001710000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "meta v letter released first",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "MetaLeft",
+          "key": "Meta",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keydown",
+          "code": "KeyV",
+          "key": "v",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keyup",
+          "code": "KeyV",
+          "key": "v",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keyup",
+          "code": "MetaLeft",
+          "key": "Meta",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000750000000000000000000100"
+        },
+        {
+          "channel": "control",
+          "hex": "090000000000000000010000000b68c3a96c6c6f0af09f9880"
+        },
+        {
+          "channel": "control",
+          "hex": "0001750000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "meta v modifier released first",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "MetaLeft",
+          "key": "Meta",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keydown",
+          "code": "KeyV",
+          "key": "v",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keyup",
+          "code": "MetaLeft",
+          "key": "Meta",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyV",
+          "key": "v",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000750000000000000000000100"
+        },
+        {
+          "channel": "control",
+          "hex": "090000000000000000010000000b68c3a96c6c6f0af09f9880"
+        },
+        {
+          "channel": "control",
+          "hex": "0001750000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "meta m letter released first",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "MetaLeft",
+          "key": "Meta",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keydown",
+          "code": "KeyM",
+          "key": "m",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keyup",
+          "code": "KeyM",
+          "key": "m",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keyup",
+          "code": "MetaLeft",
+          "key": "Meta",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000750000000000000000000100"
+        },
+        {
+          "channel": "control",
+          "hex": "0000520000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001520000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001750000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "meta m modifier released first",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "MetaLeft",
+          "key": "Meta",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keydown",
+          "code": "KeyM",
+          "key": "m",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": true,
+          "caps_lock": false,
+          "clipboard": "héllo\n😀"
+        },
+        {
+          "type": "keyup",
+          "code": "MetaLeft",
+          "key": "Meta",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyM",
+          "key": "m",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000750000000000000000000100"
+        },
+        {
+          "channel": "control",
+          "hex": "0000520000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001520000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001750000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "ctrl uppercase paste",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyV",
+          "key": "V",
+          "shift": true,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": "text"
+        },
+        {
+          "type": "keyup",
+          "code": "KeyV",
+          "key": "V",
+          "shift": true,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": "text"
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "090000000000000000010000000474657874"
+        }
+      ]
+    },
+    {
+      "name": "ctrl empty paste",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyV",
+          "key": "v",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyV",
+          "key": "v",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": []
+    },
+    {
+      "name": "ctrl paste matches key not code",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Period",
+          "key": "v",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": "text"
+        },
+        {
+          "type": "keyup",
+          "code": "Period",
+          "key": "v",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": "text"
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "090000000000000000010000000474657874"
+        }
+      ]
+    },
+    {
+      "name": "ctrl period on v code is keycode",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyV",
+          "key": ".",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyV",
+          "key": ".",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000320000000000000000100000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001320000000000000000100000"
+        }
+      ]
+    },
+    {
+      "name": "ctrl menu matches key not code",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "Period",
+          "key": "m",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "Period",
+          "key": "m",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000520000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001520000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "ctrl period on m code is keycode",
+      "sdk_decisions": [],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyM",
+          "key": ".",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyM",
+          "key": ".",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000290000000000000000100000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001290000000000000000100000"
+        }
+      ]
+    },
+    {
+      "name": "alt released before fallback letter",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "AltLeft",
+          "key": "Alt",
+          "shift": false,
+          "alt": true,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "",
+          "shift": false,
+          "alt": true,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "AltLeft",
+          "key": "Alt",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "a",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000390000000000000002000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00001d0000000000000002000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001390000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00011d0000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "cross modifier release uses current metadata",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ControlLeft",
+          "key": "Control",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keydown",
+          "code": "AltLeft",
+          "key": "Alt",
+          "shift": false,
+          "alt": true,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "a",
+          "shift": false,
+          "alt": true,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ControlLeft",
+          "key": "Control",
+          "shift": false,
+          "alt": true,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "a",
+          "shift": false,
+          "alt": true,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "AltLeft",
+          "key": "Alt",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000710000000000000000100000"
+        },
+        {
+          "channel": "control",
+          "hex": "0000390000000000000002100000"
+        },
+        {
+          "channel": "control",
+          "hex": "00001d0000000000000002100000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001710000000000000002000000"
+        },
+        {
+          "channel": "control",
+          "hex": "00011d0000000000000002000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001390000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "text before ctrl has no orphan up",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "KeyA",
+          "key": "a",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keydown",
+          "code": "ControlLeft",
+          "key": "Control",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "KeyA",
+          "key": "a",
+          "shift": false,
+          "alt": false,
+          "ctrl": true,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ControlLeft",
+          "key": "Control",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "010100000061"
+        },
+        {
+          "channel": "control",
+          "hex": "0000710000000000000000100000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001710000000000000000000000"
+        }
+      ]
+    },
+    {
+      "name": "orphan control up ignored",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keyup",
+          "code": "ControlLeft",
+          "key": "Control",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": []
+    },
+    {
+      "name": "repeat down and duplicate up",
+      "sdk_decisions": [
+        "tracked_key_release"
+      ],
+      "events": [
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keydown",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        },
+        {
+          "type": "keyup",
+          "code": "ArrowLeft",
+          "key": "ArrowLeft",
+          "shift": false,
+          "alt": false,
+          "ctrl": false,
+          "meta": false,
+          "caps_lock": false,
+          "clipboard": ""
+        }
+      ],
+      "expect": [
+        {
+          "channel": "control",
+          "hex": "0000150000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0000150000000000000000000000"
+        },
+        {
+          "channel": "control",
+          "hex": "0001150000000000000000000000"
+        }
+      ]
+    }
+  ]
+}

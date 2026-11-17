@@ -5,15 +5,18 @@
 import type React from 'react';
 import { useEffect, useRef } from 'react';
 
-import { AMOTION_EVENT, ANDROID_KEYS, codeMap } from '../constants';
 import {
-  createInjectKeycodeMessage,
-  createInjectMouseHoverMessage,
-  createInjectScrollEventMessage,
-  createInjectTextMessage,
-  createSetClipboardMessage,
-  createTouchControlMessage,
-} from '../webrtc-messages';
+  createKeyRouter,
+  createPointerRouter,
+  MOUSE_POINTER_ID,
+  mapClientPoint,
+  pasteMessages,
+  routeScroll,
+  wheelToTicks,
+  type PointerInput,
+  type RoutedMessage,
+  type VideoPoint,
+} from '../lib/input-routing';
 
 declare global {
   interface Window {
@@ -35,93 +38,25 @@ const debugWarn = (...args: any[]) => {
 };
 
 /**
- * Map a client-coordinate point onto the video's pixel space, accounting for
- * the letterboxing object-fit:contain introduces. Returns null when the point
- * falls outside the rendered video area.
+ * Read the video element's current bounding rect and intrinsic dimensions and
+ * map a client point into video pixels. Returns null when the video element
+ * isn't ready; `point` is null when the point is outside the letterboxed area.
  */
-function computeVideoCoords(
-  clientX: number,
-  clientY: number,
-  rect: DOMRect,
-  videoWidth: number,
-  videoHeight: number,
-): { videoX: number; videoY: number } | null {
-  const displayWidth = rect.width;
-  const displayHeight = rect.height;
-  const videoAspectRatio = videoWidth / videoHeight;
-  const containerAspectRatio = displayWidth / displayHeight;
-  let actualWidth = displayWidth;
-  let actualHeight = displayHeight;
-  if (videoAspectRatio > containerAspectRatio) {
-    actualHeight = displayWidth / videoAspectRatio;
-  } else {
-    actualWidth = displayHeight * videoAspectRatio;
-  }
-  const offsetX = (displayWidth - actualWidth) / 2;
-  const offsetY = (displayHeight - actualHeight) / 2;
-  const relativeX = clientX - rect.left - offsetX;
-  const relativeY = clientY - rect.top - offsetY;
-  if (relativeX < 0 || relativeX > actualWidth || relativeY < 0 || relativeY > actualHeight) {
-    return null;
-  }
-  return {
-    videoX: Math.max(0, Math.min(videoWidth, (relativeX / actualWidth) * videoWidth)),
-    videoY: Math.max(0, Math.min(videoHeight, (relativeY / actualHeight) * videoHeight)),
-  };
-}
-
-/**
- * Read the video element's current bounding rect and intrinsic dimensions,
- * then delegate to `computeVideoCoords`. Collapses the repeated boilerplate
- * (getBoundingClientRect + videoWidth/videoHeight guard + coord mapping)
- * that appears in every input-handler path.
- *
- * Returns null when the video element isn't ready or the point is outside
- * the letterboxed area.
- */
-function getVideoCoords(
+function getVideoPoint(
   video: HTMLVideoElement,
   clientX: number,
   clientY: number,
-): { videoX: number; videoY: number; videoWidth: number; videoHeight: number } | null {
+): { point: VideoPoint | null; videoWidth: number; videoHeight: number } | null {
   const { videoWidth, videoHeight } = video;
   if (!videoWidth || !videoHeight) return null;
-  const rect = video.getBoundingClientRect();
-  const coords = computeVideoCoords(clientX, clientY, rect, videoWidth, videoHeight);
-  if (!coords) return null;
-  return { ...coords, videoWidth, videoHeight };
-}
-
-function getAndroidKeycodeAndMeta(
-  event: React.KeyboardEvent,
-): { keycode: number; metaState: number } | null {
-  const code = event.code;
-  const keycode = codeMap[code];
-
-  if (!keycode) {
-    // Use the wrapper for conditional warning
-    debugWarn(`Unknown event.code: ${code}, key: ${event.key}`);
-    return null;
-  }
-
-  let metaState = ANDROID_KEYS.META_NONE;
-  const isLetter = code >= 'KeyA' && code <= 'KeyZ';
-  const isCapsLock = event.getModifierState('CapsLock');
-  const isShiftPressed = event.shiftKey;
-
-  // Determine effective shift state
-  let effectiveShift = isShiftPressed;
-  if (isLetter) {
-    effectiveShift = isShiftPressed !== isCapsLock; // Logical XOR for booleans
-  }
-
-  // Apply meta states
-  if (effectiveShift) metaState |= ANDROID_KEYS.META_SHIFT_ON;
-  if (event.ctrlKey) metaState |= ANDROID_KEYS.META_CTRL_ON;
-  if (event.altKey) metaState |= ANDROID_KEYS.META_ALT_ON;
-  if (event.metaKey) metaState |= ANDROID_KEYS.META_META_ON; // Command on Mac, Windows key on Win
-
-  return { keycode, metaState };
+  const point = mapClientPoint(
+    video.getBoundingClientRect(),
+    videoWidth,
+    videoHeight,
+    clientX,
+    clientY,
+  );
+  return { point, videoWidth, videoHeight };
 }
 
 interface UseScrcpyInputOptions {
@@ -136,15 +71,17 @@ interface UseScrcpyInputResult {
   handleKeyboard: (event: React.KeyboardEvent) => void;
 }
 
+/**
+ * DOM wiring only: every routing decision lives in `lib/input-routing`.
+ */
 export function useScrcpyInput({
   containerRef,
   videoRef,
   dataChannelRef,
   hoverChannelRef,
 }: UseScrcpyInputOptions): UseScrcpyInputResult {
-  // Map to track active pointers (mouse or touch) and their last known position inside the video
-  // Key: pointerId (-1 for mouse, touch.identifier for touch), Value: { x: number, y: number }
-  const activePointers = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const pointerRouter = useRef(createPointerRouter());
+  const keyRouter = useRef(createKeyRouter());
 
   const sendBinaryControlMessage = (data: ArrayBuffer) => {
     if (!dataChannelRef.current || dataChannelRef.current.readyState !== 'open') {
@@ -164,176 +101,90 @@ export function useScrcpyInput({
     hoverChannelRef.current.send(data);
   };
 
+  const send = (messages: RoutedMessage[]) => {
+    for (const { channel, data } of messages) {
+      if (channel === 'hover') sendHoverMessage(data);
+      else sendBinaryControlMessage(data);
+    }
+  };
+
   // Unified handler for both mouse and touch interactions
   const handleInteraction = (event: React.MouseEvent | React.TouchEvent) => {
     event.preventDefault();
     event.stopPropagation();
 
-    if (
-      !dataChannelRef.current ||
-      dataChannelRef.current.readyState !== 'open' ||
-      !videoRef.current
-    ) {
+    // No channel check: the router must see every release, or a gesture ended
+    // while the channel was closed would stay active. `send` drops while closed.
+    const video = videoRef.current;
+    if (!video) return;
+
+    const route = (input: Omit<PointerInput, 'point'>, clientX: number, clientY: number) => {
+      const mapped = getVideoPoint(video, clientX, clientY);
+      if (!mapped) return;
+      if (input.mouse && input.type === 'down' && input.button === 0 && mapped.point) {
+        video.focus();
+      }
+      send(
+        pointerRouter.current.route(
+          { ...input, point: mapped.point },
+          mapped.videoWidth,
+          mapped.videoHeight,
+        ),
+      );
+    };
+
+    if ('touches' in event) {
+      // Touch Events: changedTouches carries the points of start/end/cancel.
+      let type: PointerInput['type'];
+      switch (event.type) {
+        case 'touchstart':
+          type = 'down';
+          break;
+        case 'touchmove':
+          type = 'move';
+          break;
+        case 'touchend':
+          type = 'up';
+          break;
+        case 'touchcancel':
+          type = 'cancel';
+          break;
+        default:
+          return;
+      }
+      for (let i = 0; i < event.changedTouches.length; i++) {
+        const touch = event.changedTouches[i];
+        route(
+          { type, id: touch.identifier, mouse: false, button: 0, buttons: 0 },
+          touch.clientX,
+          touch.clientY,
+        );
+      }
       return;
     }
 
-    const video = videoRef.current;
-    const videoWidth = video.videoWidth;
-    const videoHeight = video.videoHeight;
-    if (!videoWidth || !videoHeight) return; // Video dimensions not ready
-
-    // Helper to process a single pointer event (either mouse or a single touch point)
-    const processPointer = (
-      pointerId: number,
-      clientX: number,
-      clientY: number,
-      eventType: 'down' | 'move' | 'up' | 'cancel',
-    ) => {
-      const coords = getVideoCoords(video, clientX, clientY);
-      const isInside = coords !== null;
-      const videoX = coords?.videoX ?? 0;
-      const videoY = coords?.videoY ?? 0;
-
-      let action: number | null = null;
-      let positionToSend: { x: number; y: number } | null = null;
-      const pressure = 1.0; // Default pressure
-      const buttons = AMOTION_EVENT.BUTTON_PRIMARY; // Assume primary button
-
-      switch (eventType) {
-        case 'down':
-          if (isInside) {
-            action = AMOTION_EVENT.ACTION_DOWN;
-            positionToSend = { x: videoX, y: videoY };
-            activePointers.current.set(pointerId, positionToSend);
-            if (pointerId === -1) {
-              // Focus on mouse down
-              videoRef.current?.focus();
-            }
-          } else {
-            // If the initial down event is outside, ignore it for this pointer
-            activePointers.current.delete(pointerId);
-          }
-          break;
-
-        case 'move':
-          if (activePointers.current.has(pointerId)) {
-            if (isInside) {
-              action = AMOTION_EVENT.ACTION_MOVE;
-              positionToSend = { x: videoX, y: videoY };
-              // Update the last known position for this active pointer
-              activePointers.current.set(pointerId, positionToSend);
-            } else {
-              // Moved outside while active - do nothing, UP/CANCEL will use last known pos
-            }
-          }
-          break;
-
-        case 'up':
-        case 'cancel': // Treat cancel like up, but use ACTION_CANCEL
-          if (activePointers.current.has(pointerId)) {
-            action = eventType === 'cancel' ? AMOTION_EVENT.ACTION_CANCEL : AMOTION_EVENT.ACTION_UP;
-            // IMPORTANT: Send the UP/CANCEL at the *last known position* inside the video
-            positionToSend = activePointers.current.get(pointerId)!;
-            activePointers.current.delete(pointerId); // Remove pointer as it's no longer active
-          }
-          break;
-      }
-
-      // Send message if action and position determined
-      if (action !== null && positionToSend !== null) {
-        const message = createTouchControlMessage(
-          action,
-          pointerId,
-          videoWidth,
-          videoHeight,
-          positionToSend.x,
-          positionToSend.y,
-          pressure,
-          buttons,
-          buttons,
-        );
-        if (message) {
-          sendBinaryControlMessage(message);
-        }
-      } else if (eventType === 'up' || eventType === 'cancel') {
-        // Clean up map just in case if 'down' was outside and 'up'/'cancel' is triggered
-        activePointers.current.delete(pointerId);
-      }
-    };
-
-    // --- Event Type Handling ---
-
-    if ('touches' in event) {
-      // Touch Events
-      const touches = event.changedTouches; // Use changedTouches for start/end/cancel
-      let eventType: 'down' | 'move' | 'up' | 'cancel';
-
-      switch (event.type) {
-        case 'touchstart':
-          eventType = 'down';
-          break;
-        case 'touchmove':
-          eventType = 'move';
-          break;
-        case 'touchend':
-          eventType = 'up';
-          break;
-        case 'touchcancel':
-          eventType = 'cancel';
-          break;
-        default:
-          return; // Should not happen
-      }
-
-      for (let i = 0; i < touches.length; i++) {
-        const touch = touches[i];
-        processPointer(touch.identifier, touch.clientX, touch.clientY, eventType);
-      }
-    } else {
-      // Mouse Events
-      const pointerId = -1; // Use -1 for mouse pointer
-      let eventType: 'down' | 'move' | 'up' | 'cancel' | null = null;
-
-      switch (event.type) {
-        case 'mousedown':
-          if (event.button === 0) eventType = 'down'; // Only primary button
-          break;
-        case 'mousemove':
-          // Only process move if primary button is down (check map)
-          if (activePointers.current.has(pointerId)) {
-            eventType = 'move';
-          }
-          break;
-        case 'mouseup':
-          if (event.button === 0) eventType = 'up'; // Only primary button
-          break;
-        case 'mouseleave':
-          // Treat leave like up only if button was down
-          if (activePointers.current.has(pointerId)) {
-            eventType = 'up';
-          }
-          break;
-      }
-
-      if (eventType) {
-        processPointer(pointerId, event.clientX, event.clientY, eventType);
-      } else if (event.type === 'mousemove') {
-        // No active touch — emit a hover/cursor message instead.
-        const coords = getVideoCoords(video, event.clientX, event.clientY);
-        if (!coords) {
-          return;
-        }
-        sendHoverMessage(
-          createInjectMouseHoverMessage(
-            videoWidth,
-            videoHeight,
-            coords.videoX,
-            coords.videoY,
-            event.buttons,
-          ),
-        );
-      }
+    // Mouse Events
+    let type: PointerInput['type'];
+    let button = event.button;
+    switch (event.type) {
+      case 'mousedown':
+        type = 'down';
+        break;
+      case 'mousemove':
+        type = 'move';
+        break;
+      case 'mouseup':
+        type = 'up';
+        break;
+      case 'mouseleave':
+        // Leaving the video releases a held gesture like a primary release.
+        type = 'up';
+        button = 0;
+        break;
+      default:
+        return;
     }
+    route({ type, id: MOUSE_POINTER_ID, mouse: true, button, buttons: event.buttons }, event.clientX, event.clientY);
   };
 
   // Native wheel listener — attached with passive:false in an effect so we
@@ -347,53 +198,12 @@ export function useScrcpyInput({
       event.preventDefault();
       event.stopPropagation();
 
-      if (
-        !dataChannelRef.current ||
-        dataChannelRef.current.readyState !== 'open' ||
-        !videoRef.current
-      ) {
-        return;
-      }
+      if (!videoRef.current) return;
 
-      const video = videoRef.current;
-      const coords = getVideoCoords(video, event.clientX, event.clientY);
-      if (!coords) return;
-      const { videoX, videoY, videoWidth, videoHeight } = coords;
-
-      // Browser deltaX/deltaY → wheel ticks (1 tick ≈ one notch).
-      // deltaMode 0 (pixel) is the common case: Chrome/Edge ~100px per notch,
-      // Firefox uses smaller values. /100 is the de-facto convention used by
-      // ya-webadb/Tango and works well for both mice and trackpads.
-      let dx = event.deltaX;
-      let dy = event.deltaY;
-      switch (event.deltaMode) {
-        case 0: // DOM_DELTA_PIXEL
-          dx /= 100;
-          dy /= 100;
-          break;
-        case 1: // DOM_DELTA_LINE — already roughly in tick units
-          break;
-        case 2: // DOM_DELTA_PAGE
-          dx *= 3;
-          dy *= 3;
-          break;
-      }
-
-      // scrcpy/Android: positive vscroll = scroll up, hscroll = scroll left.
-      // Browsers: positive deltaY = content scrolls down. Invert.
-      const hscrollTicks = -dx;
-      const vscrollTicks = -dy;
-
-      const message = createInjectScrollEventMessage(
-        videoWidth,
-        videoHeight,
-        videoX,
-        videoY,
-        hscrollTicks,
-        vscrollTicks,
-        event.buttons,
-      );
-      sendBinaryControlMessage(message);
+      const mapped = getVideoPoint(videoRef.current, event.clientX, event.clientY);
+      if (!mapped) return;
+      const { h, v } = wheelToTicks(event.deltaMode, event.deltaX, event.deltaY);
+      send(routeScroll(mapped.videoWidth, mapped.videoHeight, mapped.point, h, v, event.buttons));
     };
 
     container.addEventListener('wheel', handleWheel, { passive: false });
@@ -428,95 +238,28 @@ export function useScrcpyInput({
       return;
     }
 
-    // Handle special shortcuts first (Paste, Menu)
-    if (event.type === 'keydown') {
-      // Paste (Cmd+V / Ctrl+V)
-      if (event.key.toLowerCase() === 'v' && (event.metaKey || event.ctrlKey)) {
-        debugLog('Paste shortcut detected');
-        navigator.clipboard
-          .readText()
-          .then((text) => {
-            if (text) {
-              debugLog(
-                'Pasting text via SET_CLIPBOARD:',
-                text.substring(0, 20) + (text.length > 20 ? '...' : ''),
-              );
-              const message = createSetClipboardMessage(text, true); // paste=true
-              sendBinaryControlMessage(message);
-            }
-          })
-          .catch((err) => {
-            console.error('Failed to read clipboard contents: ', err);
-          });
-        return; // Don't process 'v' keycode further
-      }
+    const routed = keyRouter.current.route({
+      type: event.type === 'keydown' ? 'keydown' : 'keyup',
+      code: event.code,
+      key: event.key,
+      shift: event.shiftKey,
+      alt: event.altKey,
+      ctrl: event.ctrlKey,
+      meta: event.metaKey, // Command on Mac, Windows key on Win
+      capsLock: event.getModifierState('CapsLock'),
+    });
 
-      // Menu (Cmd+M / Ctrl+M) - Send down and up immediately
-      if (event.key.toLowerCase() === 'm' && (event.metaKey || event.ctrlKey)) {
-        debugLog('Menu shortcut detected');
-        const messageDown = createInjectKeycodeMessage(
-          ANDROID_KEYS.ACTION_DOWN,
-          ANDROID_KEYS.MENU,
-          0,
-          ANDROID_KEYS.META_NONE, // Modifiers are handled by the shortcut check, not passed down
-        );
-        sendBinaryControlMessage(messageDown);
-        const messageUp = createInjectKeycodeMessage(
-          ANDROID_KEYS.ACTION_UP,
-          ANDROID_KEYS.MENU,
-          0,
-          ANDROID_KEYS.META_NONE,
-        );
-        sendBinaryControlMessage(messageUp);
-        return; // Don't process 'm' keycode further
-      }
+    if (routed.kind === 'paste') {
+      debugLog('Paste shortcut detected');
+      navigator.clipboard
+        .readText()
+        .then((text) => send(pasteMessages(text)))
+        .catch((err) => {
+          console.error('Failed to read clipboard contents: ', err);
+        });
+      return;
     }
-
-    // Determine if this is a non-printable/control key that needs keycode injection
-    const isControlKey =
-      event.key === 'Backspace' ||
-      event.key === 'Delete' ||
-      event.key === 'Enter' ||
-      event.key === 'Tab' ||
-      event.key === 'Escape' ||
-      event.key === 'Home' ||
-      event.key === 'End' ||
-      event.key === 'PageUp' ||
-      event.key === 'PageDown' ||
-      event.key === 'Insert' ||
-      event.key.startsWith('Arrow') ||
-      (event.key.startsWith('F') && event.key.length <= 3) ||
-      event.key.startsWith('Shift') ||
-      event.key.startsWith('Control') ||
-      event.key.startsWith('Alt') ||
-      event.key.startsWith('Meta') ||
-      event.ctrlKey ||
-      event.metaKey;
-
-    if (isControlKey) {
-      // Use keycode injection for control/navigation keys
-      const keyInfo = getAndroidKeycodeAndMeta(event);
-      if (keyInfo) {
-        const { keycode, metaState } = keyInfo;
-        const action = event.type === 'keydown' ? ANDROID_KEYS.ACTION_DOWN : ANDROID_KEYS.ACTION_UP;
-        const message = createInjectKeycodeMessage(action, keycode, 0, metaState);
-        sendBinaryControlMessage(message);
-      }
-    } else if (event.type === 'keydown' && event.key.length === 1) {
-      // Use text injection for printable characters (supports Unicode, special chars, fast typing)
-      const message = createInjectTextMessage(event.key);
-      sendBinaryControlMessage(message);
-    } else if (event.type === 'keydown') {
-      // Fallback for other keydown events (Dead keys, etc.)
-      const keyInfo = getAndroidKeycodeAndMeta(event);
-      if (keyInfo) {
-        const { keycode, metaState } = keyInfo;
-        const message = createInjectKeycodeMessage(ANDROID_KEYS.ACTION_DOWN, keycode, 0, metaState);
-        sendBinaryControlMessage(message);
-      }
-    }
-    // keyup events for non-control keys are intentionally not sent
-    // since we use text injection which doesn't need up/down pairs
+    send(routed.messages);
   };
 
   return { handleInteraction, handleKeyboard };

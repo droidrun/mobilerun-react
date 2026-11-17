@@ -1,0 +1,36 @@
+{
+  "type": "screenshotError",
+  "direction": "server_to_client",
+  "description": "Failed screenshot reply.",
+  "fields": [
+    {
+      "name": "type",
+      "type": "string (constant \"screenshotError\")",
+      "required": true
+    },
+    {
+      "name": "id",
+      "type": "string",
+      "required": true,
+      "notes": "Must match a pending request, otherwise ignored"
+    },
+    {
+      "name": "message",
+      "type": "string",
+      "required": true
+    }
+  ],
+  "examples": [
+    {
+      "name": "error",
+      "json": {
+        "type": "screenshotError",
+        "id": "ui-ss-1700000000000-k3j9x2a",
+        "message": "capture failed"
+      }
+    }
+  ],
+  "notes": [
+    "A message missing a string id or string message is ignored."
+  ]
+}

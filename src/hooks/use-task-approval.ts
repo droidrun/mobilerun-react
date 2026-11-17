@@ -13,7 +13,7 @@ export interface UseTaskApprovalOptions {
   decide: (input: { taskId: string; approvalId: string; decision: ApprovalDecision }) => Promise<void>;
   /** Optional push source (e.g. SSE fed by your webhook handler). Call onChange when an approval event for this task arrives; return an unsubscribe. */
   subscribe?: (taskId: string, onChange: () => void) => () => void;
-  /** Poll interval while enabled. Default 0 (off) when `subscribe` is given, else 3000. */
+  /** Poll interval while enabled. Default 0 (off) when `subscribe` is given, else 3000. If `subscribe` throws, the error goes to `onError` and polling runs at this interval; an explicit 0 then falls back to 3000 (0 only means "no polling" while `subscribe` works). */
   pollIntervalMs?: number;
   enabled?: boolean;
   onError?: (error: unknown) => void;
@@ -34,6 +34,8 @@ export interface UseTaskApprovalResult {
   decision?: ApprovalDecision;
   refetch: () => void;
 }
+
+const DEFAULT_POLL_INTERVAL_MS = 3000;
 
 /**
  * Loads a task's pending approval through your backend and sends the decision
@@ -84,7 +86,7 @@ export function useTaskApproval({
   const reloadRef = useRef<() => void>(() => {});
 
   const hasSubscribe = !!subscribe;
-  const interval = pollIntervalMs ?? (hasSubscribe ? 0 : 3000);
+  const interval = pollIntervalMs ?? (hasSubscribe ? 0 : DEFAULT_POLL_INTERVAL_MS);
 
   useEffect(() => {
     // A different task starts with a clean decide state.
@@ -105,6 +107,8 @@ export function useTaskApproval({
 
     let cancelled = false;
     let pollTimer: ReturnType<typeof setTimeout> | undefined;
+    // Switches to the plain polling default when `subscribe` throws.
+    let pollMs = interval;
     // An older overlapping fetch never overwrites a newer one.
     let latest = 0;
 
@@ -124,17 +128,26 @@ export function useTaskApproval({
       } finally {
         if (isCurrent()) {
           setIsLoading(false);
-          if (interval > 0) pollTimer = setTimeout(load, interval);
+          if (pollMs > 0) pollTimer = setTimeout(load, pollMs);
         }
       }
     };
 
     reloadRef.current = () => void load();
     setIsLoading(true);
+    let unsubscribe: (() => void) | undefined;
+    try {
+      unsubscribe = subscribeRef.current?.(taskId, () => {
+        if (!cancelled) void load();
+      });
+    } catch (err) {
+      // Without a working push source the approval would never refresh: report
+      // it and poll as if no `subscribe` was given.
+      onErrorRef.current?.(err);
+      pollMs = pollIntervalMs || DEFAULT_POLL_INTERVAL_MS;
+    }
+    // After the subscription setup, so `pollMs` is final when the first load settles.
     void load();
-    const unsubscribe = subscribeRef.current?.(taskId, () => {
-      if (!cancelled) void load();
-    });
 
     return () => {
       cancelled = true;

@@ -1,0 +1,356 @@
+{
+  "cases": [
+    {
+      "name": "empty, paste true",
+      "args": {
+        "text": "",
+        "paste": true
+      },
+      "hex": "0900000000000000000100000000"
+    },
+    {
+      "name": "empty, paste false",
+      "args": {
+        "text": "",
+        "paste": false
+      },
+      "hex": "0900000000000000000000000000"
+    },
+    {
+      "name": "single ascii char, paste true",
+      "args": {
+        "text": "a",
+        "paste": true
+      },
+      "hex": "090000000000000000010000000161"
+    },
+    {
+      "name": "single ascii char, paste false",
+      "args": {
+        "text": "a",
+        "paste": false
+      },
+      "hex": "090000000000000000000000000161"
+    },
+    {
+      "name": "ascii sentence, paste true",
+      "args": {
+        "text": "Hello, World!",
+        "paste": true
+      },
+      "hex": "090000000000000000010000000d48656c6c6f2c20576f726c6421"
+    },
+    {
+      "name": "ascii sentence, paste false",
+      "args": {
+        "text": "Hello, World!",
+        "paste": false
+      },
+      "hex": "090000000000000000000000000d48656c6c6f2c20576f726c6421"
+    },
+    {
+      "name": "ascii punctuation and symbols, paste true",
+      "args": {
+        "text": "!@#$%^&*()_+-=[]{}|;':\",./<>?`~\\",
+        "paste": true
+      },
+      "hex": "090000000000000000010000002021402324255e262a28295f2b2d3d5b5d7b7d7c3b273a222c2e2f3c3e3f607e5c"
+    },
+    {
+      "name": "ascii punctuation and symbols, paste false",
+      "args": {
+        "text": "!@#$%^&*()_+-=[]{}|;':\",./<>?`~\\",
+        "paste": false
+      },
+      "hex": "090000000000000000000000002021402324255e262a28295f2b2d3d5b5d7b7d7c3b273a222c2e2f3c3e3f607e5c"
+    },
+    {
+      "name": "digits, paste true",
+      "args": {
+        "text": "0123456789",
+        "paste": true
+      },
+      "hex": "090000000000000000010000000a30313233343536373839"
+    },
+    {
+      "name": "digits, paste false",
+      "args": {
+        "text": "0123456789",
+        "paste": false
+      },
+      "hex": "090000000000000000000000000a30313233343536373839"
+    },
+    {
+      "name": "space only, paste true",
+      "args": {
+        "text": " ",
+        "paste": true
+      },
+      "hex": "090000000000000000010000000120"
+    },
+    {
+      "name": "space only, paste false",
+      "args": {
+        "text": " ",
+        "paste": false
+      },
+      "hex": "090000000000000000000000000120"
+    },
+    {
+      "name": "newline and tab, paste true",
+      "args": {
+        "text": "line1\nline2\tend",
+        "paste": true
+      },
+      "hex": "090000000000000000010000000f6c696e65310a6c696e653209656e64"
+    },
+    {
+      "name": "newline and tab, paste false",
+      "args": {
+        "text": "line1\nline2\tend",
+        "paste": false
+      },
+      "hex": "090000000000000000000000000f6c696e65310a6c696e653209656e64"
+    },
+    {
+      "name": "latin-1 two-byte, paste true",
+      "args": {
+        "text": "héllo wörld ñ",
+        "paste": true
+      },
+      "hex": "090000000000000000010000001068c3a96c6c6f2077c3b6726c6420c3b1"
+    },
+    {
+      "name": "latin-1 two-byte, paste false",
+      "args": {
+        "text": "héllo wörld ñ",
+        "paste": false
+      },
+      "hex": "090000000000000000000000001068c3a96c6c6f2077c3b6726c6420c3b1"
+    },
+    {
+      "name": "cyrillic, paste true",
+      "args": {
+        "text": "Привет",
+        "paste": true
+      },
+      "hex": "090000000000000000010000000cd09fd180d0b8d0b2d0b5d182"
+    },
+    {
+      "name": "cyrillic, paste false",
+      "args": {
+        "text": "Привет",
+        "paste": false
+      },
+      "hex": "090000000000000000000000000cd09fd180d0b8d0b2d0b5d182"
+    },
+    {
+      "name": "cjk three-byte, paste true",
+      "args": {
+        "text": "日本語のテキスト",
+        "paste": true
+      },
+      "hex": "0900000000000000000100000018e697a5e69cace8aa9ee381aee38386e382ade382b9e38388"
+    },
+    {
+      "name": "cjk three-byte, paste false",
+      "args": {
+        "text": "日本語のテキスト",
+        "paste": false
+      },
+      "hex": "0900000000000000000000000018e697a5e69cace8aa9ee381aee38386e382ade382b9e38388"
+    },
+    {
+      "name": "emoji four-byte, paste true",
+      "args": {
+        "text": "😀",
+        "paste": true
+      },
+      "hex": "0900000000000000000100000004f09f9880"
+    },
+    {
+      "name": "emoji four-byte, paste false",
+      "args": {
+        "text": "😀",
+        "paste": false
+      },
+      "hex": "0900000000000000000000000004f09f9880"
+    },
+    {
+      "name": "emoji between ascii, paste true",
+      "args": {
+        "text": "a😀b",
+        "paste": true
+      },
+      "hex": "090000000000000000010000000661f09f988062"
+    },
+    {
+      "name": "emoji between ascii, paste false",
+      "args": {
+        "text": "a😀b",
+        "paste": false
+      },
+      "hex": "090000000000000000000000000661f09f988062"
+    },
+    {
+      "name": "emoji zwj sequence, paste true",
+      "args": {
+        "text": "👨‍👩‍👧‍👦",
+        "paste": true
+      },
+      "hex": "0900000000000000000100000019f09f91a8e2808df09f91a9e2808df09f91a7e2808df09f91a6"
+    },
+    {
+      "name": "emoji zwj sequence, paste false",
+      "args": {
+        "text": "👨‍👩‍👧‍👦",
+        "paste": false
+      },
+      "hex": "0900000000000000000000000019f09f91a8e2808df09f91a9e2808df09f91a7e2808df09f91a6"
+    },
+    {
+      "name": "emoji with skin tone, paste true",
+      "args": {
+        "text": "👍🏽",
+        "paste": true
+      },
+      "hex": "0900000000000000000100000008f09f918df09f8fbd"
+    },
+    {
+      "name": "emoji with skin tone, paste false",
+      "args": {
+        "text": "👍🏽",
+        "paste": false
+      },
+      "hex": "0900000000000000000000000008f09f918df09f8fbd"
+    },
+    {
+      "name": "flag regional indicators, paste true",
+      "args": {
+        "text": "🇩🇪",
+        "paste": true
+      },
+      "hex": "0900000000000000000100000008f09f87a9f09f87aa"
+    },
+    {
+      "name": "flag regional indicators, paste false",
+      "args": {
+        "text": "🇩🇪",
+        "paste": false
+      },
+      "hex": "0900000000000000000000000008f09f87a9f09f87aa"
+    },
+    {
+      "name": "combining accent, paste true",
+      "args": {
+        "text": "é",
+        "paste": true
+      },
+      "hex": "090000000000000000010000000365cc81"
+    },
+    {
+      "name": "combining accent, paste false",
+      "args": {
+        "text": "é",
+        "paste": false
+      },
+      "hex": "090000000000000000000000000365cc81"
+    },
+    {
+      "name": "nul character, paste true",
+      "args": {
+        "text": "a\u0000b",
+        "paste": true
+      },
+      "hex": "0900000000000000000100000003610062"
+    },
+    {
+      "name": "nul character, paste false",
+      "args": {
+        "text": "a\u0000b",
+        "paste": false
+      },
+      "hex": "0900000000000000000000000003610062"
+    },
+    {
+      "name": "long ascii (300 chars), paste true",
+      "args": {
+        "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "paste": true
+      },
+      "hex": "090000000000000000010000012c787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878"
+    },
+    {
+      "name": "long ascii (300 chars), paste false",
+      "args": {
+        "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "paste": false
+      },
+      "hex": "090000000000000000000000012c787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878"
+    },
+    {
+      "name": "lone high surrogate, paste true",
+      "args": {
+        "text": "\ud83d",
+        "paste": true
+      },
+      "hex": "0900000000000000000100000003efbfbd"
+    },
+    {
+      "name": "lone high surrogate, paste false",
+      "args": {
+        "text": "\ud83d",
+        "paste": false
+      },
+      "hex": "0900000000000000000000000003efbfbd"
+    },
+    {
+      "name": "lone low surrogate inside text, paste true",
+      "args": {
+        "text": "a\udc00b",
+        "paste": true
+      },
+      "hex": "090000000000000000010000000561efbfbd62"
+    },
+    {
+      "name": "lone low surrogate inside text, paste false",
+      "args": {
+        "text": "a\udc00b",
+        "paste": false
+      },
+      "hex": "090000000000000000000000000561efbfbd62"
+    },
+    {
+      "name": "high surrogate at end after ascii, paste true",
+      "args": {
+        "text": "ok\ud83d",
+        "paste": true
+      },
+      "hex": "09000000000000000001000000056f6befbfbd"
+    },
+    {
+      "name": "high surrogate at end after ascii, paste false",
+      "args": {
+        "text": "ok\ud83d",
+        "paste": false
+      },
+      "hex": "09000000000000000000000000056f6befbfbd"
+    },
+    {
+      "name": "reversed surrogate pair, paste true",
+      "args": {
+        "text": "\ude00\ud83d",
+        "paste": true
+      },
+      "hex": "0900000000000000000100000006efbfbdefbfbd"
+    },
+    {
+      "name": "reversed surrogate pair, paste false",
+      "args": {
+        "text": "\ude00\ud83d",
+        "paste": false
+      },
+      "hex": "0900000000000000000000000006efbfbdefbfbd"
+    }
+  ]
+}
