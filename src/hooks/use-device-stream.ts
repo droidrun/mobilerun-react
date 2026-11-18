@@ -107,7 +107,7 @@ export function useDeviceStream({
   pollIntervalMs = 3000,
   onError,
 }: UseDeviceStreamOptions | UseDeviceStreamDeviceOptions): UseDeviceStreamResult {
-  const [device, setDevice] = useState<SdkDevice | undefined>(undefined);
+  const [loaded, setLoaded] = useState<{ targetId: string; device: SdkDevice } | undefined>(undefined);
   const [isLoading, setIsLoading] = useState<boolean>(enabled);
   const [error, setError] = useState<unknown>(undefined);
 
@@ -116,6 +116,8 @@ export function useDeviceStream({
   // Keyed by id + client, not handle identity: a fresh handle per render is fine.
   const targetId = deviceHandle?.id ?? deviceId;
   const source = deviceHandle?.api ?? client;
+  // Hide the old URL in the switch render, before effects or a backoff retry can run.
+  const device = loaded?.targetId === targetId ? loaded?.device : undefined;
 
   // Bumping this triggers a re-fetch without changing the polling cadence.
   const [fetchEpoch, setFetchEpoch] = useState(0);
@@ -134,7 +136,7 @@ export function useDeviceStream({
       try {
         const next = await (deviceHandle ? deviceHandle.refresh() : client!.devices.retrieve(targetId!));
         if (cancelled) return;
-        setDevice(next);
+        setLoaded({ targetId, device: next });
         setError(undefined);
         // Keep polling until the backend hands us a stream URL.
         if (!next.streamUrl && pollIntervalMs > 0) {

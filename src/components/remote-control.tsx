@@ -53,6 +53,8 @@ interface RemoteControlProps {
   // intentional teardown. Lets a reconnect manager retry without waiting
   // out a connect watchdog.
   onConnectionFailed?: () => void;
+  /** Fired when a socket is allocated, after any key provider resolves. */
+  onConnectionAttemptStarted?: () => void;
 
   // Override label for the corner pill shown while the WebRTC stream is
   // not yet connected. Defaults to "connecting". Pass a device-state-derived
@@ -127,6 +129,7 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
       openUrl,
       onConnectionStateChange,
       onConnectionFailed,
+      onConnectionAttemptStarted,
       placeholderLabel,
       muted = true,
       onPeerConnectionChange,
@@ -159,6 +162,7 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
       videoRef,
       onConnectionStateChange,
       onConnectionFailed,
+      onConnectionAttemptStarted,
       onPeerConnectionChange,
     });
 

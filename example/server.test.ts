@@ -1,7 +1,7 @@
 // Copyright 2026 Mobilerun
 // SPDX-License-Identifier: Apache-2.0
 
-import { expect, test } from 'bun:test';
+import { expect, spyOn, test } from 'bun:test';
 import { MobilerunSDK } from '@mobilerun/sdk';
 import { createExampleApp } from './server';
 
@@ -73,9 +73,25 @@ test('stream key helper POST mints once and returns only the flat no-store DTO',
 
 test.each([403, 503])('stream key helper propagates refusal %i without retry or error detail', async (status) => {
   const f = upstream({ message: 'sensitive upstream detail' }, status);
-  const response = await f.app.request(`/api/v1/devices/${deviceId}/stream-key`, { method: 'POST' });
+  const log = spyOn(console, 'error').mockImplementation(() => {});
+  let response: Response;
+  try {
+    response = await f.app.request(`/api/v1/devices/${deviceId}/stream-key`, { method: 'POST' });
+    expect(log.mock.calls).toEqual([['stream_key_mint_failed', status]]);
+  } finally {
+    log.mockRestore();
+  }
   expect(response.status).toBe(status);
   expect(response.headers.get('Cache-Control')).toBe('no-store');
   expect(await response.json()).toEqual({ error: 'stream_key_mint_failed' });
   expect(f.requests).toHaveLength(1);
+});
+
+test('stream key helper rejects an invalid device id before calling upstream', async () => {
+  const f = upstream({ key: 'unused' }, 201);
+  const response = await f.app.request('/api/v1/devices/invalid.id/stream-key', { method: 'POST' });
+  expect(response.status).toBe(400);
+  expect(response.headers.get('Cache-Control')).toBe('no-store');
+  expect(await response.json()).toEqual({ error: 'invalid_id' });
+  expect(f.requests).toEqual([]);
 });

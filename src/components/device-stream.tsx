@@ -76,12 +76,14 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
     attempt,
     onConnectionStateChange: onReconnectConnectionChange,
     onConnectionFailed,
+    onConnectionAttemptStarted,
     retry,
   } = useStreamReconnect({
     onHeal: onStreamHealed,
     target,
     targetKey: `${streamUrl ?? ''}|${streamToken ?? ''}`,
     enabled: !!streamUrl,
+    watchdogFromSocket: true,
   });
 
   const handleConnectionStateChange = useCallback(
@@ -135,6 +137,7 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
               className="w-full h-full"
               onConnectionStateChange={handleConnectionStateChange}
               onConnectionFailed={onConnectionFailed}
+              onConnectionAttemptStarted={onConnectionAttemptStarted}
               placeholderLabel={status === 'reconnecting' ? reconnectLabel : placeholderLabel}
               muted={muted}
               onPeerConnectionChange={onPeerConnectionChange}

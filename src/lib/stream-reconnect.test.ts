@@ -68,9 +68,21 @@ describe('connect watchdog', () => {
     // slow-but-valid handshakes the connection layer still considers on
     // budget — and on the final retry strand the stream in 'unavailable'
     // mid-handshake.
+    expect(STREAM_CONNECT_TIMEOUT_MS).toBe(45_000);
     expect(STREAM_CONNECT_TIMEOUT_MS).toBeGreaterThan(
       STREAM_WS_OPEN_TIMEOUT_MS + STREAM_RTC_CONFIG_TIMEOUT_MS,
     );
+  });
+
+  test('a provider phase defers the watchdog but still counts its own failure', () => {
+    const { schedule, controller } = setup();
+    controller.attemptMounted(false);
+    expect(schedule.pendingCount).toBe(0);
+    schedule.advance(10_000);
+    expect(controller.getSnapshot()).toEqual({ status: 'connecting', attempt: 0 });
+    controller.handleFailure();
+    expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 1 });
+    controller.dispose();
   });
 
   test('an attempt that never connects fails after the timeout and schedules a retry', () => {

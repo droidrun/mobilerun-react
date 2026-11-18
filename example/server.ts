@@ -73,13 +73,15 @@ export function createExampleApp(sdk: MobilerunSDK | null) {
 
   app.post('/api/v1/devices/:deviceId/stream-key', async (c) => {
     c.header('Cache-Control', 'no-store');
+    const deviceId = c.req.param('deviceId');
+    if (!ID_PATTERN.test(deviceId)) return c.json({ error: 'invalid_id' }, 400);
     if (!sdk) {
       return c.json({ error: 'missing_api_key', detail: 'Set MOBILERUN_API_KEY to use SDK mode.' }, 500);
     }
     try {
       const minted = await sdk.api.post<{ key: string; keyId: string; expiresAt: string }>(
         '/identity/stream-keys',
-        { body: { deviceId: c.req.param('deviceId'), ttlSeconds: 120 }, maxRetries: 0 },
+        { body: { deviceId, ttlSeconds: 120 }, maxRetries: 0 },
       );
       const { key, keyId, expiresAt } = minted;
       return c.json({ key, keyId, expiresAt }, 201);
@@ -100,7 +102,10 @@ function upstreamFailure(c: Context, error: string, err: unknown, redact = false
   const { status, message } = err as { status?: number; message?: string };
   const isUpstreamError = status && status >= 400 && status < 600;
   const code = (isUpstreamError ? status : 502) as ContentfulStatusCode;
-  if (redact) return c.json({ error }, code);
+  if (redact) {
+    console.error(error, code);
+    return c.json({ error }, code);
+  }
   console.error(`✗ ${error}`, JSON.stringify(c.req.param()), message ?? String(err));
   return c.json({ error, detail: message ?? String(err) }, code);
 }

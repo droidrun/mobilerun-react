@@ -7,10 +7,11 @@
  * into React (remounts via key bump, snapshot into state).
  *
  * Lifecycle contract with the hook:
- *  - `attemptMounted()` is called after every mount/remount of the underlying
- *    stream component (and on enable). It arms the connect watchdog.
- *  - `onRemount()` asks the hook to bump the mount epoch; the resulting mount
- *    calls `attemptMounted()` back.
+ *  - `attemptMounted(false)` prepares a provider phase without a watchdog;
+ *    `attemptMounted()` starts the watchdog when its socket allocates.
+ *    The default keeps existing mount-driven callers unchanged.
+ *  - `onRemount()` asks the hook to bump the mount epoch and prepare the next
+ *    attempt; its socket allocation then starts the connect watchdog.
  *  - `handleConnected`/`handleDisconnected` mirror the WebRTC connection
  *    state; `handleFailure` is the terminal-failure signal (WS died, peer
  *    connection failed, negotiation threw).
@@ -39,6 +40,8 @@ export interface StreamReconnectSnapshot {
 }
 
 export const STREAM_RECONNECT_MAX_ATTEMPTS = 6;
+// Key acquisition precedes socket allocation and has its own independent budget.
+export const STREAM_TOKEN_PROVIDER_TIMEOUT_MS = 10_000;
 // Connection-layer phase budgets, enforced in use-webrtc-connection: how long
 // the signaling WebSocket may take to open, and how long the RTCConfiguration
 // reply may take after that. Each phase rejects (→ onConnectionFailed) when
@@ -82,8 +85,8 @@ export interface StreamReconnectControllerOptions {
 }
 
 export interface StreamReconnectController {
-  /** The stream component (re)mounted; arm the connect watchdog. */
-  attemptMounted(): void;
+  /** Begin an attempt; defer the watchdog until socket allocation when false. */
+  attemptMounted(startWatchdog?: boolean): void;
   /** No stream target anymore (URL gone) — stop timers, reset counters. */
   setDisabled(): void;
   handleConnected(): void;
@@ -201,7 +204,7 @@ export function createStreamReconnectController({
   };
 
   return {
-    attemptMounted() {
+    attemptMounted(startWatchdog = true) {
       enabled = true;
       // Mid-wait mounts are stale (StrictMode remount): the scheduled
       // attempt owns the next watchdog.
@@ -216,6 +219,7 @@ export function createStreamReconnectController({
         status = 'connecting';
         emit();
       }
+      if (!startWatchdog) return;
       watchdogTimer = schedule.setTimeout(() => {
         watchdogTimer = null;
         countFailure();

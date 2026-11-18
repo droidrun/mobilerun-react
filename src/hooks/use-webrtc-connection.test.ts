@@ -1,8 +1,11 @@
 // Copyright 2026 Mobilerun
 // SPDX-License-Identifier: Apache-2.0
 
-import { expect, test } from 'bun:test';
-import { tick } from './test-hook-runner';
+import { expect, mock, test } from 'bun:test';
+import { createStreamReconnectController } from '../lib/stream-reconnect';
+import { FakeSchedule } from '../lib/test-clock';
+import { runHook, tick } from './test-hook-runner';
+import type { UseDeviceStreamResult } from './use-device-stream';
 import { deferred, event, fixture } from './webrtc-test-fixture';
 
 for (const end of ['unmount', 'switch'] as const) {
@@ -257,11 +260,13 @@ test('effect restart ignores a late rejected mint', async () => {
   f.unmount();
 });
 
-test.each([1001, 1006])('provider close %i tears down connected media before retry', async (code) => {
+test.each(['static', 'provider'] as const)(
+  '%s close 1001 tears down connected media before retry', async (mode) => {
   const f = await fixture();
   let calls = 0;
   const tokenProvider = async () => `key-${++calls}`;
-  f.mount('a', undefined, { tokenProvider });
+  const credentials = mode === 'provider' ? { tokenProvider } : { token: 'legacy-static' };
+  f.mount('a', undefined, credentials);
   await tick();
   f.sockets[0].open();
   await tick();
@@ -274,20 +279,218 @@ test.each([1001, 1006])('provider close %i tears down connected media before ret
   const media = f.video.current.srcObject!;
   expect(media.getTracks()).toHaveLength(1);
   const lateClose = f.sockets[0].onclose!;
-  f.sockets[0].close(code);
-  lateClose({ code });
+  f.sockets[0].close(1001);
+  lateClose({ code: 1001 });
   await tick();
   expect(pc.closed).toBe(true);
   expect(pc.channels.map(c => c.closed)).toEqual([true, true]);
   expect(f.video.current.srcObject).toBeNull();
   expect(media.getTracks()).toEqual([]);
   expect(f.stateWrites.at(-1)).toBe(false);
+  expect(f.states).toEqual([true, false]);
+  expect(f.states.at(-1)).toBe(false);
   expect(f.failures).toEqual([true]);
   expect(f.bindings.at(-1)).toBeNull();
-  f.mount('a', undefined, { tokenProvider });
+  f.mount('a', undefined, credentials);
   await tick();
-  expect(calls).toBe(2);
-  expect(f.sockets[1].url).toBe('wss://example.invalid/a?token=key-2');
+  expect(calls).toBe(mode === 'provider' ? 2 : 0);
+  const expectedToken = mode === 'provider' ? 'key-2' : 'legacy-static';
+  expect(f.sockets[1].url).toBe(`wss://example.invalid/a?token=${expectedToken}`);
+  f.unmount();
+});
+
+test.each(['static', 'provider'] as const)(
+  '%s close 1006 keeps connected media until retry', async (mode) => {
+  const f = await fixture();
+  let calls = 0;
+  const tokenProvider = async () => `key-${++calls}`;
+  const credentials = mode === 'provider' ? { tokenProvider } : { token: 'legacy-static' };
+  f.mount('a', undefined, credentials);
+  await tick();
+  f.sockets[0].open();
+  await tick();
+  f.sockets[0].config();
+  await tick();
+  const pc = f.peers[0];
+  pc.connectionState = 'connected';
+  pc.onconnectionstatechange!();
+  pc.ontrack({ track: { kind: 'video' } });
+  const media = f.video.current.srcObject;
+  f.sockets[0].onerror!();
+  f.sockets[0].close(1006);
+  await tick();
+  expect(pc.closed).toBe(false);
+  expect(pc.channels.map(c => c.closed)).toEqual([false, false]);
+  expect(f.video.current.srcObject).toBe(media);
+  expect(f.failures).toEqual([]);
+  expect(f.states).toEqual([true]);
+  f.mount('a', undefined, credentials);
+  await tick();
+  expect(calls).toBe(mode === 'provider' ? 2 : 0);
+  const expectedToken = mode === 'provider' ? 'key-2' : 'legacy-static';
+  expect(f.sockets[1].url).toBe(`wss://example.invalid/a?token=${expectedToken}`);
+  f.unmount();
+});
+
+test('provider peer failure reports disconnected once before teardown', async () => {
+  const f = await fixture();
+  f.mount('a', undefined, { tokenProvider: async () => 'key' });
+  await tick();
+  f.sockets[0].open();
+  await tick();
+  f.sockets[0].config();
+  await tick();
+  const pc = f.peers[0];
+  pc.connectionState = 'connected';
+  pc.onconnectionstatechange!();
+  pc.connectionState = 'failed';
+  pc.onconnectionstatechange!();
+  await tick();
+  expect(f.states).toEqual([true, false]);
+  expect(f.states.at(-1)).toBe(false);
+  expect(pc.closed).toBe(true);
+  expect(f.failures).toEqual([true]);
+  f.unmount();
+});
+
+test('provider timeout fails at ten seconds and ignores a late key', async () => {
+  const clock = new FakeSchedule();
+  const f = await fixture(clock);
+  const mint = deferred<string>();
+  f.mount('a', undefined, { token: 'legacy-static', tokenProvider: () => mint.promise });
+  clock.advance(9_999);
+  await tick();
+  expect(f.failures).toEqual([]);
+  clock.advance(1);
+  await tick();
+  expect(f.failures).toEqual([true]);
+  const writes = f.stateWrites.length;
+  mint.resolve('too-late');
+  await tick();
+  expect(f.sockets).toEqual([]);
+  expect(f.failures).toEqual([true]);
+  expect(f.stateWrites).toHaveLength(writes);
+  f.unmount();
+});
+
+test('provider phase leaves the full connect watchdog after socket allocation', async () => {
+  const clock = new FakeSchedule();
+  const f = await fixture(clock);
+  const mint = deferred<string>();
+  const controller = createStreamReconnectController({
+    onRemount: () => {},
+    onSnapshot: () => {},
+    onHeal: () => {},
+    schedule: clock,
+  });
+  controller.attemptMounted(false);
+  f.mount('a', undefined, {
+    tokenProvider: () => mint.promise,
+    onConnectionAttemptStarted: () => controller.attemptMounted(),
+  });
+  expect(clock.pendingCount).toBe(1);
+  clock.advance(9_999);
+  mint.resolve('fresh');
+  await tick();
+  expect(f.sockets).toHaveLength(1);
+  f.sockets[0].open();
+  await tick();
+  f.sockets[0].config();
+  await tick();
+  clock.advance(35_001);
+  expect(controller.getSnapshot()).toEqual({ status: 'connecting', attempt: 0 });
+  clock.advance(9_998);
+  expect(controller.getSnapshot()).toEqual({ status: 'connecting', attempt: 0 });
+  clock.advance(1);
+  expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 1 });
+  controller.dispose();
+  f.unmount();
+});
+
+test.each([
+  'ws://stream.example.invalid/a',
+  'https://stream.example.invalid/a',
+  'ws://localhost.example.invalid/a',
+])('provider rejects insecure URL %s before minting', async (url) => {
+  const f = await fixture();
+  const tokenProvider = mock(async () => 'key');
+  f.mount('a', undefined, { url, tokenProvider });
+  await tick();
+  expect(f.failures).toEqual([true]);
+  expect(tokenProvider).not.toHaveBeenCalled();
+  expect(f.sockets).toEqual([]);
+  f.unmount();
+});
+
+test.each([
+  'ws://localhost:3000/a',
+  'ws://127.0.0.1:3000/a',
+  'ws://[::1]:3000/a',
+])('provider allows loopback URL %s', async (url) => {
+  const f = await fixture();
+  const tokenProvider = mock(async () => 'key');
+  f.mount('a', undefined, { url, tokenProvider });
+  await tick();
+  expect(tokenProvider).toHaveBeenCalledTimes(1);
+  expect(f.sockets.map(ws => ws.url)).toEqual([`${url}?token=key`]);
+  expect(f.failures).toEqual([]);
+  f.unmount();
+});
+
+test('device switch during backoff cannot open the old URL with the new provider', async () => {
+  const runner = await runHook<{ useDeviceStream: (options: unknown) => UseDeviceStreamResult }>(
+    import.meta.dir + '/use-device-stream.ts',
+  );
+  const nextDevice = deferred<{ streamUrl: string }>();
+  const client = { devices: { retrieve: mock()
+    .mockResolvedValueOnce({ streamUrl: 'wss://example.invalid/a' })
+    .mockImplementationOnce(() => nextDevice.promise) } };
+  const readTarget = (deviceId: string) => {
+    runner.beginRender();
+    const result = runner.module.exports.useDeviceStream({ client, deviceId });
+    runner.flushEffects();
+    return result;
+  };
+  readTarget('a');
+  await tick();
+  let target = readTarget('a');
+  const f = await fixture();
+  const clock = new FakeSchedule();
+  let tokenProvider = async () => 'key-a';
+  const connect = () => {
+    if (!target.streamUrl) return;
+    f.mount('selected', undefined, { url: target.streamUrl, tokenProvider });
+  };
+  const controller = createStreamReconnectController({
+    onRemount: connect,
+    onSnapshot: () => {},
+    onHeal: () => {},
+    schedule: clock,
+    random: () => 0.5,
+  });
+  connect();
+  await tick();
+  controller.attemptMounted();
+  f.sockets[0].close(1006);
+  await tick();
+  controller.handleFailure();
+  expect(controller.getSnapshot().status).toBe('reconnecting');
+  target = readTarget('b');
+  tokenProvider = async () => 'key-b';
+  f.unmount();
+  clock.advance(1_000);
+  await tick();
+  expect(f.sockets.map(ws => ws.url)).toEqual(['wss://example.invalid/a?token=key-a']);
+  expect(target.device).toBeUndefined();
+  expect(target.streamUrl).toBeUndefined();
+  nextDevice.resolve({ streamUrl: 'wss://example.invalid/b' });
+  await tick();
+  target = readTarget('b');
+  connect();
+  await tick();
+  expect(f.sockets[1].url).toBe('wss://example.invalid/b?token=key-b');
+  controller.dispose();
+  runner.unmount();
   f.unmount();
 });
 
@@ -350,7 +553,7 @@ test('legacy token compatibility keeps synchronous startup and media after signa
   await tick();
   f.peers[0].connectionState = 'connected';
   f.peers[0].onconnectionstatechange!();
-  f.sockets[0].close(1001);
+  f.sockets[0].close(1006);
   await tick();
   expect(f.peers[0].closed).toBe(false);
   expect(f.failures).toEqual([]);

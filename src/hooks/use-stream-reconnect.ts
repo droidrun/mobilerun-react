@@ -2,7 +2,7 @@
 // Copyright 2026 Mobilerun
 // SPDX-License-Identifier: Apache-2.0
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createStreamReconnectController, type StreamReconnectSnapshot } from '../lib/stream-reconnect';
 
 interface UseStreamReconnectOptions<T> {
@@ -28,6 +28,8 @@ interface UseStreamReconnectOptions<T> {
   targetKey: string;
   /** False while there is no stream target (no URL yet) — pauses all timers. */
   enabled: boolean;
+  /** Start the watchdog via onConnectionAttemptStarted instead of mount. Defaults to false. */
+  watchdogFromSocket?: boolean;
 }
 
 /**
@@ -47,6 +49,7 @@ export function useStreamReconnect<T>({
   target,
   targetKey,
   enabled,
+  watchdogFromSocket = false,
 }: UseStreamReconnectOptions<T>) {
   const [snapshot, setSnapshot] = useState<StreamReconnectSnapshot>({
     status: 'connecting',
@@ -107,16 +110,20 @@ export function useStreamReconnect<T>({
     setMount((m) => ({ epoch: m.epoch + 1, target }));
   }
 
-  // Every mount/remount of the stream component (or enable flip) re-arms the
-  // connect watchdog. Runs after render, i.e. after the remounted component
-  // actually exists.
-  useEffect(() => {
+  const onConnectionAttemptStarted = useCallback(() => {
+    controllerRef.current?.attemptMounted();
+  }, []);
+
+  // Enable failure accounting before the child's passive startup effect, so
+  // synchronous failures count too. DeviceStream defers the watchdog to its
+  // socket event; existing hook consumers keep mount-driven arming.
+  useLayoutEffect(() => {
     if (enabled) {
-      controllerRef.current?.attemptMounted();
+      controllerRef.current?.attemptMounted(!watchdogFromSocket);
     } else {
       controllerRef.current?.setDisabled();
     }
-  }, [mount.epoch, enabled]);
+  }, [mount.epoch, enabled, watchdogFromSocket]);
 
   useEffect(() => {
     const onVisibility = () => {
@@ -151,6 +158,7 @@ export function useStreamReconnect<T>({
     status: snapshot.status,
     attempt: snapshot.attempt,
     onConnectionStateChange,
+    onConnectionAttemptStarted,
     onConnectionFailed,
     retry,
   };

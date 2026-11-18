@@ -84,15 +84,24 @@ export async function getDevice(id: string): Promise<Response> {
 // Register for POST /api/v1/devices/:id/stream-key.
 export async function mintStreamKey(deviceId: string): Promise<Response> {
   // Authenticate the caller and authorize this device in your application first.
-  const minted = await sdk.api.post<{ key: string; keyId: string; expiresAt: string }>(
-    '/identity/stream-keys',
-    { body: { deviceId, ttlSeconds: 120 }, maxRetries: 0 },
-  );
-  const { key, keyId, expiresAt } = minted;
-  return Response.json({ key, keyId, expiresAt }, {
-    status: 201,
-    headers: { 'Cache-Control': 'no-store' },
-  });
+  try {
+    const minted = await sdk.api.post<{ key: string; keyId: string; expiresAt: string }>(
+      '/identity/stream-keys',
+      { body: { deviceId, ttlSeconds: 120 }, maxRetries: 0 },
+    );
+    const { key, keyId, expiresAt } = minted;
+    return Response.json({ key, keyId, expiresAt }, {
+      status: 201,
+      headers: { 'Cache-Control': 'no-store' },
+    });
+  } catch (err) {
+    const { status } = err as { status?: number };
+    const isUpstreamError = typeof status === 'number' && status >= 400 && status < 600;
+    return Response.json({ error: 'stream_key_mint_failed' }, {
+      status: isUpstreamError ? status : 502,
+      headers: { 'Cache-Control': 'no-store' },
+    });
+  }
 }
 ```
 

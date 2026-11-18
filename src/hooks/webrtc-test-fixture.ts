@@ -1,6 +1,7 @@
 // Copyright 2026 Mobilerun
 // SPDX-License-Identifier: Apache-2.0
 
+import type { FakeSchedule } from '../lib/test-clock';
 import { runHook, tick } from './test-hook-runner';
 
 export const event = (message: object) => ({ data: JSON.stringify(message) });
@@ -12,7 +13,7 @@ export function deferred<T = void>() {
   return { promise, resolve, reject };
 }
 
-export async function fixture() {
+export async function fixture(clock?: FakeSchedule) {
   const sockets: FakeSocket[] = [];
   const peers: FakePeer[] = [];
   const timers = new Map<number, () => void>();
@@ -105,7 +106,7 @@ export async function fixture() {
   }
   const context = {
     window: {
-      setTimeout: setTimer, clearTimeout: clearTimer,
+      setTimeout: clock?.setTimeout ?? setTimer, clearTimeout: clock?.clearTimeout ?? clearTimer,
       setInterval: setIntervalTimer, clearInterval: clearTimer,
       location: { href: 'https://example.invalid' },
     },
@@ -114,13 +115,18 @@ export async function fixture() {
     RTCRtpReceiver: { getCapabilities: () => null },
     RTCSessionDescription: class { constructor(value: object) { Object.assign(this, value); } },
     RTCIceCandidate: class { constructor(value: object) { Object.assign(this, value); } },
-    setTimeout: setTimer, clearTimeout: clearTimer,
+    setTimeout: clock?.setTimeout ?? setTimer, clearTimeout: clock?.clearTimeout ?? clearTimer,
     console, stateWrites,
   };
   const runner = await runHook<{ useWebRtcConnection: (options: object) => { wsRef: { current: FakeSocket | null } } }>(
     import.meta.dir + '/use-webrtc-connection.ts', context,
   );
-  type Credentials = { token?: string; tokenProvider?: () => Promise<string> };
+  type Credentials = {
+    url?: string;
+    token?: string;
+    tokenProvider?: () => Promise<string>;
+    onConnectionAttemptStarted?: () => void;
+  };
   const render = (id = 'a', openUrl?: string, credentials: Credentials = {}) => {
     runner.beginRender();
     const result = runner.module.exports.useWebRtcConnection({

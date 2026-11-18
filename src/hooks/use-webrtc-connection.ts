@@ -6,6 +6,7 @@ import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 import {
+  STREAM_TOKEN_PROVIDER_TIMEOUT_MS,
   STREAM_RTC_CONFIG_TIMEOUT_MS,
   STREAM_WS_OPEN_TIMEOUT_MS,
 } from '../lib/stream-reconnect';
@@ -32,6 +33,14 @@ function buildWebSocketUrl(url: string, token?: string): string {
   return wsUrl.toString();
 }
 
+// A stream key may only travel over TLS, except for local development sockets.
+function isSecureStreamUrl(url: string): boolean {
+  const resolved = new URL(url, window.location.href);
+  if (resolved.protocol === 'wss:') return true;
+  const isLoopback = ['localhost', '127.0.0.1', '[::1]'].includes(resolved.hostname);
+  return resolved.protocol === 'ws:' && isLoopback;
+}
+
 interface ScreenshotData {
   dataUri: string;
 }
@@ -50,6 +59,7 @@ interface UseWebRtcConnectionOptions {
   // (stop/unmount). Distinct from onConnectionStateChange(false), which also
   // fires for transient non-connected states during normal negotiation.
   onConnectionFailed?: () => void;
+  onConnectionAttemptStarted?: () => void;
   // Fired with the RTCPeerConnection once it is created and with null when
   // it is torn down. Lets consumers observe the connection (e.g. getStats())
   // without owning its lifecycle.
@@ -76,6 +86,7 @@ export function useWebRtcConnection({
   videoRef,
   onConnectionStateChange,
   onConnectionFailed,
+  onConnectionAttemptStarted,
   onPeerConnectionChange,
 }: UseWebRtcConnectionOptions): UseWebRtcConnectionResult {
   const tokenRef = useRef(token);
@@ -86,6 +97,9 @@ export function useWebRtcConnection({
 
   const onConnectionStateChangeRef = useRef(onConnectionStateChange);
   onConnectionStateChangeRef.current = onConnectionStateChange;
+
+  const onConnectionAttemptStartedRef = useRef(onConnectionAttemptStarted);
+  onConnectionAttemptStartedRef.current = onConnectionAttemptStarted;
 
   const onConnectionFailedRef = useRef(onConnectionFailed);
   onConnectionFailedRef.current = onConnectionFailed;
@@ -200,11 +214,14 @@ export function useWebRtcConnection({
     const provider = tokenProviderRef.current;
     const isActive = () => attemptGenerationRef.current === generation;
     let failed = false;
-    const failAttempt = () => {
+    const failAttempt = (stopMedia = !!provider) => {
       if (!isActive()) return;
       if (failed) return;
       failed = true;
-      if (provider) stop();
+      if (stopMedia) {
+        onConnectionStateChangeRef.current?.(false);
+        stop();
+      }
       onConnectionFailedRef.current?.();
     };
     // Reset ICE buffering state for the new session.
@@ -224,7 +241,25 @@ export function useWebRtcConnection({
     try {
       let streamToken = tokenRef.current;
       if (provider) {
-        streamToken = await provider();
+        if (!isSecureStreamUrl(url)) throw new Error('Stream key requires a secure WebSocket URL');
+        let providerTimer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          streamToken = await new Promise<string>((resolve, reject) => {
+            providerTimer = setTimeout(
+              () => reject(new Error('Stream key provider timeout')),
+              STREAM_TOKEN_PROVIDER_TIMEOUT_MS,
+            );
+            cancelStartup = () => {
+              clearTimeout(providerTimer);
+              reject(new Error('Stream key request cancelled'));
+            };
+            cancelStartupRef.current = cancelStartup;
+            Promise.resolve(provider()).then(resolve, reject);
+          });
+        } finally {
+          clearTimeout(providerTimer);
+          if (cancelStartupRef.current === cancelStartup) cancelStartupRef.current = null;
+        }
         if (!isActive()) return;
         if (!streamToken?.trim()) throw new Error('Stream key provider returned an empty key');
       }
@@ -233,6 +268,8 @@ export function useWebRtcConnection({
       attemptWs = ws;
       wsRef.current = ws;
       const isCurrent = () => isActive() && wsRef.current === ws;
+      onConnectionAttemptStartedRef.current?.();
+      if (!isCurrent()) return;
       let pendingTimer: ReturnType<typeof setTimeout> | undefined;
       let configHandler: ((event: MessageEvent) => void) | undefined;
       let rejectStartup: ((reason: Error) => void) | undefined;
@@ -253,11 +290,7 @@ export function useWebRtcConnection({
 
       ws.onerror = (error) => {
         if (!isCurrent()) return;
-        if (provider) {
-          failAttempt();
-          return;
-        }
-        updateStatus('WebSocket error: ' + error);
+        updateStatus(provider ? 'WebSocket error' : 'WebSocket error: ' + error);
       };
 
       // Wait for WebSocket to connect. Teardown settles this wait and removes
@@ -282,12 +315,12 @@ export function useWebRtcConnection({
       await opened;
       if (!isCurrent()) return;
 
-      // Provider sessions end with signaling, including a server's 1001 session
-      // limit. Legacy shared streams keep their existing media-only behavior.
-      ws.onclose = () => {
+      // A server session end closes media in every credential mode. Other
+      // signaling closes leave a connected media path running, as before.
+      ws.onclose = (event) => {
         if (!isCurrent()) return;
         updateStatus('WebSocket closed');
-        if (provider) return failAttempt();
+        if (event.code === 1001) return failAttempt(true);
         if (peerConnectionRef.current?.connectionState === 'connected') return;
         failAttempt();
       };
@@ -757,7 +790,6 @@ export function useWebRtcConnection({
 
     // Clean up
     return () => {
-      stopKeepAlive();
       stop();
       document.removeEventListener('visibilitychange', onVisibilityChange);
     };
