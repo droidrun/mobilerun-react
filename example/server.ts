@@ -4,15 +4,16 @@
 // Dev harness server for the @mobilerun/react example.
 //
 // The stream WebSocket is not proxied: the browser connects to the SDK-provided
-// streamUrl directly, and @mobilerun/react appends streamToken as ?token=.
+// streamUrl directly, and @mobilerun/react appends a fresh stream key as ?token=.
 //
-// For SDK mode, this Bun + Hono server exposes one narrow endpoint that uses the
-// official SDK to retrieve streamUrl + streamToken without exposing a secret API key:
+// For SDK mode, this Bun + Hono server exposes narrow endpoints that uses the
+// official SDK to retrieve streamUrl and mint a key without exposing the parent API key:
 //
 //   browser ──(same-origin)──▶ this server ──(@mobilerun/sdk)──▶ API
 //
 //   • Serves the example UI (Bun bundles index.html + main.tsx).
-//   • Handles GET /api/v1/devices/:deviceId via sdk.devices.get() (SDK object API).
+//   • GET /api/v1/devices/:deviceId returns id/state/streamUrl only.
+//   • POST /api/v1/devices/:deviceId/stream-key mints one single-use key per attempt.
 //   • Local use only: the server binds to 127.0.0.1 and its task routes and SSE
 //     route are unauthenticated by design. If you expose anything publicly (e.g. a
 //     tunnel for webhook testing), forward only /webhooks/mobilerun, never the
@@ -35,9 +36,13 @@ const API_KEY = process.env.MOBILERUN_API_KEY;
 const UPSTREAM = process.env.MOBILERUN_API_URL?.replace(/\/+$/, '');
 const WEBHOOK_SECRET = process.env.MOBILERUN_WEBHOOK_SECRET;
 const PORT = Number(process.env.PORT ?? 3000);
-const sdk = API_KEY ? new MobilerunSDK({ apiKey: API_KEY, ...(UPSTREAM ? { baseURL: `${UPSTREAM}/v1` } : {}) }) : null;
+const sdk = API_KEY ? new MobilerunSDK({
+  apiKey: API_KEY,
+  logLevel: 'off',
+  ...(UPSTREAM ? { baseURL: `${UPSTREAM}/v1` } : {}),
+}) : null;
 
-if (!API_KEY) {
+if (import.meta.main && !API_KEY) {
   console.warn(
     '\n  ! MOBILERUN_API_KEY is not set.\n' +
       '    Manual URL mode still works. SDK mode needs a key in .env or:\n' +
@@ -45,34 +50,58 @@ if (!API_KEY) {
   );
 }
 
-const app = new Hono<{ Bindings: Server<unknown> }>();
+/** Local-only helpers. Production apps must authenticate callers and authorize each device. */
+export function createExampleApp(sdk: MobilerunSDK | null) {
+  const app = new Hono<{ Bindings: Server<unknown> }>();
 
-app.get('/api/v1/devices/:deviceId', async (c) => {
-  if (!sdk) {
-    return c.json({ error: 'missing_api_key', detail: 'Set MOBILERUN_API_KEY to use SDK mode.' }, 500);
-  }
+  app.get('/api/v1/devices/:deviceId', async (c) => {
+    if (!sdk) {
+      return c.json({ error: 'missing_api_key', detail: 'Set MOBILERUN_API_KEY to use SDK mode.' }, 500);
+    }
 
-  try {
-    const device = await sdk.devices.get(c.req.param('deviceId'));
-    return c.json({
-      id: device.info?.id ?? null,
-      state: device.info?.state ?? null,
-      streamUrl: device.info?.streamUrl ?? null,
-      streamToken: device.info?.streamToken ?? null,
-    });
-  } catch (err) {
-    return upstreamFailure(c, 'device_retrieve_failed', err);
-  }
-});
+    try {
+      const device = await sdk.devices.get(c.req.param('deviceId'));
+      return c.json({
+        id: device.info?.id ?? null,
+        state: device.info?.state ?? null,
+        streamUrl: device.info?.streamUrl ?? null,
+      });
+    } catch (err) {
+      return upstreamFailure(c, 'device_retrieve_failed', err);
+    }
+  });
+
+  app.post('/api/v1/devices/:deviceId/stream-key', async (c) => {
+    c.header('Cache-Control', 'no-store');
+    if (!sdk) {
+      return c.json({ error: 'missing_api_key', detail: 'Set MOBILERUN_API_KEY to use SDK mode.' }, 500);
+    }
+    try {
+      const minted = await sdk.api.post<{ key: string; keyId: string; expiresAt: string }>(
+        '/identity/stream-keys',
+        { body: { deviceId: c.req.param('deviceId'), ttlSeconds: 120 }, maxRetries: 0 },
+      );
+      const { key, keyId, expiresAt } = minted;
+      return c.json({ key, keyId, expiresAt }, 201);
+    } catch (err) {
+      return upstreamFailure(c, 'stream_key_mint_failed', err, true);
+    }
+  });
+  return app;
+}
+
+const app = createExampleApp(sdk);
 
 const ID_PATTERN = /^[A-Za-z0-9_-]+$/;
 const MAX_WEBHOOK_BODY_BYTES = 1024 * 1024;
 
 /** Maps an upstream API error to a response, passing 4xx/5xx through (404/409 let the UI refetch). */
-function upstreamFailure(c: Context, error: string, err: unknown) {
+function upstreamFailure(c: Context, error: string, err: unknown, redact = false) {
   const { status, message } = err as { status?: number; message?: string };
+  const isUpstreamError = status && status >= 400 && status < 600;
+  const code = (isUpstreamError ? status : 502) as ContentfulStatusCode;
+  if (redact) return c.json({ error }, code);
   console.error(`✗ ${error}`, JSON.stringify(c.req.param()), message ?? String(err));
-  const code = (status && status >= 400 && status < 600 ? status : 502) as ContentfulStatusCode;
   return c.json({ error, detail: message ?? String(err) }, code);
 }
 
@@ -170,15 +199,21 @@ app.post('/webhooks/mobilerun', async (c) => {
   return c.body(null, 204);
 });
 
-Bun.serve({
-  hostname: '127.0.0.1',
-  port: PORT,
-  routes: { '/': index }, // Bun bundles + serves the React UI and its assets
-  development: { hmr: true, console: true },
-  fetch: app.fetch,
-});
+if (import.meta.main) {
+  Bun.serve({
+    hostname: '127.0.0.1',
+    port: PORT,
+    routes: { '/': index }, // Bun bundles + serves the React UI and its assets
+    development: { hmr: true, console: true },
+    fetch: app.fetch,
+  });
 
-console.log(`\n  ▸ @mobilerun/react dev harness   http://localhost:${PORT}`);
-console.log(`  ▸ SDK helper    GET /api/v1/devices/:id      →  ${sdk?.api.baseURL ?? 'https://api.mobilerun.ai/v1'}/devices/:id`);
-console.log('  ▸ approvals     GET/POST /api/v1/tasks/:id…  ·  POST /webhooks/mobilerun  ·  GET /api/v1/events');
-console.log('  ▸ stream WS     direct browser connection using ?token=\n');
+  console.log(`\n  ▸ @mobilerun/react dev harness   http://localhost:${PORT}`);
+  const upstreamUrl = sdk?.api.baseURL ?? 'https://api.mobilerun.ai/v1';
+  console.log(`  ▸ SDK helper    GET /api/v1/devices/:id      →  ${upstreamUrl}/devices/:id`);
+  console.log('  ▸ stream key    POST /api/v1/devices/:id/stream-key');
+  console.log(
+    '  ▸ approvals     GET/POST /api/v1/tasks/:id…  ·  POST /webhooks/mobilerun  ·  GET /api/v1/events',
+  );
+  console.log('  ▸ stream WS     direct browser connection using ?token=\n');
+}

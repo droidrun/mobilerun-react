@@ -187,8 +187,8 @@ interface Status {
 
 /**
  * Drives streaming from a device id via @mobilerun/sdk. `useDeviceStream`
- * resolves the device's `streamUrl` + `streamToken`; the component connects the
- * WebSocket directly (the token rides in the URL).
+ * resolves the device's URL/state; tokenProvider mints through our server
+ * immediately before each direct WebSocket attempt.
  */
 function SdkStream({
   apiKey,
@@ -211,9 +211,19 @@ function SdkStream({
     [apiKey, baseURL],
   );
   // `fromId` makes no request; a fresh handle each render is fine, the hook keys by id.
-  const { streamUrl, streamToken, state, error, isLoading, refetch } = useDeviceStream({
+  const { streamUrl, state, error, isLoading, refetch } = useDeviceStream({
     device: sdk.devices.fromId(deviceId),
   });
+
+  const getFreshStreamKey = useCallback(async () => {
+    const res = await fetch(`/api/v1/devices/${encodeURIComponent(deviceId)}/stream-key`, {
+      method: 'POST',
+      cache: 'no-store',
+    });
+    if (!res.ok) throw await readError(res);
+    const minted = await res.json() as { key: string };
+    return minted.key;
+  }, [deviceId]);
 
   React.useEffect(() => onStatus({ state, error, isLoading }), [state, error, isLoading, onStatus]);
 
@@ -224,7 +234,7 @@ function SdkStream({
       <DeviceStream
         ref={streamRef}
         streamUrl={streamUrl}
-        streamToken={streamToken}
+        tokenProvider={getFreshStreamKey}
         hasControl={hasControl}
         muted={muted}
         placeholderLabel={state ?? (isLoading ? 'loading…' : 'connecting')}
@@ -424,9 +434,8 @@ function ApprovalSection() {
 function App() {
   const [mode, setMode] = useState<Mode>('sdk');
 
-  // SDK mode uses the local server endpoint only to retrieve stream credentials
-  // without exposing the API key. The WebSocket itself opens the returned streamUrl
-  // directly in the browser with streamToken appended as ?token=.
+  // SDK mode retrieves URL/state and mints per connection through the local server.
+  // The parent API key stays server-side; stream WebSockets connect directly.
   const apiKey = '';
   const baseURL = typeof window === 'undefined' ? '/api/v1' : `${window.location.origin}/api/v1`;
   const [deviceId, setDeviceId] = useState('');
@@ -434,7 +443,7 @@ function App() {
   const [status, setStatus] = useState<Status>({ isLoading: false, connected: false });
   const onStatus = useCallback((p: Partial<Status>) => setStatus((s) => ({ ...s, ...p })), []);
 
-  // Manual mode: paste a streamUrl + streamToken directly.
+  // Legacy diagnostic mode: pasted static tokens cannot renew single-use keys on retries.
   const [streamUrl, setStreamUrl] = useState('');
   const [streamToken, setStreamToken] = useState('');
   const [applied, setApplied] = useState<{ url?: string; token?: string }>({});
@@ -497,7 +506,7 @@ function App() {
                 SDK
               </button>
               <button data-on={mode === 'manual'} onClick={() => setMode('manual')}>
-                Manual URL
+                Manual URL (legacy)
               </button>
             </div>
 

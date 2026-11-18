@@ -170,3 +170,189 @@ test('a queued ICE grace recheck cannot change replacement state', async () => {
   pc.offer.resolve({ sdp: 'old' }); await restart;
   f.unmount();
 });
+
+test('provider per socket awaits a fresh key for first connect and retry', async () => {
+  const f = await fixture();
+  const first = deferred<string>();
+  const second = deferred<string>();
+  const keys = [first, second];
+  let calls = 0;
+  const tokenProvider = () => keys[calls++].promise;
+  f.mount('a', undefined, { token: 'legacy-static', tokenProvider });
+  await tick();
+  expect(calls).toBe(1);
+  expect(f.sockets).toEqual([]);
+  first.resolve('first key');
+  await tick();
+  expect(f.sockets[0].url).toBe('wss://example.invalid/a?token=first+key');
+  f.sockets[0].close(1006);
+  await tick();
+  expect(f.failures).toEqual([true]);
+  f.mount('a', undefined, { tokenProvider });
+  await tick();
+  expect(calls).toBe(2);
+  expect(f.sockets).toHaveLength(1);
+  second.resolve('second-key');
+  await tick();
+  expect(f.sockets[1].url).toBe('wss://example.invalid/a?token=second-key');
+  f.unmount();
+});
+
+test.each([
+  ['reject', (): Promise<string> => Promise.reject(new Error('refused'))],
+  ['empty', async (): Promise<string> => ''],
+  ['whitespace', async (): Promise<string> => '  '],
+] as const)('mint failure %s never falls back', async (_failure, tokenProvider) => {
+  const f = await fixture();
+  f.mount('a', undefined, { token: 'legacy-static', tokenProvider });
+  await tick();
+  expect(f.failures).toEqual([true]);
+  expect(f.sockets).toEqual([]);
+  f.fireTimers();
+  await tick();
+  expect(f.failures).toEqual([true]);
+  f.unmount();
+});
+
+test('stale mint after unmount has no socket, failure or state write', async () => {
+  const f = await fixture();
+  const mint = deferred<string>();
+  f.mount('a', undefined, { tokenProvider: () => mint.promise });
+  f.unmount();
+  const writes = f.stateWrites.length;
+  mint.resolve('abandoned');
+  await tick();
+  expect(f.sockets).toEqual([]);
+  expect(f.failures).toEqual([]);
+  expect(f.stateWrites).toHaveLength(writes);
+});
+
+test('stale mint after device switch cannot replace the current socket', async () => {
+  const f = await fixture();
+  const mint = deferred<string>();
+  f.mount('a', undefined, { tokenProvider: () => mint.promise });
+  f.render('b', undefined, { tokenProvider: async () => 'device-b' });
+  await tick();
+  const writes = f.stateWrites.length;
+  mint.resolve('device-a');
+  await tick();
+  expect(f.sockets.map(ws => ws.url)).toEqual(['wss://example.invalid/b?token=device-b']);
+  expect(f.failures).toEqual([]);
+  expect(f.stateWrites).toHaveLength(writes);
+  f.unmount();
+});
+
+test('effect restart ignores a late rejected mint', async () => {
+  const f = await fixture();
+  const mint = deferred<string>();
+  f.mount('a', undefined, { tokenProvider: () => mint.promise });
+  f.mount('a', undefined, { tokenProvider: async () => 'restarted' });
+  await tick();
+  const writes = f.stateWrites.length;
+  mint.reject(new Error('stale refusal'));
+  await tick();
+  expect(f.sockets.map(ws => ws.url)).toEqual(['wss://example.invalid/a?token=restarted']);
+  expect(f.failures).toEqual([]);
+  expect(f.stateWrites).toHaveLength(writes);
+  f.unmount();
+});
+
+test.each([1001, 1006])('provider close %i tears down connected media before retry', async (code) => {
+  const f = await fixture();
+  let calls = 0;
+  const tokenProvider = async () => `key-${++calls}`;
+  f.mount('a', undefined, { tokenProvider });
+  await tick();
+  f.sockets[0].open();
+  await tick();
+  f.sockets[0].config();
+  await tick();
+  const pc = f.peers[0];
+  pc.connectionState = 'connected';
+  pc.onconnectionstatechange!();
+  pc.ontrack({ track: { kind: 'video' } });
+  const media = f.video.current.srcObject!;
+  expect(media.getTracks()).toHaveLength(1);
+  const lateClose = f.sockets[0].onclose!;
+  f.sockets[0].close(code);
+  lateClose({ code });
+  await tick();
+  expect(pc.closed).toBe(true);
+  expect(pc.channels.map(c => c.closed)).toEqual([true, true]);
+  expect(f.video.current.srcObject).toBeNull();
+  expect(media.getTracks()).toEqual([]);
+  expect(f.stateWrites.at(-1)).toBe(false);
+  expect(f.failures).toEqual([true]);
+  expect(f.bindings.at(-1)).toBeNull();
+  f.mount('a', undefined, { tokenProvider });
+  await tick();
+  expect(calls).toBe(2);
+  expect(f.sockets[1].url).toBe('wss://example.invalid/a?token=key-2');
+  f.unmount();
+});
+
+test('provider ICE refresh reuses the existing socket without minting', async () => {
+  const f = await fixture();
+  let calls = 0;
+  const tokenProvider = async () => {
+    calls++;
+    return 'one-key';
+  };
+  f.mount('a', undefined, { tokenProvider });
+  await tick();
+  f.sockets[0].open();
+  await tick();
+  f.sockets[0].config();
+  await tick();
+  const pc = f.peers[0];
+  pc.offer.resolve({ sdp: 'initial' });
+  pc.local.resolve();
+  await tick();
+  const refresh = { type: 'rtcConfiguration', rtcConfiguration: { iceServers: [] } };
+  await f.sockets[0].onmessage!(event(refresh));
+  expect(calls).toBe(1);
+  expect(f.sockets).toHaveLength(1);
+  expect(pc.configArgs).toEqual([{ iceServers: [] }]);
+  expect(f.sockets[0].sent.filter(m => m.type === 'offer')).toHaveLength(2);
+  f.unmount();
+});
+
+test('provider startup keeps visibility and keepalive bound to the eventual socket', async () => {
+  const f = await fixture();
+  const mint = deferred<string>();
+  f.mount('a', undefined, { tokenProvider: () => mint.promise });
+  await tick();
+  f.document.hidden = true;
+  f.visibilityChange();
+  mint.resolve('fresh');
+  await tick();
+  f.sockets[0].open();
+  await tick();
+  f.sockets[0].config();
+  await tick();
+  expect(f.scheduled.filter(t => t.kind === 'interval')).toEqual([]);
+  f.document.hidden = false;
+  f.visibilityChange();
+  f.fireTimers();
+  expect(f.sockets[0].sent.filter(m => m.type === 'keepAlive')).toEqual([
+    { type: 'keepAlive', sessionId: 'a' },
+  ]);
+  f.unmount();
+});
+
+test('legacy token compatibility keeps synchronous startup and media after signaling close', async () => {
+  const f = await fixture();
+  f.mount('a', undefined, { token: 'legacy-static' });
+  expect(f.sockets[0].url).toBe('wss://example.invalid/a?token=legacy-static');
+  f.sockets[0].open();
+  await tick();
+  f.sockets[0].config();
+  await tick();
+  f.peers[0].connectionState = 'connected';
+  f.peers[0].onconnectionstatechange!();
+  f.sockets[0].close(1001);
+  await tick();
+  expect(f.peers[0].closed).toBe(false);
+  expect(f.failures).toEqual([]);
+  f.unmount();
+});

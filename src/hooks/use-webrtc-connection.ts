@@ -39,6 +39,7 @@ interface ScreenshotData {
 interface UseWebRtcConnectionOptions {
   url: string;
   token?: string;
+  tokenProvider?: () => Promise<string>;
   sessionId: string;
   openUrl?: string;
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -69,6 +70,7 @@ interface UseWebRtcConnectionResult {
 export function useWebRtcConnection({
   url,
   token,
+  tokenProvider,
   sessionId,
   openUrl,
   videoRef,
@@ -78,6 +80,9 @@ export function useWebRtcConnection({
 }: UseWebRtcConnectionOptions): UseWebRtcConnectionResult {
   const tokenRef = useRef(token);
   tokenRef.current = token;
+  const tokenProviderRef = useRef(tokenProvider);
+  tokenProviderRef.current = tokenProvider;
+  const attemptGenerationRef = useRef(0);
 
   const onConnectionStateChangeRef = useRef(onConnectionStateChange);
   onConnectionStateChangeRef.current = onConnectionStateChange;
@@ -191,6 +196,17 @@ export function useWebRtcConnection({
   };
 
   const start = async () => {
+    const generation = ++attemptGenerationRef.current;
+    const provider = tokenProviderRef.current;
+    const isActive = () => attemptGenerationRef.current === generation;
+    let failed = false;
+    const failAttempt = () => {
+      if (!isActive()) return;
+      if (failed) return;
+      failed = true;
+      if (provider) stop();
+      onConnectionFailedRef.current?.();
+    };
     // Reset ICE buffering state for the new session.
     // Done here (not in stop()) to avoid a race where stale candidates
     // from the old WebSocket leak into the new peer connection.
@@ -206,11 +222,17 @@ export function useWebRtcConnection({
     let attemptWs: WebSocket | null = null;
     let cancelStartup = () => {};
     try {
-      const wsUrl = buildWebSocketUrl(url, tokenRef.current);
+      let streamToken = tokenRef.current;
+      if (provider) {
+        streamToken = await provider();
+        if (!isActive()) return;
+        if (!streamToken?.trim()) throw new Error('Stream key provider returned an empty key');
+      }
+      const wsUrl = buildWebSocketUrl(url, streamToken);
       const ws = new WebSocket(wsUrl);
       attemptWs = ws;
       wsRef.current = ws;
-      const isCurrent = () => wsRef.current === ws;
+      const isCurrent = () => isActive() && wsRef.current === ws;
       let pendingTimer: ReturnType<typeof setTimeout> | undefined;
       let configHandler: ((event: MessageEvent) => void) | undefined;
       let rejectStartup: ((reason: Error) => void) | undefined;
@@ -231,12 +253,16 @@ export function useWebRtcConnection({
 
       ws.onerror = (error) => {
         if (!isCurrent()) return;
+        if (provider) {
+          failAttempt();
+          return;
+        }
         updateStatus('WebSocket error: ' + error);
       };
 
       // Wait for WebSocket to connect. Teardown settles this wait and removes
       // its timer even when the browser never delivers another socket event.
-      await new Promise<void>((resolve, reject) => {
+      const opened = new Promise<void>((resolve, reject) => {
         rejectStartup = reject;
         ws.onopen = () => {
           if (!isCurrent()) return;
@@ -252,19 +278,18 @@ export function useWebRtcConnection({
           reject(new Error('WebSocket connection timeout'));
         }, STREAM_WS_OPEN_TIMEOUT_MS);
       });
+      if (!document.hidden) startKeepAlive();
+      await opened;
       if (!isCurrent()) return;
 
-      // The signaling channel dying is terminal for this session (no TURN
-      // credential refresh, no renegotiation), but while the peer connection
-      // is still 'connected' media keeps flowing without it — there, let the
-      // peer connection state decide, as it does today. Report a failure only
-      // when the media path isn't up either (WS died mid-negotiation).
+      // Provider sessions end with signaling, including a server's 1001 session
+      // limit. Legacy shared streams keep their existing media-only behavior.
       ws.onclose = () => {
         if (!isCurrent()) return;
         updateStatus('WebSocket closed');
-        if (peerConnectionRef.current?.connectionState !== 'connected') {
-          onConnectionFailedRef.current?.();
-        }
+        if (provider) return failAttempt();
+        if (peerConnectionRef.current?.connectionState === 'connected') return;
+        failAttempt();
       };
 
       // Request RTCConfiguration
@@ -428,7 +453,8 @@ export function useWebRtcConnection({
         const connected = state === 'connected';
         if (state === 'failed' || state === 'closed') {
           // Terminal: this peer connection will not come back on its own.
-          onConnectionFailedRef.current?.();
+          failAttempt();
+          if (!isCurrent()) return;
         }
         if (connected) {
           iceRestartGraceUntilRef.current = 0;
@@ -663,14 +689,17 @@ export function useWebRtcConnection({
       ws.send(JSON.stringify({ type: 'offer', sdp: offer.sdp, sessionId }));
       updateStatus('Sent offer');
     } catch (e) {
+      if (!isActive()) return;
       if (wsRef.current !== attemptWs) return;
       cancelStartup();
-      updateStatus('Error: ' + e);
-      onConnectionFailedRef.current?.();
+      updateStatus(provider ? 'Stream connection attempt failed' : 'Error: ' + e);
+      failAttempt();
     }
   };
 
   const stop = () => {
+    ++attemptGenerationRef.current;
+    stopKeepAlive();
     cancelStartupRef.current?.();
     cancelStartupRef.current = null;
     clearRestartRecheck();
@@ -718,15 +747,10 @@ export function useWebRtcConnection({
     // Start connection when component mounts
     start();
 
-    // Only start keepAlive if page is visible
-    if (!document.hidden) {
-      startKeepAlive();
-    }
-
     // Add visibility change listener
-    const ws = wsRef.current;
+    const generation = attemptGenerationRef.current;
     const onVisibilityChange = () => {
-      if (wsRef.current !== ws) return;
+      if (attemptGenerationRef.current !== generation) return;
       handleVisibilityChange();
     };
     document.addEventListener('visibilitychange', onVisibilityChange);

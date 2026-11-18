@@ -13,7 +13,10 @@ import { useStreamReconnect } from '../hooks/use-stream-reconnect';
 
 interface DeviceStreamProps {
   streamUrl?: string;
+  /** @deprecated Use tokenProvider to acquire a fresh key for each connection attempt. */
   streamToken?: string;
+  /** Resolves a fresh stream key immediately before each WebSocket attempt. Overrides streamToken. */
+  tokenProvider?: () => Promise<string>;
   hasControl: boolean;
   onHasControlChange?: (hasControl: boolean) => void;
   onConnectionStateChange?: (connected: boolean) => void;
@@ -49,6 +52,7 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
   {
     streamUrl,
     streamToken,
+    tokenProvider,
     hasControl,
     onHasControlChange: setHasControl = () => {},
     onConnectionStateChange,
@@ -127,6 +131,7 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
               key={streamKey}
               url={activeTarget.url ?? streamUrl}
               token={activeTarget.token}
+              tokenProvider={tokenProvider}
               className="w-full h-full"
               onConnectionStateChange={handleConnectionStateChange}
               onConnectionFailed={onConnectionFailed}

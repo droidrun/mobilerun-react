@@ -21,8 +21,10 @@ interface RemoteControlProps {
   // url is the URL of the instance to connect to.
   url: string;
 
-  // token is used to authenticate the connection to the instance.
+  /** @deprecated Use tokenProvider to acquire a fresh key for each connection attempt. */
   token?: string;
+  /** Resolves a fresh stream key before each WebSocket attempt. Overrides token. */
+  tokenProvider?: () => Promise<string>;
 
   // className is the class name to apply to the component
   // on top of the default styles.
@@ -120,6 +122,7 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
       className,
       url,
       token,
+      tokenProvider,
       sessionId: propSessionId,
       openUrl,
       onConnectionStateChange,
@@ -150,6 +153,7 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
     } = useWebRtcConnection({
       url,
       token,
+      tokenProvider,
       sessionId,
       openUrl,
       videoRef,

@@ -33,16 +33,21 @@ export async function fixture() {
     sent: Record<string, unknown>[] = [];
     listeners = new Set<(event: { data: string }) => void>();
     onopen: (() => void) | null = null;
-    onclose: (() => void) | null = null;
+    onclose: ((event?: { code: number }) => void) | null = null;
     onerror: (() => void) | null = null;
     onmessage: ((event: { data: string }) => Promise<void>) | null = null;
-    constructor() { sockets.push(this); }
+    constructor(readonly url: string) {
+      sockets.push(this);
+    }
     open() { this.readyState = 1; this.onopen?.(); }
     config() { for (const fn of this.listeners) fn(event({ type: 'rtcConfiguration', rtcConfiguration: {} })); }
     addEventListener(_name: string, fn: (event: { data: string }) => void) { this.listeners.add(fn); }
     removeEventListener(_name: string, fn: (event: { data: string }) => void) { this.listeners.delete(fn); }
     send(data: string) { this.sent.push(JSON.parse(data)); }
-    close() { this.readyState = 3; this.onclose?.(); }
+    close(code = 1000) {
+      this.readyState = 3;
+      this.onclose?.({ code });
+    }
   }
   class FakeChannel {
     closed = false;
@@ -83,10 +88,28 @@ export async function fixture() {
   const states: boolean[] = [];
   const failures: boolean[] = [];
   const bindings: (FakePeer | null)[] = [];
-  const video = { current: { srcObject: null, muted: true } };
+  const video = { current: { srcObject: null as MediaStream | null, muted: true } };
+  const visibilityListeners = new Set<() => void>();
+  const document = {
+    hidden: false,
+    addEventListener(_name: string, fn: () => void) { visibilityListeners.add(fn); },
+    removeEventListener(_name: string, fn: () => void) { visibilityListeners.delete(fn); },
+  };
+  class FakeMediaStream {
+    tracks: object[] = [];
+    addTrack(track: object) { this.tracks.push(track); }
+    getTracks() { return [...this.tracks]; }
+    removeTrack(track: object) {
+      this.tracks = this.tracks.filter(t => t !== track);
+    }
+  }
   const context = {
-    window: { setTimeout: setTimer, clearTimeout: clearTimer, setInterval: setIntervalTimer, clearInterval: clearTimer },
-    document: { hidden: false, addEventListener() {}, removeEventListener() {} },
+    window: {
+      setTimeout: setTimer, clearTimeout: clearTimer,
+      setInterval: setIntervalTimer, clearInterval: clearTimer,
+      location: { href: 'https://example.invalid' },
+    },
+    document, URL, MediaStream: FakeMediaStream,
     WebSocket: FakeSocket, RTCPeerConnection: FakePeer,
     RTCRtpReceiver: { getCapabilities: () => null },
     RTCSessionDescription: class { constructor(value: object) { Object.assign(this, value); } },
@@ -95,13 +118,14 @@ export async function fixture() {
     console, stateWrites,
   };
   const runner = await runHook<{ useWebRtcConnection: (options: object) => { wsRef: { current: FakeSocket | null } } }>(
-    import.meta.dir + '/use-webrtc-connection.ts', context, { compareEffectDeps: false },
+    import.meta.dir + '/use-webrtc-connection.ts', context,
   );
-  const mount = (id = 'a', openUrl?: string) => {
-    runner.unmount();
+  type Credentials = { token?: string; tokenProvider?: () => Promise<string> };
+  const render = (id = 'a', openUrl?: string, credentials: Credentials = {}) => {
     runner.beginRender();
     const result = runner.module.exports.useWebRtcConnection({
       url: 'wss://example.invalid/' + id, sessionId: id, videoRef: video, openUrl,
+      ...credentials,
       onConnectionStateChange: (state: boolean) => states.push(state),
       onConnectionFailed: () => failures.push(true),
       onPeerConnectionChange: (pc: FakePeer | null) => bindings.push(pc),
@@ -109,8 +133,15 @@ export async function fixture() {
     runner.flushEffects();
     return result;
   };
+  const mount = (id = 'a', openUrl?: string, credentials?: Credentials) => {
+    runner.unmount();
+    return render(id, openUrl, credentials);
+  };
   return {
-    sockets, peers, timers, scheduled, states, failures, bindings, stateWrites, video, mount,
+    sockets, peers, timers, scheduled, states, failures, bindings, stateWrites,
+    video, mount, render,
+    document,
+    visibilityChange() { visibilityListeners.forEach(fn => fn()); },
     unmount: runner.unmount,
     fireTimers() { const tasks = [...timers.values()]; timers.clear(); tasks.forEach(fn => fn()); },
     async negotiate(id = 'a', openUrl?: string) { mount(id, openUrl); sockets[0].open(); await tick(); sockets[0].config(); await tick(); },

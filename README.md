@@ -36,7 +36,8 @@
 Drop a live, controllable cloud device (iOS/ Android) into any React app:
 
 - 📺 **`<DeviceStream />`** — WebRTC video with touch, swipe and keyboard control, plus automatic reconnects with exponential backoff and a retry UI once attempts are exhausted.
-- 🪝 **`useDeviceStream()`** — resolves a device's stream credentials from [`@mobilerun/sdk`](https://www.npmjs.com/package/@mobilerun/sdk), polling while it boots.
+- 🪝 **`useDeviceStream()`** — resolves a device's stream URL and state from
+  [`@mobilerun/sdk`](https://www.npmjs.com/package/@mobilerun/sdk), polling while it boots.
 - ✅ **`<TaskApproval />`** + **`useTaskApproval()`** — show a task's pending human approval (e.g. "enter payment card X into app Y") with a countdown and Approve/Deny buttons. See [Task approvals](#-task-approvals).
 - 🧭 **`<NavigationBar />`**, **`<StreamStatusPill />`**, **`<RemoteControl />`** — the surrounding chrome and a lower-level escape hatch.
 - 🎨 **Prebuilt stylesheet** — no Tailwind setup required, themeable via CSS variables.
@@ -54,35 +55,62 @@ npm install @mobilerun/react @mobilerun/sdk react react-dom
 
 The object API helpers (`MobilerunSDK`, `devices.fromId`, `verifyWebhook`) require `@mobilerun/sdk` 6.2 or later. The `{ client, deviceId }` hook form works with older SDKs; the peer dependency range remains `>=2.0.0`.
 
-Keep the API key on your backend. The browser's SDK calls your backend for the device's stream credentials, and `useDeviceStream` refreshes them when the stream reconnects.
+Keep the API key on your backend. Use `useDeviceStream` for the URL and device state, and supply a
+`tokenProvider` that calls your backend for a fresh single-use stream key before every WebSocket
+attempt, including retries.
 
-> ⚠️ **`MOBILERUN_API_KEY` is a secret API key — never ship it to the browser.** Only the server reads it. The device endpoint returns only `id`, `state`, `streamUrl`, and `streamToken` to the browser, with missing values set to `null`. The stream token is short-lived and scoped to that device; the browser SDK uses a placeholder key to call your backend.
+> ⚠️ **`MOBILERUN_API_KEY` is a secret API key — never ship it to the browser.** Only the server reads it.
+> The device endpoint returns only `id`, `state`, and `streamUrl`, with missing values set to `null`.
+> A separate POST endpoint returns a short-lived stream key scoped to that device; the browser SDK
+> uses a placeholder key to call your backend.
 
 On your backend, register this handler for `GET /api/v1/devices/:id`, passing the routed device ID:
 
 ```ts
 import { MobilerunSDK } from '@mobilerun/sdk';
 
-const sdk = new MobilerunSDK(); // reads MOBILERUN_API_KEY, server only
+const sdk = new MobilerunSDK({ logLevel: 'off' }); // reads MOBILERUN_API_KEY, server only
 
 export async function getDevice(id: string): Promise<Response> {
-  // Authenticate the caller and check the device belongs to them before returning stream credentials.
+  // Authenticate the caller and check the device belongs to them before returning device metadata.
   const device = await sdk.devices.get(id);
   return Response.json({
     id: device.info?.id ?? null,
     state: device.info?.state ?? null,
     streamUrl: device.info?.streamUrl ?? null,
-    streamToken: device.info?.streamToken ?? null,
+  });
+}
+
+// Register for POST /api/v1/devices/:id/stream-key.
+export async function mintStreamKey(deviceId: string): Promise<Response> {
+  // Authenticate the caller and authorize this device in your application first.
+  const minted = await sdk.api.post<{ key: string; keyId: string; expiresAt: string }>(
+    '/identity/stream-keys',
+    { body: { deviceId, ttlSeconds: 120 }, maxRetries: 0 },
+  );
+  const { key, keyId, expiresAt } = minted;
+  return Response.json({ key, keyId, expiresAt }, {
+    status: 201,
+    headers: { 'Cache-Control': 'no-store' },
   });
 }
 ```
+
+The public mint API is `POST /v1/identity/stream-keys`, authenticated with your server-held API key.
+Its body is `{ deviceId, ttlSeconds? }`; TTL is 60–300 seconds, default 120. It returns HTTP 201
+with `{ key, keyId, expiresAt }` and `Cache-Control: no-store`. The SDK base URL already ends in
+`/v1`, so use `/identity/stream-keys` with `sdk.api.post`. Revoke with
+`DELETE /v1/identity/stream-keys/{keyId}`. Each key is single-use and device-scoped. `expiresAt`
+is diagnostic metadata, not a browser permission or validity check. Do not log or cache keys.
+Your backend must authenticate callers and authorize the requested device; never accept an arbitrary
+target URL or owner from the browser. Propagate mint refusal without returning upstream credential details.
 
 In your client component, point the SDK at that backend route, as in the example app:
 
 ```tsx
 'use client';
 
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { MobilerunSDK } from '@mobilerun/sdk';
 import { DeviceStream, useDeviceStream } from '@mobilerun/react';
 import '@mobilerun/react/styles.css';
@@ -92,15 +120,24 @@ export function DevicePanel({ deviceId }: { deviceId: string }) {
     apiKey: 'example-sdk-helper', // placeholder, not a Mobilerun API key
     baseURL: typeof window === 'undefined' ? '/api/v1' : `${window.location.origin}/api/v1`, // SSR placeholder; the hook only fetches in the browser
   }), []);
-  const { streamUrl, streamToken, state, refetch } = useDeviceStream({
+  const { streamUrl, state, refetch } = useDeviceStream({
     device: sdk.devices.fromId(deviceId), // no request yet
   });
+  const getFreshStreamKey = useCallback(async () => {
+    const response = await fetch(`/api/v1/devices/${encodeURIComponent(deviceId)}/stream-key`, {
+      method: 'POST',
+      cache: 'no-store',
+    });
+    if (!response.ok) throw new Error('Stream key request failed');
+    const { key } = await response.json();
+    return key;
+  }, [deviceId]);
 
   return (
     <div style={{ width: 360, height: 780 }}>
       <DeviceStream
         streamUrl={streamUrl}
-        streamToken={streamToken}
+        tokenProvider={getFreshStreamKey}
         hasControl
         placeholderLabel={state}
         onStreamHealed={refetch}
@@ -112,15 +149,25 @@ export function DevicePanel({ deviceId }: { deviceId: string }) {
 
 ### Without the hook
 
-Already have the device? Feed its fields straight in — no hook required:
+Supply an existing stream URL and the same server-backed callback:
 
 ```tsx
-const device = await sdk.devices.get(deviceId);
-
-<DeviceStream streamUrl={device.info?.streamUrl} streamToken={device.info?.streamToken} hasControl />;
+<DeviceStream streamUrl={streamUrl} tokenProvider={getFreshStreamKey} hasControl />
 ```
 
-`useDeviceStream` also still accepts `{ client, deviceId }` with a plain `Mobilerun` client, so existing code keeps working.
+`tokenProvider?: () => Promise<string>` is supported by `DeviceStream` and `RemoteControl`.
+It is awaited once immediately before each socket allocation. It takes precedence over static
+`streamToken`/`token`; a rejection or empty key fails that attempt with no fallback. Pending results
+after stop, device switch or unmount are ignored. Changing callback identity does not reconnect a
+healthy stream. An ICE credential refresh on an existing socket does not call it again.
+A server signaling close (including 1001) ends provider-mode media/control and triggers the existing
+bounded reconnect policy with a fresh key. `onStreamHealed` can refresh URL/state; it is not per retry
+and must not be used to cache a key.
+
+Static `DeviceStream.streamToken`, `RemoteControl.token`, and the hook's returned `streamToken` are
+**deprecated**, retained for existing consumers. Manual URL/token mode is a legacy diagnostic path;
+a pasted single-use key cannot reconnect after admission. `useDeviceStream` also still accepts
+`{ client, deviceId }` with a plain `Mobilerun` client.
 
 ## ✅ Task approvals
 
@@ -143,16 +190,15 @@ const sdk = new MobilerunSDK(); // reads MOBILERUN_API_KEY
 const APPROVAL_EVENTS = new Set(['task.run.approval_requested', 'task.run.approval_resolved']);
 const ID = /^[A-Za-z0-9_-]+$/;
 
-// Device credentials: return only the fields needed for streaming.
+// Device metadata: return only the fields needed for streaming.
 app.get('/api/v1/devices/:id', async (c) => {
   const id = c.req.param('id');
-  // Authenticate the caller and check the device belongs to them before returning stream credentials.
+  // Authenticate the caller and check the device belongs to them before returning device metadata.
   const device = await sdk.devices.get(id);
   return c.json({
     id: device.info?.id ?? null,
     state: device.info?.state ?? null,
     streamUrl: device.info?.streamUrl ?? null,
-    streamToken: device.info?.streamToken ?? null,
   });
 });
 
@@ -294,14 +340,23 @@ Every user-visible string can be replaced through the `labels` prop; see `TaskAp
 
 ## 🧪 Try it locally
 
-The repo ships the playground shown above — paste an API key + device id, or a raw `streamUrl` + `streamToken`, and stream a real device:
+The repo ships the playground shown above. Set the API key server-side and enter a device id;
+manual URL/token mode remains available for legacy diagnostics:
 
 ```sh
 bun install
 bun run example     # serves the playground at http://localhost:3000
 ```
 
-In SDK mode the example server exposes one narrow helper endpoint backed by `@mobilerun/sdk` (`sdk.devices.get(id)`) so the API key can stay server-side while retrieving `streamUrl` and `streamToken`. The stream WebSocket itself is opened directly by the browser against `streamUrl`; the component appends `streamToken` as `?token=`. The same server also demonstrates [task approvals](#-task-approvals) (set `MOBILERUN_WEBHOOK_SECRET` for the webhook route). The server binds to `127.0.0.1` and its task and SSE routes are unauthenticated by design. If you need webhooks delivered to your machine, expose only `/webhooks/mobilerun` (for example through a tunnel that forwards just that path), never the whole server.
+In SDK mode the example server returns only `id`, `state`, and `streamUrl` from
+`GET /api/v1/devices/:id`. Its `POST /api/v1/devices/:id/stream-key` helper calls the public mint
+API through `sdk.api.post('/identity/stream-keys', ...)`, returning only `{ key, keyId, expiresAt }`
+with `Cache-Control: no-store`. The browser's provider calls it for each connection attempt; the
+API key stays server-side. The stream WebSocket connects directly with the fresh key in `?token=`.
+The same server also demonstrates [task approvals](#-task-approvals) (set `MOBILERUN_WEBHOOK_SECRET`
+for the webhook route). All example helpers are unauthenticated and **local-only**, bound to
+`127.0.0.1`. Before adapting them for production, add application authentication and device
+authorization. If you need webhook delivery, expose only `/webhooks/mobilerun`, never the whole server.
 
 ## 🎨 Styling & theming
 
