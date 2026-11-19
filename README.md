@@ -169,8 +169,9 @@ It is awaited once immediately before each socket allocation. It takes precedenc
 `streamToken`/`token`; a rejection or empty key fails that attempt with no fallback. Pending results
 after stop, device switch or unmount are ignored. Changing callback identity does not reconnect a
 healthy stream. An ICE credential refresh on an existing socket does not call it again.
-A server signaling close (including 1001) ends provider-mode media/control and triggers the existing
-bounded reconnect policy with a fresh key. `onStreamHealed` can refresh URL/state; it is not per retry
+A server signaling close with code 1001 ends media/control in every mode and triggers the existing
+bounded reconnect policy. Other signaling closes keep a connected media path running. Provider mode
+mints a fresh key for each new socket. `onStreamHealed` can refresh URL/state; it is not per retry
 and must not be used to cache a key.
 
 Static `DeviceStream.streamToken`, `RemoteControl.token`, and the hook's returned `streamToken` are
