@@ -367,6 +367,7 @@ The same server also demonstrates [task approvals](#-task-approvals) (set `MOBIL
 for the webhook route). All example helpers are unauthenticated and **local-only**, bound to
 `127.0.0.1`. Before adapting them for production, add application authentication and device
 authorization. If you need webhook delivery, expose only `/webhooks/mobilerun`, never the whole server.
+The helper routes only answer loopback Host headers and same-origin requests.
 
 ## 🎨 Styling & theming
 

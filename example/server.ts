@@ -54,6 +54,20 @@ if (import.meta.main && !API_KEY) {
 export function createExampleApp(sdk: MobilerunSDK | null) {
   const app = new Hono<{ Bindings: Server<unknown> }>();
 
+  app.use('/api/*', async (c, next) => {
+    const host = c.req.header('Host');
+    const allowedHosts = [`127.0.0.1:${PORT}`, `localhost:${PORT}`, `[::1]:${PORT}`];
+    const isLoopbackHost = host !== undefined && allowedHosts.includes(host);
+    const origin = c.req.header('Origin');
+    const isSameOrigin = origin === undefined || origin === `http://${host}`;
+    const isAllowed = isLoopbackHost && isSameOrigin;
+    if (!isAllowed) {
+      c.header('Cache-Control', 'no-store');
+      return c.json({ error: 'forbidden' }, 403);
+    }
+    await next();
+  });
+
   app.get('/api/v1/devices/:deviceId', async (c) => {
     if (!sdk) {
       return c.json({ error: 'missing_api_key', detail: 'Set MOBILERUN_API_KEY to use SDK mode.' }, 500);
@@ -88,6 +102,34 @@ export function createExampleApp(sdk: MobilerunSDK | null) {
     } catch (err) {
       return upstreamFailure(c, 'stream_key_mint_failed', err, true);
     }
+  });
+
+  app.post('/webhooks/mobilerun', async (c) => {
+    if (!WEBHOOK_SECRET) return c.json({ error: 'missing_webhook_secret' }, 500);
+    if (Number(c.req.header('Content-Length') ?? 0) > MAX_WEBHOOK_BODY_BYTES) {
+      return c.json({ error: 'payload_too_large' }, 413);
+    }
+    // Raw bytes exactly as received; the SDK verifies before parsing.
+    const bytes = new Uint8Array(await c.req.arrayBuffer());
+    let event: WebhookEvent;
+    try {
+      event = (await verifyWebhook({
+        body: bytes,
+        headers: c.req.raw.headers,
+        secret: WEBHOOK_SECRET,
+      })) as WebhookEvent;
+    } catch (err) {
+      if (err instanceof WebhookVerificationError) {
+        if (err.reason === 'invalid_json') return c.json({ error: 'invalid_json' }, 400);
+        return c.json({ error: 'invalid_signature' }, 401);
+      }
+      throw err;
+    }
+    const taskId = event?.data?.taskId;
+    if (typeof event?.type === 'string' && APPROVAL_EVENTS.has(event.type) && typeof taskId === 'string') {
+      for (const send of subscribers) send({ taskId });
+    }
+    return c.body(null, 204);
   });
   return app;
 }
@@ -175,34 +217,6 @@ app.get('/api/v1/events', (c) => {
 type WebhookEvent = { type?: unknown; data?: { taskId?: unknown } } | null;
 
 const APPROVAL_EVENTS = new Set(['task.run.approval_requested', 'task.run.approval_resolved']);
-
-app.post('/webhooks/mobilerun', async (c) => {
-  if (!WEBHOOK_SECRET) return c.json({ error: 'missing_webhook_secret' }, 500);
-  if (Number(c.req.header('Content-Length') ?? 0) > MAX_WEBHOOK_BODY_BYTES) {
-    return c.json({ error: 'payload_too_large' }, 413);
-  }
-  // Raw bytes exactly as received; the SDK verifies before parsing.
-  const bytes = new Uint8Array(await c.req.arrayBuffer());
-  let event: WebhookEvent;
-  try {
-    event = (await verifyWebhook({
-      body: bytes,
-      headers: c.req.raw.headers,
-      secret: WEBHOOK_SECRET,
-    })) as WebhookEvent;
-  } catch (err) {
-    if (err instanceof WebhookVerificationError) {
-      if (err.reason === 'invalid_json') return c.json({ error: 'invalid_json' }, 400);
-      return c.json({ error: 'invalid_signature' }, 401);
-    }
-    throw err;
-  }
-  const taskId = event?.data?.taskId;
-  if (typeof event?.type === 'string' && APPROVAL_EVENTS.has(event.type) && typeof taskId === 'string') {
-    for (const send of subscribers) send({ taskId });
-  }
-  return c.body(null, 204);
-});
 
 if (import.meta.main) {
   Bun.serve({
