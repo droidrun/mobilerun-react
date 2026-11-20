@@ -41,20 +41,14 @@
   <li><code>TaskApproval</code> / <code>useTaskApproval</code> — approval cards and decisions.</li>
   <li><code>NavigationBar</code> / <code>StreamStatusPill</code> — stream controls and status.</li>
   <li><code>RemoteControl</code> — lower-level stream and input control.</li>
-  <li><code>Button</code> / <code>cn</code> — shared button and class-name utilities.</li>
-  <li><code>useWebRtcConnection</code> — lower-level WebRTC connection state.</li>
-  <li><code>useStreamReconnect</code> — bounded retries and reconnect state.</li>
-  <li><code>useDeviceGridSelfHeal</code> — coordinate stream recovery in a device grid.</li>
-  <li><code>useScrcpyInput</code> — send touch and keyboard input.</li>
-  <li>scrcpy protocol helpers and constants — encode remote-control messages.</li>
-  <li>Typed exports and a prebuilt stylesheet, themeable with CSS variables.</li>
+  <li>Prebuilt stylesheet — themeable with CSS variables.</li>
 </ul>
+<p>Lower-level hooks and scrcpy helpers: see <a href="docs/default-ui.md#lower-level-exports">docs/</a>.</p>
 <strong>Requirements</strong>
 <ul>
   <li>React and React DOM 18 or 19, in a browser with WebRTC.</li>
   <li><code>@mobilerun/sdk &gt;=2.0.0</code>; object helpers need 6.2+, webhook example 6.2.1+.</li>
   <li>A Mobilerun API key on your server.</li>
-  <li>For source builds: Bun 1.4.4 and TypeScript 6.0.3 (the CI toolchain).</li>
 </ul>
 </td>
 </tr>

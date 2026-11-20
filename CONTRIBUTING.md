@@ -2,6 +2,8 @@
 
 ## Build and test
 
+For source builds: Bun 1.4.4 and TypeScript 6.0.3 (the CI toolchain).
+
 ```sh
 bun install
 bun run build       # tsup (JS + d.ts) + Tailwind (styles.css) → dist/

@@ -12,6 +12,15 @@ Drop a live, controllable cloud device (iOS/ Android) into any React app:
 - **Prebuilt stylesheet** — no Tailwind setup required, themeable via CSS variables.
 - **Typed** — ships its own `.d.ts`; React and the SDK are peer dependencies.
 
+## Lower-level exports
+
+- `Button` / `cn` — shared button and class-name utilities.
+- `useWebRtcConnection` — lower-level WebRTC connection state.
+- `useStreamReconnect` — bounded retries and reconnect state.
+- `useDeviceGridSelfHeal` — coordinate stream recovery in a device grid.
+- `useScrcpyInput` — send touch and keyboard input.
+- scrcpy protocol helpers and constants — encode remote-control messages.
+
 ## Styling and theming
 
 Import the prebuilt stylesheet once, anywhere:
