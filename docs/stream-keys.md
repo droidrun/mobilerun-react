@@ -125,8 +125,14 @@ and must not be used to cache a key.
 
 Static `DeviceStream.streamToken`, `RemoteControl.token`, and the hook's returned `streamToken` are
 **deprecated**, retained for existing consumers. `DeviceStream` logs one console warning per mount
-when it runs on a static key; `tokenProvider` wins when both are given. Manual URL/token mode is a legacy diagnostic path;
-a pasted single-use key cannot reconnect after admission. `useDeviceStream` also still accepts
+when it runs on a static key; `tokenProvider` wins when both are given.
+
+**Exception to the no-reuse rule:** with a static token the SDK does not fetch anything new; it sends
+the same value on the first connect and on every reconnect, until the legacy token is removed. Stream
+keys are single-use, so a static key that was already admitted or rejected fails the retry attempts
+(`connection_refused`) and ends in the Retry state. A long-lived legacy token keeps reconnecting.
+`tokenProvider` is the recommended path and the only one that works with single-use keys. Manual
+URL/token mode is a legacy diagnostic path; a pasted single-use key cannot reconnect after admission. `useDeviceStream` also still accepts
 `{ client, deviceId }` with a plain `Mobilerun` client.
 
 ## Errors
