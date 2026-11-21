@@ -147,7 +147,7 @@ The host owns the sheet or dialog; the library ships only the card. Render `<Tas
 ```css
 @media (max-width: 767px) {
   .sheet-backdrop { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; background: rgba(0,0,0,.45); }
-  .sheet { width: 100%; max-height: 92vh; overflow-y: auto; border-radius: 24px 24px 0 0; background: var(--background); animation: sheet-up .35s cubic-bezier(.2,.7,.2,1); }
+  .sheet { width: 100%; max-height: 92vh; overflow-y: auto; border-radius: 24px 24px 0 0; background: var(--mr-background, var(--background, white)); animation: sheet-up .35s cubic-bezier(.2,.7,.2,1); }
   @keyframes sheet-up { from { transform: translateY(100%); } }
   @media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
 }
@@ -155,7 +155,7 @@ The host owns the sheet or dialog; the library ships only the card. Render `<Tas
 
 As a modal, the host moves focus into the sheet and makes the page behind it inert, or uses its own dialog component.
 
-For dark mode put `.dark` on any ancestor, or override the CSS variables (`--background`, `--card`, `--destructive`, …).
+For dark mode put `.dark` on any ancestor, or override the CSS variables (`--mr-background`, `--mr-card`, `--mr-destructive`, …; see [Components and styling](default-ui.md#styling-and-theming)).
 
 ### Labels and i18n
 

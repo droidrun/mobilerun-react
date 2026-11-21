@@ -124,6 +124,45 @@ mints a fresh key for each new socket. `onStreamHealed` can refresh URL/state; i
 and must not be used to cache a key.
 
 Static `DeviceStream.streamToken`, `RemoteControl.token`, and the hook's returned `streamToken` are
-**deprecated**, retained for existing consumers. Manual URL/token mode is a legacy diagnostic path;
+**deprecated**, retained for existing consumers. `DeviceStream` logs one console warning per mount
+when it runs on a static key; `tokenProvider` wins when both are given. Manual URL/token mode is a legacy diagnostic path;
 a pasted single-use key cannot reconnect after admission. `useDeviceStream` also still accepts
 `{ client, deviceId }` with a plain `Mobilerun` client.
+
+## Errors
+
+`DeviceStream` calls `onError` once per failed connection attempt:
+
+```ts
+onError?: (error: {
+  reason: 'credentials_unavailable' | 'connection_refused' | 'disconnected' | 'device_unavailable' | 'unknown';
+  message: string; // for logs, not for end users
+  attempt: number; // consecutive failed attempts in this cycle, from 1
+  final: boolean;  // true when the SDK stops retrying; the Retry button stays available
+}) => void;
+```
+
+| `reason` | Meaning |
+| --- | --- |
+| `credentials_unavailable` | `tokenProvider` threw, rejected, returned an empty key or took longer than 10 s. Normal backoff applies. |
+| `connection_refused` | The signaling socket closed before it opened. A browser cannot read the HTTP status, so a used, expired or revoked key, a wrong device and a refused origin all land here. Check the mint call first. |
+| `disconnected` | An open session dropped, including the 30-minute server session cap. |
+| `device_unavailable` | Reserved for a server message that the device is offline or not ready. The current signaling protocol has none, so React does not report it yet. |
+| `unknown` | Anything else, for example a handshake that never finished. |
+
+## Labels
+
+Every text the component renders comes from `labels`, with English defaults:
+
+```tsx
+<DeviceStream
+  labels={{
+    connecting: 'connecting', // pill before the stream is up
+    disconnected: 'reconnecting', // pill while reconnecting; " (2/6)" is appended from the second attempt
+    unavailable: 'device stream unavailable', // after the last retry
+    retry: 'Retry', // button text
+  }}
+/>
+```
+
+A `placeholderLabel` (for example the device state) still takes precedence over `labels.connecting`.

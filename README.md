@@ -102,6 +102,28 @@ export function DevicePanel({ deviceId, streamUrl }: { deviceId: string; streamU
 Never log or cache stream keys. Your backend must authenticate callers and authorize the device.
 The [full example](docs/stream-keys.md) also shows `useDeviceStream` and legacy compatibility.
 
+`tokenProvider` runs before every connection attempt, the first one and each reconnect, and a key is
+never used twice. The static `streamToken` prop still works but is **deprecated**: a single-use key
+cannot reconnect, and the component logs one console warning per mount.
+
+React to failures and white-label the texts:
+
+```tsx
+<DeviceStream
+  streamUrl={streamUrl}
+  tokenProvider={tokenProvider}
+  hasControl
+  onError={({ reason, attempt, final }) => report(reason, attempt, final)}
+  labels={{ connecting: 'Starting…', disconnected: 'Reconnecting', unavailable: 'Phone unavailable', retry: 'Try again' }}
+/>
+```
+
+`reason` is `credentials_unavailable` (your provider threw or took longer than 10 s),
+`connection_refused` (the socket closed before it opened: a used, expired or wrong key, a wrong
+device or a refused origin; browsers cannot see the HTTP status), `disconnected` (an open session
+dropped, including the 30-minute server cap) or `unknown`. `final: true` means retries stopped and
+the Retry button is showing. `labels` replaces every text the component renders.
+
 ## Guides
 
 | Guide | Covers |

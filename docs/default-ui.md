@@ -31,11 +31,22 @@ import '@mobilerun/react/styles.css';
 
 It bundles the design tokens, only the Tailwind utilities the components use, the animations, and the structural CSS. It does **not** include Tailwind's preflight/reset, so it won't touch your base styles — and you don't need Tailwind installed.
 
-Retheme by overriding the CSS variables on an ancestor (e.g. `--background`, `--card`, `--muted-foreground`, `--border`, `--primary`), or add a `.dark` ancestor for the bundled dark palette:
+Retheme by setting the `--mr-*` variables on an ancestor or on the component root
+(`.mobilerun-device-stream`, `.mobilerun-task-approval`, `.mobilerun-navigation-bar`). The package
+defines no unprefixed variable globally, so it cannot clash with your own `--background`. Add a
+`.dark` ancestor (or class on the component root) for the bundled dark palette:
 
 ```css
-:root {
-  --primary: oklch(0.55 0.18 268);
-  --background: oklch(0.985 0.004 85);
+.mobilerun-device-stream {
+  --mr-primary: oklch(0.55 0.18 268);
+  --mr-background: oklch(0.985 0.004 85);
 }
 ```
+
+Available tokens: `--mr-background`, `--mr-foreground`, `--mr-card`, `--mr-card-foreground`,
+`--mr-muted`, `--mr-muted-foreground`, `--mr-border`, `--mr-ring`, `--mr-primary`,
+`--mr-primary-foreground`, `--mr-accent`, `--mr-accent-foreground`, `--mr-destructive`.
+
+The old unprefixed names (`--background`, `--card`, ...) are still read as a fallback for one more
+minor release, so themes written for 0.3 keep working; move them to `--mr-*`. User-visible texts are
+set with the `labels` prop, see [Stream keys](stream-keys.md#labels).

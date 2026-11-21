@@ -15,6 +15,7 @@ import {
   type ApprovalDecision,
   type PendingApproval,
   type RemoteControlHandle,
+  type StreamError,
 } from '../src/index';
 // Prebuilt themed stylesheet (run `bun run build:css` once to generate it).
 import '../dist/styles.css';
@@ -28,9 +29,10 @@ import logoUrl from '../assets/mobilerun-logo.png';
 const HARNESS_CSS = `
   *, *::before, *::after { box-sizing: border-box; }
   html, body { margin: 0; }
-  /* Cloud app theme tokens. Uses the SAME variable names the package reads
-   * (--background, --card, --muted-foreground, --border, --primary, ...), so
-   * the embedded DeviceStream/NavigationBar pick up the cloud palette too. */
+  /* Cloud app theme tokens. The package reads --mr-<token> first and then these
+   * unprefixed names (--background, --card, --muted-foreground, ...), which stay
+   * supported for one more minor release, so the embedded DeviceStream and
+   * NavigationBar pick up the cloud palette too. New code sets --mr-<token>. */
   .app {
     --background: oklch(0.985 0.004 85); --foreground: oklch(0.26 0.008 65);
     --card: oklch(0.995 0.005 85); --card-foreground: oklch(0.26 0.008 65);
@@ -183,6 +185,7 @@ interface Status {
   isLoading: boolean;
   error?: unknown;
   connected: boolean;
+  streamError?: StreamError;
 }
 
 /**
@@ -239,7 +242,9 @@ function SdkStream({
         muted={muted}
         placeholderLabel={state ?? (isLoading ? 'loading…' : 'connecting')}
         onStreamHealed={refetch}
-        onConnectionStateChange={(c) => onStatus({ connected: c })}
+        // `reason` tells a refused key from a dropped session; `final` means the Retry button is showing.
+        onError={(streamError) => onStatus({ streamError })}
+        onConnectionStateChange={(c) => onStatus({ connected: c, ...(c ? { streamError: undefined } : {}) })}
       />
     </DeviceChrome>
   );
@@ -249,17 +254,23 @@ type Mode = 'sdk' | 'manual';
 
 function StatusLine({ s, active }: { s: Status; active: boolean }) {
   const errText = s.error ? (s.error as { message?: string })?.message ?? String(s.error) : null;
+  const streamError = active && !s.connected ? s.streamError : undefined;
   let tone: 'idle' | 'warn' | 'ok' | 'err' = 'idle';
   let text = 'idle';
   if (errText) {
     tone = 'err';
     text = 'error';
+  } else if (streamError?.final) {
+    tone = 'err';
+    text = `stream failed: ${streamError.reason}`;
   } else if (active && s.connected) {
     tone = 'ok';
     text = 'live';
   } else if (active) {
     tone = 'warn';
-    text = s.state ? `${s.state}…` : s.isLoading ? 'loading…' : 'connecting…';
+    text = streamError
+      ? `retrying after ${streamError.reason} (attempt ${streamError.attempt})`
+      : s.state ? `${s.state}…` : s.isLoading ? 'loading…' : 'connecting…';
   }
   return (
     <div>
