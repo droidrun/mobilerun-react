@@ -12,6 +12,7 @@ import {
   streamReconnectDelayMs,
   type StreamReconnectSnapshot,
 } from './stream-reconnect';
+import { reconnectPillLabel } from './stream-error';
 import { FakeSchedule } from './test-clock';
 
 // random() => 0.5 makes the jitter factor exactly 1.0.
@@ -486,5 +487,39 @@ describe('onError reporting', () => {
     controller.handleFailure();
     schedule.advance(DELAYS[0]);
     expect(remounts).toBe(1);
+  });
+});
+
+describe('attempt counting', () => {
+  test('the reconnect pill number and onError attempt are the same count at every failure', () => {
+    const schedule = new FakeSchedule();
+    const snapshots: StreamReconnectSnapshot[] = [];
+    const errors: { attempt: number; final: boolean }[] = [];
+    const controller = createStreamReconnectController({
+      onRemount: () => controller.attemptMounted(),
+      onHeal: () => {},
+      onSnapshot: (s) => snapshots.push(s),
+      onError: (e) => { errors.push(e); },
+      schedule,
+      random: NO_JITTER,
+    });
+    controller.attemptMounted();
+    const pills: string[] = [];
+    for (let failure = 1; failure <= STREAM_RECONNECT_MAX_ATTEMPTS + 1; failure++) {
+      controller.handleFailure({ reason: 'connection_refused', message: 'closed' });
+      const { status, attempt } = controller.getSnapshot();
+      expect(errors.at(-1)!.attempt).toBe(attempt);
+      if (status === 'reconnecting') pills.push(reconnectPillLabel('reconnecting', attempt, STREAM_RECONNECT_MAX_ATTEMPTS));
+      schedule.advance(30_000);
+    }
+    expect(pills).toEqual([1, 2, 3, 4, 5, 6].map((n) => `reconnecting (${n}/6)`));
+    expect(errors.map((e) => e.attempt)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(errors.map((e) => e.final)).toEqual([false, false, false, false, false, false, true]);
+    expect(controller.getSnapshot().status).toBe('unavailable');
+  });
+
+  test('the pill label has no suffix before the first failure', () => {
+    expect(reconnectPillLabel('reconnecting', 0, 6)).toBe('reconnecting');
+    expect(reconnectPillLabel('Getrennt', 2, 6)).toBe('Getrennt (2/6)');
   });
 });

@@ -5,7 +5,12 @@
 import { Smartphone } from 'lucide-react';
 import { forwardRef, useCallback, useEffect, useMemo } from 'react';
 import { cn } from '../lib/cn';
-import { resolveDeviceStreamLabels, type DeviceStreamLabels, type StreamError } from '../lib/stream-error';
+import {
+  reconnectPillLabel,
+  resolveDeviceStreamLabels,
+  type DeviceStreamLabels,
+  type StreamError,
+} from '../lib/stream-error';
 import { STREAM_RECONNECT_MAX_ATTEMPTS } from '../lib/stream-reconnect';
 import { RemoteControl, type RemoteControlHandle } from './remote-control';
 import { StreamStatusPill } from './stream-status-pill';
@@ -125,8 +130,7 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
 
   useStaticTokenWarning(!!streamToken && !tokenProvider);
 
-  const reconnectLabel =
-    attempt > 1 ? `${labels.disconnected} (${attempt}/${STREAM_RECONNECT_MAX_ATTEMPTS})` : labels.disconnected;
+  const reconnectLabel = reconnectPillLabel(labels.disconnected, attempt, STREAM_RECONNECT_MAX_ATTEMPTS);
 
   return (
     <div

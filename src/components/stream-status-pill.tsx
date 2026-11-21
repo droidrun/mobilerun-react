@@ -19,7 +19,7 @@ export function StreamStatusPill({ label, className }: StreamStatusPillProps) {
   return (
     <div
       className={cn(
-        'pointer-events-none absolute bottom-4 left-4 z-10 animate-in fade-in slide-in-from-bottom-6 zoom-in-95 duration-500 ease-out',
+        'pointer-events-none absolute bottom-4 left-4 z-10 animate-in fade-in slide-in-from-bottom-[1.5rem] zoom-in-95 duration-500 ease-out',
         className,
       )}
     >

@@ -143,7 +143,7 @@ URL/token mode is a legacy diagnostic path; a pasted single-use key cannot recon
 onError?: (error: {
   reason: 'credentials_unavailable' | 'connection_refused' | 'disconnected' | 'device_unavailable' | 'unknown';
   message: string; // fixed SDK text for logs, never exception text from your provider or the socket
-  attempt: number; // consecutive failed attempts in this cycle, from 1
+  attempt: number; // consecutive failed attempts in this cycle, from 1; the pill shows the same n as "(n/6)"
   final: boolean;  // true when the SDK stops retrying; the Retry button stays available
 }) => void;
 ```
@@ -164,7 +164,7 @@ Every text the component renders comes from `labels`, with English defaults:
 <DeviceStream
   labels={{
     connecting: 'connecting', // pill before the stream is up
-    disconnected: 'reconnecting', // pill while reconnecting; " (2/6)" is appended from the second attempt
+    disconnected: 'reconnecting', // pill while reconnecting; " (1/6)" is appended from the first retry
     unavailable: 'device stream unavailable', // after the last retry
     retry: 'Retry', // button text
   }}

@@ -41,7 +41,11 @@ export const STREAM_FAILURE_MESSAGES: Record<StreamErrorReason, string> = {
 
 /** Payload of `onError`. */
 export interface StreamError extends StreamFailure {
-  /** Consecutive failed attempts in the current reconnect cycle, starting at 1. */
+  /**
+   * Consecutive failed attempts in the current reconnect cycle: 1 for the failed first connect,
+   * up to 7 (the first connect plus 6 retries), which is the `final` one. It is the same number
+   * the reconnect pill shows as `(n/6)` while retry n is pending; the pill is gone once `final`.
+   */
   attempt: number;
   /** True when the SDK stops retrying; the Retry button stays available. */
   final: boolean;
@@ -51,7 +55,7 @@ export interface StreamError extends StreamFailure {
 export interface DeviceStreamLabels {
   /** Pill while the stream has no URL yet or is negotiating. Default `connecting`. */
   connecting: string;
-  /** Pill while reconnecting after a drop; ` (n/6)` is appended from the second attempt. Default `reconnecting`. */
+  /** Pill while reconnecting after a drop; ` (n/6)` is appended from the first retry. Default `reconnecting`. */
   disconnected: string;
   /** Message once retries are exhausted. Default `device stream unavailable`. */
   unavailable: string;
@@ -74,4 +78,9 @@ export function resolveDeviceStreamLabels(overrides?: Partial<DeviceStreamLabels
     unavailable: overrides?.unavailable ?? DEFAULT_DEVICE_STREAM_LABELS.unavailable,
     retry: overrides?.retry ?? DEFAULT_DEVICE_STREAM_LABELS.retry,
   };
+}
+
+/** Reconnect pill text: the label plus `(n/max)` for retry n, n counted as in `StreamError.attempt`. */
+export function reconnectPillLabel(label: string, attempt: number, maxAttempts: number): string {
+  return attempt >= 1 ? `${label} (${attempt}/${maxAttempts})` : label;
 }

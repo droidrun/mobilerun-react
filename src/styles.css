@@ -17,8 +17,13 @@
 
 @layer theme, base, components, utilities;
 
-@import 'tailwindcss/theme.css' layer(theme);
-@import 'tailwindcss/utilities.css' layer(utilities);
+/* `theme(inline)` resolves Tailwind's theme values (spacing, text sizes, radii, ...) into the
+ * utilities instead of declaring them as variables on :root, so the package adds no global
+ * custom property to the host page. */
+@import 'tailwindcss/theme.css' layer(theme) theme(inline);
+/* `source(none)`: only the @source below is scanned, so a mention of a theme name in a test or
+ * doc can never pull Tailwind's variables back onto :root. */
+@import 'tailwindcss/utilities.css' layer(utilities) source(none);
 @import 'tw-animate-css';
 
 /* Scan the component source so only used utilities are emitted. */

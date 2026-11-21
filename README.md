@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/mobilerun-dark.png" />
-    <source media="(prefers-color-scheme: light)" srcset="assets/mobilerun.png" />
-    <img src="assets/mobilerun.png" alt="Mobilerun" height="44" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/droidrun/mobilerun-react/main/assets/mobilerun-dark.png" />
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/droidrun/mobilerun-react/main/assets/mobilerun.png" />
+    <img src="https://raw.githubusercontent.com/droidrun/mobilerun-react/main/assets/mobilerun.png" alt="Mobilerun" height="44" />
   </picture>
 </p>
 
@@ -19,7 +19,7 @@
 
 [![npm](https://img.shields.io/npm/v/@mobilerun/react.svg?color=cb3837&logo=npm)](https://www.npmjs.com/package/@mobilerun/react)
 [![React](https://img.shields.io/badge/React-18%20%7C%2019-149eca.svg)](https://react.dev)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/droidrun/mobilerun-react/blob/main/LICENSE)
 [![Discord](https://img.shields.io/discord/1360219330318696488?color=white&label=Discord&logo=discord&logoColor=white)](https://discord.gg/ZZbKEZZkwK)
 
 **React** · [Android](https://github.com/droidrun/mobilerun-android) · [iOS](https://github.com/droidrun/mobilerun-swift) · [Flutter](https://github.com/droidrun/mobilerun-flutter)
@@ -31,7 +31,7 @@
 <table>
 <tr>
 <td width="280" valign="top">
-  <img src="assets/preview.png" alt="@mobilerun/react dev playground" width="260" />
+  <img src="https://raw.githubusercontent.com/droidrun/mobilerun-react/main/assets/preview.png" alt="@mobilerun/react dev playground" width="260" />
 </td>
 <td valign="top">
 <strong>In this package</strong>
@@ -43,7 +43,7 @@
   <li><code>RemoteControl</code> — lower-level stream and input control.</li>
   <li>Prebuilt stylesheet — themeable with CSS variables.</li>
 </ul>
-<p>Lower-level hooks and scrcpy helpers: see <a href="docs/default-ui.md#lower-level-exports">docs/</a>.</p>
+<p>Lower-level hooks and scrcpy helpers: see <a href="https://github.com/droidrun/mobilerun-react/blob/main/docs/default-ui.md#lower-level-exports">docs/</a>.</p>
 <strong>Requirements</strong>
 <ul>
   <li>React and React DOM 18 or 19, in a browser with WebRTC.</li>
@@ -70,7 +70,7 @@ npm install @mobilerun/react @mobilerun/sdk react react-dom
 3. The SDK opens the stream with that key, one key per connection, and reconnects with a fresh one.
 
 Keep `MOBILERUN_API_KEY` on your server. This mint handler excerpt uses the SDK's `/v1` base URL;
-see [Stream keys](docs/stream-keys.md) for route setup, metadata fetching and error handling.
+see [Stream keys](https://github.com/droidrun/mobilerun-react/blob/main/docs/stream-keys.md) for route setup, metadata fetching and error handling.
 
 ```ts
 import { MobilerunSDK } from '@mobilerun/sdk';
@@ -100,7 +100,7 @@ export function DevicePanel({ deviceId, streamUrl }: { deviceId: string; streamU
 ```
 
 Never log or cache stream keys. Your backend must authenticate callers and authorize the device.
-The [full example](docs/stream-keys.md) also shows `useDeviceStream` and legacy compatibility.
+The [full example](https://github.com/droidrun/mobilerun-react/blob/main/docs/stream-keys.md) also shows `useDeviceStream` and legacy compatibility.
 
 `tokenProvider` runs before every connection attempt, the first one and each reconnect, and the SDK
 never reuses a key it returns. **Use it: stream keys are single-use, so only a provider can reconnect.**
@@ -128,19 +128,35 @@ device or a refused origin; browsers cannot see the HTTP status), `disconnected`
 dropped, including the 30-minute server cap) or `unknown`. `final: true` means retries stopped and
 the Retry button is showing. `labels` replaces every text the component renders.
 
+## Theming
+
+The stylesheet defines no unprefixed CSS variable, so it cannot clash with your own `--background`. Set
+these on any ancestor of the component or on its root (`.mobilerun-device-stream`):
+`--mr-background`, `--mr-foreground`, `--mr-card`, `--mr-card-foreground`, `--mr-muted`,
+`--mr-muted-foreground`, `--mr-border`, `--mr-ring`, `--mr-primary`, `--mr-primary-foreground`,
+`--mr-accent`, `--mr-accent-foreground`, `--mr-destructive`.
+
+Each color resolves in this order: `--mr-<name>`, then the old unprefixed `--<name>` (kept for one more
+minor release, so a host theme that already defines `--background` keeps working), then the bundled
+default. Add `.dark` to an ancestor, or to the component root, for the bundled dark defaults.
+
+```css
+.mobilerun-device-stream { --mr-primary: oklch(0.55 0.18 268); --mr-background: oklch(0.985 0.004 85); }
+```
+
 ## Guides
 
 | Guide | Covers |
 | --- | --- |
-| [Stream keys](docs/stream-keys.md) | Server routes, device metadata, `tokenProvider`, retries and legacy tokens. |
-| [Components and styling](docs/default-ui.md) | Components, prebuilt CSS, theme variables and dark mode. |
-| [Task approvals](docs/task-approvals.md) | Webhooks, backend decisions, cards, bottom sheets and labels. |
+| [Stream keys](https://github.com/droidrun/mobilerun-react/blob/main/docs/stream-keys.md) | Server routes, device metadata, `tokenProvider`, retries and legacy tokens. |
+| [Components and styling](https://github.com/droidrun/mobilerun-react/blob/main/docs/default-ui.md) | Components, prebuilt CSS, theme variables and dark mode. |
+| [Task approvals](https://github.com/droidrun/mobilerun-react/blob/main/docs/task-approvals.md) | Webhooks, backend decisions, cards, bottom sheets and labels. |
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for builds, tests, conformance fixtures and the example app.
-Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md).
+See [CONTRIBUTING.md](https://github.com/droidrun/mobilerun-react/blob/main/CONTRIBUTING.md) for builds, tests, conformance fixtures and the example app.
+Report vulnerabilities privately as described in [SECURITY.md](https://github.com/droidrun/mobilerun-react/blob/main/SECURITY.md).
 
 ## License
 
-[Apache-2.0](LICENSE)
+[Apache-2.0](https://github.com/droidrun/mobilerun-react/blob/main/LICENSE)
