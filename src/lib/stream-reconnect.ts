@@ -1,6 +1,8 @@
 // Copyright 2026 Mobilerun
 // SPDX-License-Identifier: Apache-2.0
 
+import type { StreamError, StreamFailure } from './stream-error';
+
 /**
  * Pure reconnect state machine for a single device stream. Framework-free so
  * the timing/backoff logic is unit-testable; `use-stream-reconnect` wires it
@@ -80,6 +82,8 @@ export interface StreamReconnectControllerOptions {
   onSnapshot(snapshot: StreamReconnectSnapshot): void;
   /** A reconnect attempt is being scheduled — refetch stream credentials. */
   onHeal(): void;
+  /** One call per counted failure, with the reason and whether retries stopped. */
+  onError?(error: StreamError): void;
   schedule?: StreamReconnectSchedule;
   random?: () => number;
 }
@@ -91,7 +95,8 @@ export interface StreamReconnectController {
   setDisabled(): void;
   handleConnected(): void;
   handleDisconnected(): void;
-  handleFailure(): void;
+  /** Terminal failure of the current attempt; `failure` names why (default `unknown`). */
+  handleFailure(failure?: StreamFailure): void;
   /**
    * Whether a stream-target change (URL/token rotation) must be held back
    * instead of applied right now. True while waiting out a backoff (an
@@ -113,6 +118,7 @@ export function createStreamReconnectController({
   onRemount,
   onSnapshot,
   onHeal,
+  onError,
   schedule = { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (id) => clearTimeout(id) },
   random = Math.random,
 }: StreamReconnectControllerOptions): StreamReconnectController {
@@ -150,12 +156,21 @@ export function createStreamReconnectController({
     stabilityTimer = clearTimer(stabilityTimer);
   };
 
+  const reportError = (failure: StreamFailure, final: boolean) => {
+    // A consumer callback must never break the reconnect machine.
+    try {
+      onError?.({ reason: failure.reason, message: failure.message, attempt, final });
+    } catch {
+      // Ignored on purpose.
+    }
+  };
+
   const startAttempt = () => {
     onRemount();
     // The resulting mount calls attemptMounted(), which arms the watchdog.
   };
 
-  const countFailure = () => {
+  const countFailure = (failure: StreamFailure) => {
     // A wait is already scheduled (or we already gave up) — e.g. a stale
     // watchdog armed by a StrictMode double-mount. Never stack timers.
     if (backoffTimer !== null || status === 'unavailable') return;
@@ -166,10 +181,12 @@ export function createStreamReconnectController({
     if (attempt > STREAM_RECONNECT_MAX_ATTEMPTS) {
       status = 'unavailable';
       emit();
+      reportError(failure, true);
       return;
     }
     status = 'reconnecting';
     emit();
+    reportError(failure, false);
     // Refetch credentials once per recovery cycle, not per attempt: consumer
     // onHeal callbacks trigger network refetches (grids share one full-fleet
     // refetch across every card), so per-attempt heals would multiply into a
@@ -222,7 +239,7 @@ export function createStreamReconnectController({
       if (!startWatchdog) return;
       watchdogTimer = schedule.setTimeout(() => {
         watchdogTimer = null;
-        countFailure();
+        countFailure({ reason: 'unknown', message: 'Connection attempt timed out' });
       }, STREAM_CONNECT_TIMEOUT_MS);
     },
 
@@ -267,13 +284,13 @@ export function createStreamReconnectController({
       if (!enabled) return;
       if (!everConnectedThisEpoch) return;
       if (failureLatched) return;
-      countFailure();
+      countFailure({ reason: 'disconnected', message: 'The stream connection dropped' });
     },
 
-    handleFailure() {
+    handleFailure(failure = { reason: 'unknown', message: 'Connection failed' }) {
       if (!enabled) return;
       if (failureLatched) return;
-      countFailure();
+      countFailure(failure);
     },
 
     shouldDeferTargetChange() {

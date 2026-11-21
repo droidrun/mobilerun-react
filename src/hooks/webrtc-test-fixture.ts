@@ -88,6 +88,7 @@ export async function fixture(clock?: FakeSchedule) {
   const stateWrites: boolean[] = [];
   const states: boolean[] = [];
   const failures: boolean[] = [];
+  const failureInfos: { reason: string; message: string }[] = [];
   const bindings: (FakePeer | null)[] = [];
   const video = { current: { srcObject: null as MediaStream | null, muted: true } };
   const visibilityListeners = new Set<() => void>();
@@ -133,7 +134,10 @@ export async function fixture(clock?: FakeSchedule) {
       url: 'wss://example.invalid/' + id, sessionId: id, videoRef: video, openUrl,
       ...credentials,
       onConnectionStateChange: (state: boolean) => states.push(state),
-      onConnectionFailed: () => failures.push(true),
+      onConnectionFailed: (failure: { reason: string; message: string }) => {
+        failures.push(true);
+        failureInfos.push(failure);
+      },
       onPeerConnectionChange: (pc: FakePeer | null) => bindings.push(pc),
     });
     runner.flushEffects();
@@ -144,7 +148,7 @@ export async function fixture(clock?: FakeSchedule) {
     return render(id, openUrl, credentials);
   };
   return {
-    sockets, peers, timers, scheduled, states, failures, bindings, stateWrites,
+    sockets, peers, timers, scheduled, states, failures, failureInfos, bindings, stateWrites,
     video, mount, render,
     document,
     visibilityChange() { visibilityListeners.forEach(fn => fn()); },

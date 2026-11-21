@@ -2,21 +2,38 @@
 // Copyright 2026 Mobilerun
 // SPDX-License-Identifier: Apache-2.0
 
-import { RotateCw, Smartphone, WifiOff } from 'lucide-react';
+import { Smartphone } from 'lucide-react';
 import { forwardRef, useCallback, useEffect, useMemo } from 'react';
 import { cn } from '../lib/cn';
+import { resolveDeviceStreamLabels, type DeviceStreamLabels, type StreamError } from '../lib/stream-error';
 import { STREAM_RECONNECT_MAX_ATTEMPTS } from '../lib/stream-reconnect';
 import { RemoteControl, type RemoteControlHandle } from './remote-control';
 import { StreamStatusPill } from './stream-status-pill';
-import { Button } from './ui/button';
+import { StreamUnavailable } from './stream-unavailable';
+import { useStaticTokenWarning } from '../hooks/use-static-token-warning';
 import { useStreamReconnect } from '../hooks/use-stream-reconnect';
 
-interface DeviceStreamProps {
+export interface DeviceStreamProps {
   streamUrl?: string;
-  /** @deprecated Use tokenProvider to acquire a fresh key for each connection attempt. */
+  /**
+   * @deprecated A static key is single-use, so it cannot reconnect. Use `tokenProvider`,
+   * which returns a fresh key for every connection attempt. Logs one console warning per mount.
+   */
   streamToken?: string;
-  /** Resolves a fresh stream key immediately before each WebSocket attempt. Overrides streamToken. */
+  /**
+   * Called before every WebSocket attempt, the first connect and each reconnect, and returns
+   * a fresh stream key minted by your backend (`POST /v1/identity/stream-keys`). A key is never
+   * reused for a second connect. A throw, a rejection, an empty key or no answer within 10 s
+   * fails the attempt with reason `credentials_unavailable`. Wins over `streamToken`.
+   */
   tokenProvider?: () => Promise<string>;
+  /**
+   * Called once per failed connection attempt with the reason, the attempt number and whether
+   * the SDK stopped retrying (`final`). The Retry button stays available after a final error.
+   */
+  onError?: (error: StreamError) => void;
+  /** Replaces the built-in English texts. Every key is optional. */
+  labels?: Partial<DeviceStreamLabels>;
   hasControl: boolean;
   onHasControlChange?: (hasControl: boolean) => void;
   onConnectionStateChange?: (connected: boolean) => void;
@@ -53,6 +70,8 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
     streamUrl,
     streamToken,
     tokenProvider,
+    onError,
+    labels: labelOverrides,
     hasControl,
     onHasControlChange: setHasControl = () => {},
     onConnectionStateChange,
@@ -80,6 +99,7 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
     retry,
   } = useStreamReconnect({
     onHeal: onStreamHealed,
+    onError,
     target,
     targetKey: `${streamUrl ?? ''}|${streamToken ?? ''}`,
     enabled: !!streamUrl,
@@ -101,30 +121,27 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
     }
   }, [streamUrl, setHasControl]);
 
+  const labels = resolveDeviceStreamLabels(labelOverrides);
+
+  useStaticTokenWarning(!!streamToken && !tokenProvider);
+
   const reconnectLabel =
-    attempt > 1 ? `reconnecting (${attempt}/${STREAM_RECONNECT_MAX_ATTEMPTS})` : 'reconnecting';
+    attempt > 1 ? `${labels.disconnected} (${attempt}/${STREAM_RECONNECT_MAX_ATTEMPTS})` : labels.disconnected;
 
   return (
     <div
       className={cn(
-        'relative w-full h-full flex items-center justify-center bg-background overflow-hidden',
+        'mobilerun-device-stream relative w-full h-full flex items-center justify-center bg-background overflow-hidden',
         className,
       )}
     >
       {!streamUrl ? (
         <>
           <Smartphone className="w-12 h-12 text-muted-foreground/30" />
-          <StreamStatusPill label={placeholderLabel ?? 'connecting'} />
+          <StreamStatusPill label={placeholderLabel ?? labels.connecting} />
         </>
       ) : status === 'unavailable' ? (
-        <div className="flex flex-col items-center justify-center gap-3 text-muted-foreground">
-          <WifiOff className="h-10 w-10 opacity-50" />
-          <span className="text-xs font-medium">device stream unavailable</span>
-          <Button variant="outline" onClick={retry}>
-            <RotateCw className="mr-1.5 h-3.5 w-3.5" />
-            Retry
-          </Button>
-        </div>
+        <StreamUnavailable labels={labels} onRetry={retry} />
       ) : (
         <>
           <div className="device-stream-wrapper w-full h-full flex items-center justify-center relative">
@@ -138,7 +155,7 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
               onConnectionStateChange={handleConnectionStateChange}
               onConnectionFailed={onConnectionFailed}
               onConnectionAttemptStarted={onConnectionAttemptStarted}
-              placeholderLabel={status === 'reconnecting' ? reconnectLabel : placeholderLabel}
+              placeholderLabel={status === 'reconnecting' ? reconnectLabel : (placeholderLabel ?? labels.connecting)}
               muted={muted}
               onPeerConnectionChange={onPeerConnectionChange}
             />

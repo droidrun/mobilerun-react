@@ -412,3 +412,79 @@ describe('heal cadence', () => {
     expect(calls.heals).toBe(3);
   });
 });
+
+describe('onError reporting', () => {
+  function withErrors() {
+    const schedule = new FakeSchedule();
+    const errors: { reason: string; message: string; attempt: number; final: boolean }[] = [];
+    const controller = createStreamReconnectController({
+      onRemount: () => controller.attemptMounted(),
+      onHeal: () => {},
+      onSnapshot: () => {},
+      onError: (error) => {
+        errors.push(error);
+      },
+      schedule,
+      random: NO_JITTER,
+    });
+    controller.attemptMounted();
+    return { schedule, controller, errors };
+  }
+
+  test('reports each failed attempt once with its reason and counter', () => {
+    const { schedule, controller, errors } = withErrors();
+    controller.handleFailure({ reason: 'credentials_unavailable', message: 'no key' });
+    controller.handleFailure({ reason: 'connection_refused', message: 'ignored: same attempt' });
+    expect(errors).toEqual([{ reason: 'credentials_unavailable', message: 'no key', attempt: 1, final: false }]);
+    schedule.advance(DELAYS[0]);
+    controller.handleFailure({ reason: 'connection_refused', message: 'closed' });
+    expect(errors.map((e) => [e.reason, e.attempt, e.final])).toEqual([
+      ['credentials_unavailable', 1, false],
+      ['connection_refused', 2, false],
+    ]);
+  });
+
+  test('marks the last failure final once retries stop, and not before', () => {
+    const { schedule, controller, errors } = withErrors();
+    for (let i = 0; i <= STREAM_RECONNECT_MAX_ATTEMPTS; i++) {
+      controller.handleFailure({ reason: 'connection_refused', message: 'closed' });
+      schedule.advance(30_000);
+    }
+    expect(errors).toHaveLength(STREAM_RECONNECT_MAX_ATTEMPTS + 1);
+    expect(errors.filter((e) => e.final)).toHaveLength(1);
+    expect(errors.at(-1)).toMatchObject({ final: true, attempt: STREAM_RECONNECT_MAX_ATTEMPTS + 1 });
+    expect(controller.getSnapshot().status).toBe('unavailable');
+  });
+
+  test('a dropped session is disconnected and a silent attempt is unknown', () => {
+    const { schedule, controller, errors } = withErrors();
+    controller.handleConnected();
+    controller.handleDisconnected();
+    schedule.advance(DELAYS[0]);
+    schedule.advance(STREAM_CONNECT_TIMEOUT_MS);
+    expect(errors.map((e) => e.reason)).toEqual(['disconnected', 'unknown']);
+  });
+
+  test('a failure without detail is unknown', () => {
+    const { controller, errors } = withErrors();
+    controller.handleFailure();
+    expect(errors.map((e) => e.reason)).toEqual(['unknown']);
+  });
+
+  test('a throwing consumer callback does not stop the retry', () => {
+    const schedule = new FakeSchedule();
+    let remounts = 0;
+    const controller = createStreamReconnectController({
+      onRemount: () => { remounts += 1; },
+      onHeal: () => {},
+      onSnapshot: () => {},
+      onError: () => { throw new Error('consumer bug'); },
+      schedule,
+      random: NO_JITTER,
+    });
+    controller.attemptMounted();
+    controller.handleFailure();
+    schedule.advance(DELAYS[0]);
+    expect(remounts).toBe(1);
+  });
+});

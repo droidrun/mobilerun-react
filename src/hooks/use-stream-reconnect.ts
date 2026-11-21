@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import type { StreamError, StreamFailure } from '../lib/stream-error';
 import { createStreamReconnectController, type StreamReconnectSnapshot } from '../lib/stream-reconnect';
 
 interface UseStreamReconnectOptions<T> {
@@ -13,6 +14,8 @@ interface UseStreamReconnectOptions<T> {
    * network, and grids share one fleet-wide refetch across every card.
    */
   onHeal?: () => void;
+  /** Fired once per counted failed attempt, with `final: true` when retries stop. */
+  onError?: (error: StreamError) => void;
   /**
    * The connection target (URL/credentials) the consumer currently wants.
    * The hook pins the target the stream actually uses: `activeTarget` only
@@ -46,6 +49,7 @@ interface UseStreamReconnectOptions<T> {
  */
 export function useStreamReconnect<T>({
   onHeal,
+  onError,
   target,
   targetKey,
   enabled,
@@ -65,6 +69,8 @@ export function useStreamReconnect<T>({
 
   const onHealRef = useRef(onHeal);
   onHealRef.current = onHeal;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
 
   // Latest committed target (and its key), for timer-driven remounts
   // (backoff fire, wake, retry). Written in an effect so a render React
@@ -91,6 +97,7 @@ export function useStreamReconnect<T>({
       onRemount: bumpMount,
       onSnapshot: (s) => setSnapshot(s),
       onHeal: () => onHealRef.current?.(),
+      onError: (error) => onErrorRef.current?.(error),
     });
   }
 
@@ -147,7 +154,10 @@ export function useStreamReconnect<T>({
     else controllerRef.current?.handleDisconnected();
   }, []);
 
-  const onConnectionFailed = useCallback(() => controllerRef.current?.handleFailure(), []);
+  const onConnectionFailed = useCallback(
+    (failure?: StreamFailure) => controllerRef.current?.handleFailure(failure),
+    [],
+  );
 
   const retry = useCallback(() => controllerRef.current?.retry(), []);
 

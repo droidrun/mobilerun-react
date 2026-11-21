@@ -5,6 +5,7 @@
 import { clsx } from 'clsx';
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import { StreamStatusPill } from './stream-status-pill';
+import { resolveDeviceStreamLabels, type DeviceStreamLabels, type StreamFailure } from '../lib/stream-error';
 
 import { ANDROID_KEYS, codeMap } from '../constants';
 import { createInjectKeycodeMessage, createScreenshotRequest } from '../webrtc-messages';
@@ -52,7 +53,8 @@ interface RemoteControlProps {
   // negotiation threw, peer connection 'failed'/'closed') — never on
   // intentional teardown. Lets a reconnect manager retry without waiting
   // out a connect watchdog.
-  onConnectionFailed?: () => void;
+  // Receives the reason of the failure.
+  onConnectionFailed?: (failure: StreamFailure) => void;
   /** Fired when a socket is allocated, after any key provider resolves. */
   onConnectionAttemptStarted?: () => void;
 
@@ -61,6 +63,8 @@ interface RemoteControlProps {
   // label (e.g. "migrating", "resetting") when the underlying device isn't
   // ready, so the user sees the real reason the video isn't there yet.
   placeholderLabel?: string;
+  /** Text of the pill when no `placeholderLabel` is given. Defaults to English. */
+  labels?: Partial<Pick<DeviceStreamLabels, 'connecting'>>;
 
   // When false, the device's audio track (if the backend publishes one) is
   // played back. Defaults to true. Consumers must only flip this to false in
@@ -131,6 +135,7 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
       onConnectionFailed,
       onConnectionAttemptStarted,
       placeholderLabel,
+      labels,
       muted = true,
       onPeerConnectionChange,
     }: RemoteControlProps,
@@ -359,7 +364,7 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
             }
           }}
         />
-        {!isConnected && <StreamStatusPill label={placeholderLabel ?? 'connecting'} />}
+        {!isConnected && <StreamStatusPill label={placeholderLabel ?? resolveDeviceStreamLabels(labels).connecting} />}
       </div>
     );
   },

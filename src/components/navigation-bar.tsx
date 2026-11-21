@@ -14,7 +14,7 @@ interface NavigationBarProps {
 
 export function NavigationBar({ onAction, className }: NavigationBarProps) {
   return (
-    <div className={cn('flex flex-row bg-background border-t border-border shrink-0 h-10', className)}>
+    <div className={cn('mobilerun-navigation-bar flex flex-row bg-background border-t border-border shrink-0 h-10', className)}>
       <Button
         variant="ghost"
         className="flex-1 rounded-none h-full hover:bg-muted"

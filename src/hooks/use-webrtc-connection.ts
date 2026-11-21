@@ -10,6 +10,7 @@ import {
   STREAM_RTC_CONFIG_TIMEOUT_MS,
   STREAM_WS_OPEN_TIMEOUT_MS,
 } from '../lib/stream-reconnect';
+import type { StreamErrorReason, StreamFailure } from '../lib/stream-error';
 import { createRTCConfigurationRequest } from '../webrtc-messages';
 
 const debugLog = (...args: any[]) => {
@@ -58,7 +59,8 @@ interface UseWebRtcConnectionOptions {
   // connection reaches 'failed'/'closed'. Never fired on intentional teardown
   // (stop/unmount). Distinct from onConnectionStateChange(false), which also
   // fires for transient non-connected states during normal negotiation.
-  onConnectionFailed?: () => void;
+  // Carries the reason of the failure (stream client contract v1).
+  onConnectionFailed?: (failure: StreamFailure) => void;
   onConnectionAttemptStarted?: () => void;
   // Fired with the RTCPeerConnection once it is created and with null when
   // it is torn down. Lets consumers observe the connection (e.g. getStats())
@@ -214,7 +216,10 @@ export function useWebRtcConnection({
     const provider = tokenProviderRef.current;
     const isActive = () => attemptGenerationRef.current === generation;
     let failed = false;
-    const failAttempt = (stopMedia = !!provider) => {
+    // Whether this attempt's peer connection ever reached 'connected': a later
+    // failure is a drop of an open session, an earlier one a failed connect.
+    let everConnected = false;
+    const failAttempt = (failure: StreamFailure, stopMedia = !!provider) => {
       if (!isActive()) return;
       if (failed) return;
       failed = true;
@@ -222,7 +227,7 @@ export function useWebRtcConnection({
         onConnectionStateChangeRef.current?.(false);
         stop();
       }
-      onConnectionFailedRef.current?.();
+      onConnectionFailedRef.current?.(failure);
     };
     // Reset ICE buffering state for the new session.
     // Done here (not in stop()) to avoid a race where stale candidates
@@ -238,11 +243,14 @@ export function useWebRtcConnection({
     // nothing about it may be reported anymore.
     let attemptWs: WebSocket | null = null;
     let cancelStartup = () => {};
+    // Set while a startup step runs so the catch below can name the failing step.
+    let phase: StreamErrorReason = 'unknown';
     try {
       let streamToken = tokenRef.current;
       if (provider) {
         if (!isSecureStreamUrl(url)) throw new Error('Stream key requires a secure WebSocket URL');
         let providerTimer: ReturnType<typeof setTimeout> | undefined;
+        phase = 'credentials_unavailable';
         try {
           streamToken = await new Promise<string>((resolve, reject) => {
             providerTimer = setTimeout(
@@ -262,6 +270,7 @@ export function useWebRtcConnection({
         }
         if (!isActive()) return;
         if (!streamToken?.trim()) throw new Error('Stream key provider returned an empty key');
+        phase = 'unknown';
       }
       const wsUrl = buildWebSocketUrl(url, streamToken);
       const ws = new WebSocket(wsUrl);
@@ -295,6 +304,7 @@ export function useWebRtcConnection({
 
       // Wait for WebSocket to connect. Teardown settles this wait and removes
       // its timer even when the browser never delivers another socket event.
+      phase = 'connection_refused';
       const opened = new Promise<void>((resolve, reject) => {
         rejectStartup = reject;
         ws.onopen = () => {
@@ -308,21 +318,28 @@ export function useWebRtcConnection({
         };
         pendingTimer = setTimeout(() => {
           if (!isCurrent()) return;
+          // Not a refusal: nothing answered in time.
+          phase = 'unknown';
           reject(new Error('WebSocket connection timeout'));
         }, STREAM_WS_OPEN_TIMEOUT_MS);
       });
       if (!document.hidden) startKeepAlive();
       await opened;
       if (!isCurrent()) return;
+      phase = 'unknown';
 
       // A server session end closes media in every credential mode. Other
       // signaling closes leave a connected media path running, as before.
       ws.onclose = (event) => {
         if (!isCurrent()) return;
         updateStatus('WebSocket closed');
-        if (event.code === 1001) return failAttempt(true);
+        const dropped: StreamFailure = {
+          reason: 'disconnected',
+          message: `Signaling connection closed (code ${event.code})`,
+        };
+        if (event.code === 1001) return failAttempt(dropped, true);
         if (peerConnectionRef.current?.connectionState === 'connected') return;
-        failAttempt();
+        failAttempt(dropped);
       };
 
       // Request RTCConfiguration
@@ -484,9 +501,13 @@ export function useWebRtcConnection({
         const state = pc.connectionState;
         updateStatus('Connection state: ' + state);
         const connected = state === 'connected';
+        if (connected) everConnected = true;
         if (state === 'failed' || state === 'closed') {
           // Terminal: this peer connection will not come back on its own.
-          failAttempt();
+          failAttempt({
+            reason: everConnected ? 'disconnected' : 'unknown',
+            message: `Peer connection ${state}`,
+          });
           if (!isCurrent()) return;
         }
         if (connected) {
@@ -726,7 +747,10 @@ export function useWebRtcConnection({
       if (wsRef.current !== attemptWs) return;
       cancelStartup();
       updateStatus(provider ? 'Stream connection attempt failed' : 'Error: ' + e);
-      failAttempt();
+      failAttempt({
+        reason: phase,
+        message: e instanceof Error && e.message ? e.message : 'Stream connection attempt failed',
+      });
     }
   };
 

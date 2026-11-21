@@ -559,3 +559,108 @@ test('legacy token compatibility keeps synchronous startup and media after signa
   expect(f.failures).toEqual([]);
   f.unmount();
 });
+
+// Failure reasons (stream client contract v1). The reason list lives in lib/stream-error.ts.
+const reasons = (f: { failureInfos: { reason: string }[] }) => f.failureInfos.map(i => i.reason);
+
+test.each([
+  ['reject', (): Promise<string> => Promise.reject(new Error('refused'))],
+  ['empty', async (): Promise<string> => ''],
+] as const)('provider %s reports credentials_unavailable', async (_name, tokenProvider) => {
+  const f = await fixture();
+  f.mount('a', undefined, { tokenProvider });
+  await tick();
+  expect(reasons(f)).toEqual(['credentials_unavailable']);
+  f.unmount();
+});
+
+test('provider timeout reports credentials_unavailable', async () => {
+  const clock = new FakeSchedule();
+  const f = await fixture(clock);
+  f.mount('a', undefined, { tokenProvider: () => deferred<string>().promise });
+  clock.advance(10_000);
+  await tick();
+  expect(reasons(f)).toEqual(['credentials_unavailable']);
+  expect(f.failureInfos[0].message).toContain('timeout');
+  f.unmount();
+});
+
+test('a socket that closes before open reports connection_refused, with or without a provider', async () => {
+  for (const credentials of [{ tokenProvider: async () => 'key' }, { token: 'legacy' }]) {
+    const f = await fixture();
+    f.mount('a', undefined, credentials);
+    await tick();
+    f.sockets[0].close(1006);
+    await tick();
+    expect(reasons(f)).toEqual(['connection_refused']);
+    f.unmount();
+  }
+});
+
+test('a socket that never opens is unknown, not a refusal', async () => {
+  const clock = new FakeSchedule();
+  const f = await fixture(clock);
+  f.mount('a', undefined, { token: 'legacy' });
+  await tick();
+  clock.advance(15_000);
+  await tick();
+  expect(reasons(f)).toEqual(['unknown']);
+  f.unmount();
+});
+
+test.each([
+  ['server session end (1001)', 1001],
+  ['abnormal close', 1006],
+] as const)('an open socket dropped by %s reports disconnected', async (_name, code) => {
+  const f = await fixture();
+  f.mount('a', undefined, { tokenProvider: async () => 'key' });
+  await tick();
+  f.sockets[0].open();
+  await tick();
+  f.sockets[0].close(code);
+  await tick();
+  expect(reasons(f)).toEqual(['disconnected']);
+  expect(f.failureInfos[0].message).toContain(String(code));
+  f.unmount();
+});
+
+test('peer failure is disconnected after it connected and unknown before', async () => {
+  for (const [connectFirst, expected] of [[true, 'disconnected'], [false, 'unknown']] as const) {
+    const f = await fixture();
+    f.mount('a', undefined, { tokenProvider: async () => 'key' });
+    await tick();
+    f.sockets[0].open();
+    await tick();
+    f.sockets[0].config();
+    await tick();
+    const pc = f.peers[0];
+    if (connectFirst) {
+      pc.connectionState = 'connected';
+      pc.onconnectionstatechange!();
+    }
+    pc.connectionState = 'failed';
+    pc.onconnectionstatechange!();
+    await tick();
+    expect(reasons(f)).toEqual([expected]);
+    f.unmount();
+  }
+});
+
+test('every connect attempt calls the provider again and never reuses a key', async () => {
+  const f = await fixture();
+  let minted = 0;
+  const tokenProvider = async () => `key-${++minted}`;
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    f.mount('a', undefined, { tokenProvider });
+    await tick();
+    f.sockets[attempt - 1].close(1006);
+    await tick();
+  }
+  expect(f.sockets.map(s => s.url)).toEqual([
+    'wss://example.invalid/a?token=key-1',
+    'wss://example.invalid/a?token=key-2',
+    'wss://example.invalid/a?token=key-3',
+  ]);
+  expect(minted).toBe(3);
+  f.unmount();
+});

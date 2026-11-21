@@ -154,7 +154,7 @@ function ApprovalCard({
   return (
     <section
       aria-label={title}
-      className={cn('flex w-full flex-col gap-4 rounded-xl border border-border bg-card p-4 text-card-foreground sm:p-6', className)}
+      className={cn('mobilerun-task-approval flex w-full flex-col gap-4 rounded-xl border border-border bg-card p-4 text-card-foreground sm:p-6', className)}
     >
       <header className="flex flex-col gap-2">
         <h3 className="text-base font-semibold">{title}</h3>
