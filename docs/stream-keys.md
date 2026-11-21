@@ -136,7 +136,7 @@ a pasted single-use key cannot reconnect after admission. `useDeviceStream` also
 ```ts
 onError?: (error: {
   reason: 'credentials_unavailable' | 'connection_refused' | 'disconnected' | 'device_unavailable' | 'unknown';
-  message: string; // for logs, not for end users
+  message: string; // fixed SDK text for logs, never exception text from your provider or the socket
   attempt: number; // consecutive failed attempts in this cycle, from 1
   final: boolean;  // true when the SDK stops retrying; the Retry button stays available
 }) => void;

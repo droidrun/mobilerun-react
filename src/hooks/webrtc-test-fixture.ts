@@ -28,6 +28,8 @@ export async function fixture(clock?: FakeSchedule) {
   const setTimer = schedule('timeout');
   const setIntervalTimer = schedule('interval');
   const clearTimer = (id: number) => { timers.delete(id); };
+  // Lets a test make the socket constructor throw.
+  const hooks: { onConstruct?: (url: string) => void } = {};
   class FakeSocket {
     static OPEN = 1;
     readyState = 0;
@@ -38,6 +40,7 @@ export async function fixture(clock?: FakeSchedule) {
     onerror: (() => void) | null = null;
     onmessage: ((event: { data: string }) => Promise<void>) | null = null;
     constructor(readonly url: string) {
+      hooks.onConstruct?.(url);
       sockets.push(this);
     }
     open() { this.readyState = 1; this.onopen?.(); }
@@ -117,6 +120,9 @@ export async function fixture(clock?: FakeSchedule) {
     RTCSessionDescription: class { constructor(value: object) { Object.assign(this, value); } },
     RTCIceCandidate: class { constructor(value: object) { Object.assign(this, value); } },
     setTimeout: clock?.setTimeout ?? setTimer, clearTimeout: clock?.clearTimeout ?? clearTimer,
+    // The hook runs in a VM realm with its own Error; sharing the host's keeps `e instanceof Error`
+    // true for errors the tests throw, as in a browser where there is one realm.
+    Error,
     console, stateWrites,
   };
   const runner = await runHook<{ useWebRtcConnection: (options: object) => { wsRef: { current: FakeSocket | null } } }>(
@@ -148,6 +154,7 @@ export async function fixture(clock?: FakeSchedule) {
     return render(id, openUrl, credentials);
   };
   return {
+    hooks,
     sockets, peers, timers, scheduled, states, failures, failureInfos, bindings, stateWrites,
     video, mount, render,
     document,

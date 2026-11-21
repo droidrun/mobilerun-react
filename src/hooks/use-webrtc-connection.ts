@@ -10,7 +10,7 @@ import {
   STREAM_RTC_CONFIG_TIMEOUT_MS,
   STREAM_WS_OPEN_TIMEOUT_MS,
 } from '../lib/stream-reconnect';
-import type { StreamErrorReason, StreamFailure } from '../lib/stream-error';
+import { STREAM_FAILURE_MESSAGES, type StreamErrorReason, type StreamFailure } from '../lib/stream-error';
 import { createRTCConfigurationRequest } from '../webrtc-messages';
 
 const debugLog = (...args: any[]) => {
@@ -749,7 +749,8 @@ export function useWebRtcConnection({
       updateStatus(provider ? 'Stream connection attempt failed' : 'Error: ' + e);
       failAttempt({
         reason: phase,
-        message: e instanceof Error && e.message ? e.message : 'Stream connection attempt failed',
+        // Never forward `e.message`: provider and socket errors can carry the key or a ?token= URL.
+        message: STREAM_FAILURE_MESSAGES[phase],
       });
     }
   };

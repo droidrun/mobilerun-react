@@ -581,7 +581,7 @@ test('provider timeout reports credentials_unavailable', async () => {
   clock.advance(10_000);
   await tick();
   expect(reasons(f)).toEqual(['credentials_unavailable']);
-  expect(f.failureInfos[0].message).toContain('timeout');
+  expect(f.failureInfos[0].message).toBe('Stream key provider failed');
   f.unmount();
 });
 
@@ -662,5 +662,56 @@ test('every connect attempt calls the provider again and never reuses a key', as
     'wss://example.invalid/a?token=key-3',
   ]);
   expect(minted).toBe(3);
+  f.unmount();
+});
+
+// Credential-free messages. The fixture shares one Error with the hook (as a browser does), so
+// `e instanceof Error` is true here and a forwarded `message` would show up.
+const MARKER = 'dr_st_SYNTHETIC_MARKER';
+
+function expectNoCredential(f: { failureInfos: object[] }, onErrorPayloads: object[]) {
+  for (const text of [JSON.stringify(f.failureInfos), JSON.stringify(onErrorPayloads)]) {
+    expect(text).not.toContain(MARKER);
+    expect(text).not.toContain('token=');
+  }
+}
+
+function throughController(failures: { reason: string; message: string }[]) {
+  const payloads: object[] = [];
+  const controller = createStreamReconnectController({
+    onRemount: () => {}, onHeal: () => {}, onSnapshot: () => {},
+    onError: (error) => { payloads.push(error); },
+    schedule: new FakeSchedule(),
+  });
+  controller.attemptMounted();
+  controller.handleFailure(failures[0] as never);
+  return payloads;
+}
+
+test.each([
+  ['an Error naming the key', async () => { throw new Error('mint failed for ' + MARKER); }],
+  ['an Error naming a token URL', async () => { throw new Error('GET https://api.invalid/stream?token=' + MARKER + ' 401'); }],
+  ['a thrown string', async () => { throw 'token=' + MARKER; }],
+] as const)('provider rejecting with %s never leaks its text', async (_name, tokenProvider) => {
+  const f = await fixture();
+  f.mount('a', undefined, { tokenProvider });
+  await tick();
+  expect(reasons(f)).toEqual(['credentials_unavailable']);
+  expect(f.failureInfos[0].message).toBe('Stream key provider failed');
+  expectNoCredential(f, throughController(f.failureInfos));
+  f.unmount();
+});
+
+test.each([
+  ['provider', { tokenProvider: async () => MARKER }],
+  ['static token', { token: MARKER }],
+] as const)('a socket constructor error carrying the token URL never leaks it (%s)', async (_name, credentials) => {
+  const f = await fixture();
+  f.hooks.onConstruct = (url) => { throw new Error('cannot open ' + url); };
+  f.mount('a', undefined, credentials);
+  await tick();
+  expect(reasons(f)).toEqual(['unknown']);
+  expect(f.failureInfos[0].message).toBe('Stream connection attempt failed');
+  expectNoCredential(f, throughController(f.failureInfos));
   f.unmount();
 });

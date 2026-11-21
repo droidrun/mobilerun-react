@@ -20,11 +20,24 @@ export type StreamErrorReason =
   | 'device_unavailable'
   | 'unknown';
 
-/** What a single failed attempt looked like, before the reconnect policy adds its counters. */
+/**
+ * What a single failed attempt looked like, before the reconnect policy adds its counters.
+ * `message` is always SDK-owned text: exception messages from `tokenProvider` or the socket
+ * can carry a stream key or a `?token=` URL and are never forwarded.
+ */
 export interface StreamFailure {
   reason: StreamErrorReason;
   message: string;
 }
+
+/** Fixed, credential-free text for a failure whose cause is an arbitrary exception. */
+export const STREAM_FAILURE_MESSAGES: Record<StreamErrorReason, string> = {
+  credentials_unavailable: 'Stream key provider failed',
+  connection_refused: 'Signaling connection closed before it opened',
+  disconnected: 'The stream connection dropped',
+  device_unavailable: 'The device is unavailable',
+  unknown: 'Stream connection attempt failed',
+};
 
 /** Payload of `onError`. */
 export interface StreamError extends StreamFailure {
