@@ -120,6 +120,7 @@ export async function fixture(clock?: FakeSchedule) {
       location: { href: 'https://example.invalid' },
     },
     document, URL, MediaStream: FakeMediaStream,
+    Date: clock ? class extends Date { static now() { return clock.now; } } : Date,
     WebSocket: FakeSocket, RTCPeerConnection: FakePeer,
     RTCRtpReceiver: { getCapabilities: () => null },
     RTCSessionDescription: class { constructor(value: object) { Object.assign(this, value); } },

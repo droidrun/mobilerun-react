@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import type { StreamError, StreamFailure } from '../lib/stream-error';
+import { browserReportsOnline } from '../lib/browser-network';
 import { createStreamReconnectController, type StreamReconnectSnapshot } from '../lib/stream-reconnect';
 
 interface UseStreamReconnectOptions<T> {
@@ -94,7 +95,7 @@ export function useStreamReconnect<T>({
   const controllerRef = useRef<ReturnType<typeof createStreamReconnectController> | null>(null);
   if (controllerRef.current === null) {
     controllerRef.current = createStreamReconnectController({
-      networkAvailable: typeof navigator === 'undefined' || navigator.onLine !== false,
+      networkAvailable: browserReportsOnline(),
       onRemount: bumpMount,
       onSnapshot: (s) => setSnapshot(s),
       onHeal: () => onHealRef.current?.(),
@@ -124,6 +125,12 @@ export function useStreamReconnect<T>({
     controllerRef.current?.attemptMounted();
   }, [mount.epoch]);
 
+  // Seed commit-time connectivity before the child's passive startup. A render
+  // that saw offline must not cause a second mount if startup now sees online.
+  useLayoutEffect(() => {
+    controllerRef.current?.setNetworkAvailable(browserReportsOnline(), true);
+  }, []);
+
   // Enable failure accounting before the child's passive startup effect, so
   // synchronous failures count too. DeviceStream defers the watchdog to its
   // socket event; existing hook consumers keep mount-driven arming.
@@ -143,10 +150,6 @@ export function useStreamReconnect<T>({
     };
     const onOnline = () => controllerRef.current?.setNetworkAvailable(true);
     const onOffline = () => controllerRef.current?.setNetworkAvailable(false);
-    // Re-read after commit in case connectivity changed between render and effects.
-    controllerRef.current?.setNetworkAvailable(
-      typeof navigator === 'undefined' || navigator.onLine !== false,
-    );
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('online', onOnline);
     window.addEventListener('offline', onOffline);

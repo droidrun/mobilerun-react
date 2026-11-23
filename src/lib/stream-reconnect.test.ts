@@ -581,3 +581,41 @@ describe('network availability', () => {
     controller.dispose();
   });
 });
+
+// Fix round 1: advisory offline does not interrupt a stable media session.
+test('stability budget and heal cadence survive connected offline online transitions', () => {
+  const { controller, schedule, calls } = setup();
+  controller.attemptMounted();
+  controller.handleFailure();
+  schedule.advance(1_000);
+  controller.attemptMounted();
+  controller.handleConnected();
+  schedule.advance(10_000);
+  controller.setNetworkAvailable(false);
+  schedule.advance(10_000);
+  controller.setNetworkAvailable(true);
+  schedule.advance(9_999);
+  expect(controller.getSnapshot()).toEqual({ status: 'connected', attempt: 1 });
+  schedule.advance(1);
+  expect(controller.getSnapshot()).toEqual({ status: 'connected', attempt: 0 });
+  controller.handleDisconnected();
+  expect(calls.heals).toBe(2); // A new failure heals anew after stability.
+  expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 1 });
+  controller.dispose();
+});
+
+test('a peer connecting while offline still refills its stability budget', () => {
+  const { controller, schedule, calls } = setup();
+  controller.attemptMounted();
+  controller.handleFailure();
+  schedule.advance(1_000);
+  controller.attemptMounted();
+  controller.setNetworkAvailable(false);
+  controller.handleConnected();
+  schedule.advance(30_000);
+  expect(controller.getSnapshot()).toEqual({ status: 'connected', attempt: 0 });
+  controller.setNetworkAvailable(true);
+  controller.handleDisconnected();
+  expect(calls.heals).toBe(2);
+  controller.dispose();
+});

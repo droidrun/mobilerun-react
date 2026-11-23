@@ -12,7 +12,7 @@ export function useStaticTokenWarning(usingStaticToken: boolean) {
     warnedRef.current = true;
     // eslint-disable-next-line no-console -- one-time deprecation notice
     console.warn(
-      '[@mobilerun/react] DeviceStream `streamToken` is deprecated (device token (legacy)). Pass `tokenProvider` to get a fresh stream token for every connection; a single-use stream token passed statically cannot reconnect.',
+      '[@mobilerun/react] DeviceStream `streamToken` is deprecated; it is a device token (legacy). Pass `tokenProvider` to get a fresh stream token for every connection; a single-use stream token passed statically cannot reconnect.',
     );
   }, [usingStaticToken]);
 }

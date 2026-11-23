@@ -108,7 +108,7 @@ The [full example](https://github.com/droidrun/mobilerun-react/blob/main/docs/st
 `tokenProvider` runs before every connection attempt, the first one and each reconnect, and the SDK
 never reuses a token it returns. **Use it: stream tokens are single-use, so only a provider can reconnect.**
 
-The device token (legacy) `streamToken` prop is **deprecated** and an explicit exception to that rule: it is kept until the
+The legacy `streamToken` prop (device token) is **deprecated** and an explicit exception to that rule: it is kept until the
 device token (legacy) is removed, and the SDK passes the same value again on every reconnect. A single-use stream token
 given this way is rejected on the second attempt, so the stream ends in the Retry state
 (`connection_refused`). The component logs one console warning per mount.

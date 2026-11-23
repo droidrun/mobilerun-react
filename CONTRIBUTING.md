@@ -18,7 +18,7 @@ The control messages, signalling frames, reconnect policy and input routing are 
 ## Example app
 
 The repo ships the playground shown in the [README](README.md). Set the API key server-side and enter a device id;
-manual URL/token mode remains available for device token (legacy) diagnostics:
+manual URL/token mode remains available for diagnostics with the legacy `streamToken` prop (device token):
 
 ```sh
 bun install

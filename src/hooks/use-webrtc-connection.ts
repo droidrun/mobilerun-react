@@ -12,6 +12,7 @@ import {
 } from '../lib/stream-reconnect';
 import { STREAM_FAILURE_MESSAGES, type StreamErrorReason, type StreamFailure } from '../lib/stream-error';
 import { createRTCConfigurationRequest } from '../webrtc-messages';
+import { browserReportsOnline } from '../lib/browser-network';
 
 const debugLog = (...args: any[]) => {
   if (window.debugRemoteControl) {
@@ -96,12 +97,15 @@ export function useWebRtcConnection({
   const tokenProviderRef = useRef(tokenProvider);
   tokenProviderRef.current = tokenProvider;
   const attemptGenerationRef = useRef(0);
-  const networkAvailableRef = useRef(typeof navigator === 'undefined' || navigator.onLine !== false);
-  const isOffline = () => !networkAvailableRef.current ||
-    (typeof navigator !== 'undefined' && navigator.onLine === false);
 
+  const lastReportedConnectedRef = useRef(false);
   const onConnectionStateChangeRef = useRef(onConnectionStateChange);
   onConnectionStateChangeRef.current = onConnectionStateChange;
+
+  const reportConnectionState = (connected: boolean) => {
+    lastReportedConnectedRef.current = connected;
+    onConnectionStateChangeRef.current?.(connected);
+  };
 
   const onConnectionAttemptStartedRef = useRef(onConnectionAttemptStarted);
   onConnectionAttemptStartedRef.current = onConnectionAttemptStarted;
@@ -174,7 +178,7 @@ export function useWebRtcConnection({
         if (state === 'connected') return;
         updateStatus('ICE-restart grace expired, reporting state: ' + state);
         setIsConnected(false);
-        onConnectionStateChangeRef.current?.(false);
+        reportConnectionState(false);
       },
       Math.max(0, iceRestartGraceUntilRef.current - Date.now()),
     );
@@ -215,7 +219,7 @@ export function useWebRtcConnection({
   };
 
   const start = async () => {
-    if (isOffline()) return;
+    if (!browserReportsOnline()) return;
     const generation = ++attemptGenerationRef.current;
     const provider = tokenProviderRef.current;
     const isActive = () => attemptGenerationRef.current === generation;
@@ -228,7 +232,7 @@ export function useWebRtcConnection({
       if (failed) return;
       failed = true;
       if (stopMedia) {
-        onConnectionStateChangeRef.current?.(false);
+        reportConnectionState(false);
         stop();
       }
       onConnectionFailedRef.current?.(failure);
@@ -266,11 +270,6 @@ export function useWebRtcConnection({
               reject(new Error('Stream token request cancelled'));
             };
             cancelStartupRef.current = cancelStartup;
-            if (isOffline()) {
-              ++attemptGenerationRef.current;
-              cancelStartup();
-              return;
-            }
             Promise.resolve(provider()).then(resolve, reject);
           });
         } finally {
@@ -281,7 +280,7 @@ export function useWebRtcConnection({
         if (!streamToken?.trim()) throw new Error('Stream token provider returned an empty stream token');
         phase = 'unknown';
       }
-      if (!isActive() || isOffline()) return;
+      if (!isActive() || !browserReportsOnline()) return;
       const wsUrl = buildWebSocketUrl(url, streamToken);
       const ws = new WebSocket(wsUrl);
       attemptWs = ws;
@@ -538,7 +537,7 @@ export function useWebRtcConnection({
         }
         clearRestartRecheck();
         setIsConnected(connected);
-        onConnectionStateChangeRef.current?.(connected);
+        reportConnectionState(connected);
       };
 
       pc.oniceconnectionstatechange = () => {
@@ -807,20 +806,20 @@ export function useWebRtcConnection({
       hoverChannelRef.current.close();
       hoverChannelRef.current = null;
     }
+    lastReportedConnectedRef.current = false;
     setIsConnected(false);
     updateStatus('Stopped');
   };
 
   useEffect(() => {
     // Connectivity only gates/cancels here; useStreamReconnect owns recovery.
-    networkAvailableRef.current = typeof navigator === 'undefined' || navigator.onLine !== false;
     const onOffline = () => {
-      networkAvailableRef.current = false;
-      if (peerConnectionRef.current?.connectionState !== 'connected') stop();
+      if (peerConnectionRef.current?.connectionState === 'connected' ||
+        Date.now() < iceRestartGraceUntilRef.current) return;
+      if (lastReportedConnectedRef.current) reportConnectionState(false);
+      stop();
     };
-    const onOnline = () => { networkAvailableRef.current = true; };
     window.addEventListener('offline', onOffline);
-    window.addEventListener('online', onOnline);
     start();
 
     // Add visibility change listener
@@ -836,7 +835,6 @@ export function useWebRtcConnection({
       stop();
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('offline', onOffline);
-      window.removeEventListener('online', onOnline);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: reconnect only on url/session change; start/stop/keepAlive helpers are re-created each render and must not be deps
   }, [url, sessionId]);

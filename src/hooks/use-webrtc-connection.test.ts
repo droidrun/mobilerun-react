@@ -792,3 +792,56 @@ test('advisory offline preserves connected media and online allocates no second 
   expect(f.failures).toEqual([]);
   f.unmount();
 });
+
+test('offline during ICE restart grace preserves media and control through peer recovery', async () => {
+  const clock = new FakeSchedule();
+  const f = await fixture(clock);
+  await f.negotiate();
+  const pc = f.peers[0];
+  pc.connectionState = 'connected';
+  pc.onconnectionstatechange!();
+  pc.ontrack({ track: { kind: 'video' } });
+  const media = f.video.current.srcObject;
+  const restart = f.sockets[0].onmessage!(event({ type: 'rtcConfiguration', rtcConfiguration: { iceServers: [] } }));
+  pc.connectionState = 'connecting';
+  pc.onconnectionstatechange!();
+  f.networkChange(false);
+  await tick();
+  expect(pc.closed).toBe(false);
+  expect(pc.channels.map(channel => channel.closed)).toEqual([false, false]);
+  expect(f.video.current.srcObject).toBe(media);
+  expect(f.states).toEqual([true]);
+  clock.advance(14_999);
+  expect(f.states).toEqual([true]);
+  pc.connectionState = 'connected';
+  pc.onconnectionstatechange!();
+  clock.advance(1);
+  pc.offer.resolve({ sdp: 'restart' });
+  await tick();
+  pc.local.resolve();
+  await restart;
+  f.networkChange(true);
+  await tick();
+  expect(pc.closed).toBe(false);
+  expect(f.sockets).toHaveLength(1);
+  expect(f.failures).toEqual([]);
+  f.unmount();
+});
+
+test('offline reports a previously connected stalled peer before stopping it', async () => {
+  const f = await fixture();
+  await f.negotiate();
+  const pc = f.peers[0];
+  pc.connectionState = 'connected';
+  pc.onconnectionstatechange!();
+  pc.connectionState = 'disconnected'; // No state event has reported this dip yet.
+  const close = pc.close.bind(pc);
+  let statesAtClose: boolean[] = [];
+  pc.close = () => { statesAtClose = [...f.states]; close(); };
+  f.networkChange(false);
+  await tick();
+  expect(statesAtClose).toEqual([true, false]);
+  expect(pc.closed).toBe(true);
+  expect(f.failures).toEqual([]);
+  f.unmount();
+});

@@ -108,8 +108,8 @@ export interface StreamReconnectController {
    * disabled — the new target applies immediately.
    */
   shouldDeferTargetChange(): boolean;
-  /** Observe browser connectivity; only false → true starts a fresh cycle. */
-  setNetworkAvailable(available: boolean): void;
+  /** Observe connectivity; initial commit only seeds a still-fresh connecting attempt. */
+  setNetworkAvailable(available: boolean, initialCommit?: boolean): void;
   /** Tab became visible. */
   handleWake(): void;
   /** Manual retry (Unavailable-state button). */
@@ -207,7 +207,6 @@ export function createStreamReconnectController({
       healedThisCycle = true;
       onHeal();
     }
-    if (!networkAvailable) return;
     backoffTimer = schedule.setTimeout(
       () => {
         backoffTimer = null;
@@ -234,7 +233,6 @@ export function createStreamReconnectController({
     attemptMounted(startWatchdog = true) {
       enabled = true;
       disposed = false;
-      if (!networkAvailable) return;
       // Mid-wait mounts are stale (StrictMode remount): the scheduled
       // attempt owns the next watchdog.
       if (backoffTimer !== null || status === 'unavailable') return;
@@ -248,7 +246,7 @@ export function createStreamReconnectController({
         status = 'connecting';
         emit();
       }
-      if (!startWatchdog) return;
+      if (!networkAvailable || !startWatchdog) return;
       watchdogTimer = schedule.setTimeout(() => {
         watchdogTimer = null;
         countFailure({ reason: 'unknown', message: 'Connection attempt timed out' });
@@ -282,7 +280,6 @@ export function createStreamReconnectController({
         emit();
       }
       stabilityTimer = clearTimer(stabilityTimer);
-      if (!networkAvailable) return;
       stabilityTimer = schedule.setTimeout(() => {
         stabilityTimer = null;
         // The cycle is over — the next failure run heals anew.
@@ -312,18 +309,17 @@ export function createStreamReconnectController({
       // retry has started; outside the two deferred states the change must
       // apply immediately or an in-flight attempt would run on stale
       // credentials until the connect watchdog fails it.
-      return !networkAvailable || backoffTimer !== null || status === 'unavailable';
+      return backoffTimer !== null || status === 'unavailable';
     },
 
-    setNetworkAvailable(available) {
+    setNetworkAvailable(available, initialCommit = false) {
       if (disposed || available === networkAvailable) return;
       networkAvailable = available;
-      clearAllTimers();
+      watchdogTimer = clearTimer(watchdogTimer);
+      backoffTimer = clearTimer(backoffTimer);
       if (!available) return;
-      if (status === 'connected') {
-        emit(); // Let the hook apply a target change held back while offline.
-        return;
-      }
+      if (status === 'connected') return;
+      if (initialCommit && status === 'connecting' && attempt === 0) return;
       if (enabled) freshCycle();
       else onHeal(); // No target yet: its existing owner resumes discovery.
     },
