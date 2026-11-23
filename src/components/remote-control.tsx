@@ -22,9 +22,9 @@ interface RemoteControlProps {
   // url is the URL of the instance to connect to.
   url: string;
 
-  /** @deprecated Use tokenProvider to acquire a fresh key for each connection attempt. */
+  /** @deprecated Device token (legacy). Use tokenProvider to acquire a fresh stream token for each connection attempt. */
   token?: string;
-  /** Resolves a fresh stream key before each WebSocket attempt. Overrides token. */
+  /** Resolves a fresh stream token before each WebSocket attempt. Overrides token. */
   tokenProvider?: () => Promise<string>;
 
   // className is the class name to apply to the component
@@ -55,7 +55,7 @@ interface RemoteControlProps {
   // out a connect watchdog.
   // Receives the reason of the failure.
   onConnectionFailed?: (failure: StreamFailure) => void;
-  /** Fired when a socket is allocated, after any key provider resolves. */
+  /** Fired when a socket is allocated, after any token provider resolves. */
   onConnectionAttemptStarted?: () => void;
 
   // Override label for the corner pill shown while the WebRTC stream is

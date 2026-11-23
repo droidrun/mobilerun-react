@@ -61,7 +61,7 @@ export interface UseDeviceStreamDeviceOptions extends UseDeviceStreamBase {
 export interface UseDeviceStreamResult {
   /** WebRTC signaling URL — feed straight into `<DeviceStream streamUrl />`. */
   streamUrl?: string;
-  /** @deprecated Obtain a fresh key from your backend with `<DeviceStream tokenProvider />`. */
+  /** @deprecated Device token (legacy). Obtain a fresh stream token from your backend with `<DeviceStream tokenProvider />`. */
   streamToken?: string;
   /** The device's lifecycle state (`ready`, `assigned`, ...). */
   state?: string;
@@ -84,11 +84,11 @@ export interface UseDeviceStreamResult {
  *
  * ```tsx
  * const { streamUrl, state, refetch } = useDeviceStream({ device });
- * // getFreshStreamKey calls your authenticated backend's stream-key endpoint.
+ * // getFreshStreamToken calls your authenticated backend's stream-token endpoint.
  * return (
  *   <DeviceStream
  *     streamUrl={streamUrl}
- *     tokenProvider={getFreshStreamKey}
+ *     tokenProvider={getFreshStreamToken}
  *     hasControl
  *     placeholderLabel={state}
  *     onStreamHealed={refetch}

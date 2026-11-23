@@ -49,4 +49,4 @@ Available tokens: `--mr-background`, `--mr-foreground`, `--mr-card`, `--mr-card-
 
 The old unprefixed names (`--background`, `--card`, ...) are still read as a fallback for one more
 minor release, so themes written for 0.3 keep working; move them to `--mr-*`. User-visible texts are
-set with the `labels` prop, see [Stream keys](stream-keys.md#labels).
+set with the `labels` prop, see [Stream tokens](stream-tokens.md#labels).

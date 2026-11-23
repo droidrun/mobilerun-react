@@ -21,14 +21,14 @@ import { useStreamReconnect } from '../hooks/use-stream-reconnect';
 export interface DeviceStreamProps {
   streamUrl?: string;
   /**
-   * @deprecated A static key is single-use, so it cannot reconnect. Use `tokenProvider`,
-   * which returns a fresh key for every connection attempt. Logs one console warning per mount.
+   * @deprecated Device token (legacy). Use `tokenProvider` for a fresh stream token
+   * on every connection attempt. Logs one console warning per mount.
    */
   streamToken?: string;
   /**
    * Called before every WebSocket attempt, the first connect and each reconnect, and returns
-   * a fresh stream key minted by your backend (`POST /v1/identity/stream-keys`). A key is never
-   * reused for a second connect. A throw, a rejection, an empty key or no answer within 10 s
+   * a fresh stream token minted by your backend (`POST /v1/identity/stream-keys`). A stream token is never
+   * reused for a second connect. A throw, a rejection, an empty stream token or no answer within 10 s
    * fails the attempt with reason `credentials_unavailable`. Wins over `streamToken`.
    */
   tokenProvider?: () => Promise<string>;

@@ -4,16 +4,16 @@
 // Dev harness server for the @mobilerun/react example.
 //
 // The stream WebSocket is not proxied: the browser connects to the SDK-provided
-// streamUrl directly, and @mobilerun/react appends a fresh stream key as ?token=.
+// streamUrl directly, and @mobilerun/react appends a fresh stream token as ?token=.
 //
 // For SDK mode, this Bun + Hono server exposes narrow endpoints that uses the
-// official SDK to retrieve streamUrl and mint a key without exposing the parent API key:
+// official SDK to retrieve streamUrl and mint a stream token without exposing the parent API key:
 //
 //   browser ──(same-origin)──▶ this server ──(@mobilerun/sdk)──▶ API
 //
 //   • Serves the example UI (Bun bundles index.html + main.tsx).
 //   • GET /api/v1/devices/:deviceId returns id/state/streamUrl only.
-//   • POST /api/v1/devices/:deviceId/stream-key mints one single-use key per attempt.
+//   • POST /api/v1/devices/:deviceId/stream-key mints one single-use stream token per attempt.
 //   • Local use only: the server binds to 127.0.0.1 and its task routes and SSE
 //     route are unauthenticated by design. If you expose anything publicly (e.g. a
 //     tunnel for webhook testing), forward only /webhooks/mobilerun, never the
@@ -230,7 +230,7 @@ if (import.meta.main) {
   console.log(`\n  ▸ @mobilerun/react dev harness   http://localhost:${PORT}`);
   const upstreamUrl = sdk?.api.baseURL ?? 'https://api.mobilerun.ai/v1';
   console.log(`  ▸ SDK helper    GET /api/v1/devices/:id      →  ${upstreamUrl}/devices/:id`);
-  console.log('  ▸ stream key    POST /api/v1/devices/:id/stream-key');
+  console.log('  ▸ stream token  POST /api/v1/devices/:id/stream-key');
   console.log(
     '  ▸ approvals     GET/POST /api/v1/tasks/:id…  ·  POST /webhooks/mobilerun  ·  GET /api/v1/events',
   );

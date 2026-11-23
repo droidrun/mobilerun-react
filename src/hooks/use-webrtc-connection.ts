@@ -34,7 +34,7 @@ function buildWebSocketUrl(url: string, token?: string): string {
   return wsUrl.toString();
 }
 
-// A stream key may only travel over TLS, except for local development sockets.
+// A stream token may only travel over TLS, except for local development sockets.
 function isSecureStreamUrl(url: string): boolean {
   const resolved = new URL(url, window.location.href);
   if (resolved.protocol === 'wss:') return true;
@@ -252,18 +252,18 @@ export function useWebRtcConnection({
     try {
       let streamToken = tokenRef.current;
       if (provider) {
-        if (!isSecureStreamUrl(url)) throw new Error('Stream key requires a secure WebSocket URL');
+        if (!isSecureStreamUrl(url)) throw new Error('Stream token requires a secure WebSocket URL');
         let providerTimer: ReturnType<typeof setTimeout> | undefined;
         phase = 'credentials_unavailable';
         try {
           streamToken = await new Promise<string>((resolve, reject) => {
             providerTimer = setTimeout(
-              () => reject(new Error('Stream key provider timeout')),
+              () => reject(new Error('Stream token provider timeout')),
               STREAM_TOKEN_PROVIDER_TIMEOUT_MS,
             );
             cancelStartup = () => {
               clearTimeout(providerTimer);
-              reject(new Error('Stream key request cancelled'));
+              reject(new Error('Stream token request cancelled'));
             };
             cancelStartupRef.current = cancelStartup;
             if (isOffline()) {
@@ -278,7 +278,7 @@ export function useWebRtcConnection({
           if (cancelStartupRef.current === cancelStartup) cancelStartupRef.current = null;
         }
         if (!isActive()) return;
-        if (!streamToken?.trim()) throw new Error('Stream key provider returned an empty key');
+        if (!streamToken?.trim()) throw new Error('Stream token provider returned an empty stream token');
         phase = 'unknown';
       }
       if (!isActive() || isOffline()) return;
@@ -759,7 +759,7 @@ export function useWebRtcConnection({
       updateStatus(provider ? 'Stream connection attempt failed' : 'Error: ' + e);
       failAttempt({
         reason: phase,
-        // Never forward `e.message`: provider and socket errors can carry the key or a ?token= URL.
+        // Never forward `e.message`: provider and socket errors can carry the token or a ?token= URL.
         message: STREAM_FAILURE_MESSAGES[phase],
       });
     }

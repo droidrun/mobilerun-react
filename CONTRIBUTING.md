@@ -18,7 +18,7 @@ The control messages, signalling frames, reconnect policy and input routing are 
 ## Example app
 
 The repo ships the playground shown in the [README](README.md). Set the API key server-side and enter a device id;
-manual URL/token mode remains available for legacy diagnostics:
+manual URL/token mode remains available for device token (legacy) diagnostics:
 
 ```sh
 bun install
@@ -29,7 +29,9 @@ In SDK mode the example server returns only `id`, `state`, and `streamUrl` from
 `GET /api/v1/devices/:id`. Its `POST /api/v1/devices/:id/stream-key` helper calls the public mint
 API through `sdk.api.post('/identity/stream-keys', ...)`, returning only `{ key, keyId, expiresAt }`
 with `Cache-Control: no-store`. The browser's provider calls it for each connection attempt; the
-API key stays server-side. The stream WebSocket connects directly with the fresh key in `?token=`.
+API key stays server-side. The stream WebSocket connects directly with the fresh stream token in `?token=`.
+The route names and `key` / `keyId` DTO fields remain transitional wire names until the identity API
+cutover; the credential is a stream token. See [Stream tokens](docs/stream-tokens.md).
 The same server also demonstrates [task approvals](docs/task-approvals.md) (set `MOBILERUN_WEBHOOK_SECRET`
 for the webhook route). All example helpers are unauthenticated and **local-only**, bound to
 `127.0.0.1`. Before adapting them for production, add application authentication and device

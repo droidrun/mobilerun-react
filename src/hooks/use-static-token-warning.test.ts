@@ -18,13 +18,15 @@ async function harness() {
   return { warnings, render };
 }
 
-test('a static key warns once per mount, however often it re-renders', async () => {
+test('a device token (legacy) warns once per mount, however often it re-renders', async () => {
   const { warnings, render } = await harness();
   render(true);
   render(true);
   render(true);
   expect(warnings).toHaveLength(1);
   expect(warnings[0]).toContain('tokenProvider');
+  expect(warnings[0]).toContain('device token (legacy)');
+  expect(warnings[0]).toContain('fresh stream token');
 });
 
 test('no warning while a provider is in use', async () => {

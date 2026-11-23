@@ -218,7 +218,7 @@ function SdkStream({
     device: sdk.devices.fromId(deviceId),
   });
 
-  const getFreshStreamKey = useCallback(async () => {
+  const getFreshStreamToken = useCallback(async () => {
     const res = await fetch(`/api/v1/devices/${encodeURIComponent(deviceId)}/stream-key`, {
       method: 'POST',
       cache: 'no-store',
@@ -237,12 +237,12 @@ function SdkStream({
       <DeviceStream
         ref={streamRef}
         streamUrl={streamUrl}
-        tokenProvider={getFreshStreamKey}
+        tokenProvider={getFreshStreamToken}
         hasControl={hasControl}
         muted={muted}
         placeholderLabel={state ?? (isLoading ? 'loading…' : 'connecting')}
         onStreamHealed={refetch}
-        // `reason` tells a refused key from a dropped session; `final` means the Retry button is showing.
+        // `reason` tells a refused stream token from a dropped session; `final` means the Retry button is showing.
         onError={(streamError) => onStatus({ streamError })}
         onConnectionStateChange={(c) => onStatus({ connected: c, ...(c ? { streamError: undefined } : {}) })}
       />
@@ -454,7 +454,7 @@ function App() {
   const [status, setStatus] = useState<Status>({ isLoading: false, connected: false });
   const onStatus = useCallback((p: Partial<Status>) => setStatus((s) => ({ ...s, ...p })), []);
 
-  // Legacy diagnostic mode: pasted static tokens cannot renew single-use keys on retries.
+  // Device token (legacy) diagnostic mode: pasted tokens cannot renew single-use stream tokens on retries.
   const [streamUrl, setStreamUrl] = useState('');
   const [streamToken, setStreamToken] = useState('');
   const [applied, setApplied] = useState<{ url?: string; token?: string }>({});
@@ -564,7 +564,7 @@ function App() {
                   <input value={streamUrl} onChange={(e) => setStreamUrl(e.target.value)} placeholder="wss://…" />
                 </div>
                 <div className="field">
-                  <label>streamToken</label>
+                  <label>Device token (legacy)</label>
                   <input value={streamToken} onChange={(e) => setStreamToken(e.target.value)} placeholder="token…" />
                 </div>
                 <div className="row">

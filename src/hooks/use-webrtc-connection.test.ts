@@ -174,7 +174,7 @@ test('a queued ICE grace recheck cannot change replacement state', async () => {
   f.unmount();
 });
 
-test('provider per socket awaits a fresh key for first connect and retry', async () => {
+test('provider per socket awaits a fresh stream token for first connect and retry', async () => {
   const f = await fixture();
   const first = deferred<string>();
   const second = deferred<string>();
@@ -581,7 +581,7 @@ test('provider timeout reports credentials_unavailable', async () => {
   clock.advance(10_000);
   await tick();
   expect(reasons(f)).toEqual(['credentials_unavailable']);
-  expect(f.failureInfos[0].message).toBe('Stream key provider failed');
+  expect(f.failureInfos[0].message).toBe('Stream token provider failed');
   f.unmount();
 });
 
@@ -697,7 +697,7 @@ test.each([
   f.mount('a', undefined, { tokenProvider });
   await tick();
   expect(reasons(f)).toEqual(['credentials_unavailable']);
-  expect(f.failureInfos[0].message).toBe('Stream key provider failed');
+  expect(f.failureInfos[0].message).toBe('Stream token provider failed');
   expectNoCredential(f, throughController(f.failureInfos));
   f.unmount();
 });

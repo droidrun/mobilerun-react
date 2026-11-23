@@ -26,7 +26,7 @@
 
 </div>
 
-> **Building Mobilerun phones into your platform?** Start with the [Partner guide](https://docs.mobilerun.ai/partners). It walks through the API key, one phone per user, stream keys and live viewing step by step.
+> **Building Mobilerun phones into your platform?** Start with the [Partner guide](https://docs.mobilerun.ai/partners). It walks through the API key, one phone per user, stream tokens and live viewing step by step.
 
 <table>
 <tr>
@@ -64,18 +64,21 @@ npm install @mobilerun/react @mobilerun/sdk react react-dom
 
 ## Quick start
 
-1. Your server mints a short-lived stream key for one device with your API key
+1. Your server mints a short-lived stream token for one device with your API key
    (`POST /v1/identity/stream-keys`). Follow the [Partner guide](https://docs.mobilerun.ai/partners).
-2. Your app's `tokenProvider` asks your server for a key before each connection.
-3. The SDK opens the stream with that key, one key per connection, and reconnects with a fresh one.
+2. Your app's `tokenProvider` asks your server for a stream token before each connection.
+3. The SDK opens the stream with that token, one token per connection, and reconnects with a fresh one.
+
+The current wire routes still use `stream-key` / `stream-keys` and return `key` / `keyId` during
+the stream-token naming transition. Use these existing routes until the identity API cutover.
 
 Keep `MOBILERUN_API_KEY` on your server. This mint handler excerpt uses the SDK's `/v1` base URL;
-see [Stream keys](https://github.com/droidrun/mobilerun-react/blob/main/docs/stream-keys.md) for route setup, metadata fetching and error handling.
+see [Stream tokens](https://github.com/droidrun/mobilerun-react/blob/main/docs/stream-tokens.md) for route setup, metadata fetching and error handling.
 
 ```ts
 import { MobilerunSDK } from '@mobilerun/sdk';
 const sdk = new MobilerunSDK({ logLevel: 'off' }); // server only
-export async function mintStreamKey(deviceId: string): Promise<Response> {
+export async function mintStreamToken(deviceId: string): Promise<Response> {
   // Authenticate your user and check they own the device before minting.
   const { key, keyId, expiresAt } = await sdk.api.post<{ key: string; keyId: string; expiresAt: string }>(
     '/identity/stream-keys', { body: { deviceId, ttlSeconds: 120 }, maxRetries: 0 },
@@ -92,21 +95,21 @@ import '@mobilerun/react/styles.css';
 export function DevicePanel({ deviceId, streamUrl }: { deviceId: string; streamUrl: string }) {
   const tokenProvider = async () => {
     const res = await fetch(`/api/v1/devices/${encodeURIComponent(deviceId)}/stream-key`, { method: 'POST', cache: 'no-store' });
-    if (!res.ok) throw new Error('Stream key request failed');
+    if (!res.ok) throw new Error('Stream token request failed');
     return (await res.json()).key;
   };
   return <div style={{ width: 360, height: 780 }}><DeviceStream streamUrl={streamUrl} tokenProvider={tokenProvider} hasControl /></div>;
 }
 ```
 
-Never log or cache stream keys. Your backend must authenticate callers and authorize the device.
-The [full example](https://github.com/droidrun/mobilerun-react/blob/main/docs/stream-keys.md) also shows `useDeviceStream` and legacy compatibility.
+Never log or cache stream tokens. Your backend must authenticate callers and authorize the device.
+The [full example](https://github.com/droidrun/mobilerun-react/blob/main/docs/stream-tokens.md) also shows `useDeviceStream` and device token (legacy) compatibility.
 
 `tokenProvider` runs before every connection attempt, the first one and each reconnect, and the SDK
-never reuses a key it returns. **Use it: stream keys are single-use, so only a provider can reconnect.**
+never reuses a token it returns. **Use it: stream tokens are single-use, so only a provider can reconnect.**
 
-The static `streamToken` prop is **deprecated** and an explicit exception to that rule: it is kept until the
-legacy token is removed, and the SDK passes the same value again on every reconnect. A single-use key
+The device token (legacy) `streamToken` prop is **deprecated** and an explicit exception to that rule: it is kept until the
+device token (legacy) is removed, and the SDK passes the same value again on every reconnect. A single-use stream token
 given this way is rejected on the second attempt, so the stream ends in the Retry state
 (`connection_refused`). The component logs one console warning per mount.
 
@@ -123,7 +126,7 @@ React to failures and white-label the texts:
 ```
 
 `reason` is `credentials_unavailable` (your provider threw or took longer than 10 s),
-`connection_refused` (the socket closed before it opened: a used, expired or wrong key, a wrong
+`connection_refused` (the socket closed before it opened: a used, expired or wrong stream token, a wrong
 device or a refused origin; browsers cannot see the HTTP status), `disconnected` (an open session
 dropped, including the 30-minute server cap) or `unknown`. `final: true` means retries stopped and
 the Retry button is showing. `labels` replaces every text the component renders.
@@ -148,7 +151,7 @@ default. Add `.dark` to an ancestor, or to the component root, for the bundled d
 
 | Guide | Covers |
 | --- | --- |
-| [Stream keys](https://github.com/droidrun/mobilerun-react/blob/main/docs/stream-keys.md) | Server routes, device metadata, `tokenProvider`, retries and legacy tokens. |
+| [Stream tokens](https://github.com/droidrun/mobilerun-react/blob/main/docs/stream-tokens.md) | Server routes, device metadata, `tokenProvider`, retries and device tokens (legacy). |
 | [Components and styling](https://github.com/droidrun/mobilerun-react/blob/main/docs/default-ui.md) | Components, prebuilt CSS, theme variables and dark mode. |
 | [Task approvals](https://github.com/droidrun/mobilerun-react/blob/main/docs/task-approvals.md) | Webhooks, backend decisions, cards, bottom sheets and labels. |
 

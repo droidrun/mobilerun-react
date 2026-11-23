@@ -4,9 +4,9 @@
 /**
  * Why a stream connection attempt failed (stream client contract v1).
  *
- * - `credentials_unavailable`: `tokenProvider` threw, timed out or returned an empty key.
+ * - `credentials_unavailable`: `tokenProvider` threw, timed out or returned an empty stream token.
  * - `connection_refused`: the signaling WebSocket closed before it opened. A browser cannot
- *   see the HTTP status, so a rejected, used or expired key, a wrong device and a refused
+ *   see the HTTP status, so a rejected, used or expired stream token, a wrong device and a refused
  *   origin all land here.
  * - `disconnected`: an open session dropped (includes the server's session cap).
  * - `device_unavailable`: the server reported the device offline or not ready. The current
@@ -23,7 +23,7 @@ export type StreamErrorReason =
 /**
  * What a single failed attempt looked like, before the reconnect policy adds its counters.
  * `message` is always SDK-owned text: exception messages from `tokenProvider` or the socket
- * can carry a stream key or a `?token=` URL and are never forwarded.
+ * can carry a stream token or a `?token=` URL and are never forwarded.
  */
 export interface StreamFailure {
   reason: StreamErrorReason;
@@ -32,7 +32,7 @@ export interface StreamFailure {
 
 /** Fixed, credential-free text for a failure whose cause is an arbitrary exception. */
 export const STREAM_FAILURE_MESSAGES: Record<StreamErrorReason, string> = {
-  credentials_unavailable: 'Stream key provider failed',
+  credentials_unavailable: 'Stream token provider failed',
   connection_refused: 'Signaling connection closed before it opened',
   disconnected: 'The stream connection dropped',
   device_unavailable: 'The device is unavailable',
