@@ -19,7 +19,7 @@ import { FakeSchedule } from './test-clock';
 const NO_JITTER = () => 0.5;
 const DELAYS = [1000, 2000, 4000, 8000, 16000, 30000];
 
-function setup() {
+function setup(networkAvailable = true) {
   const schedule = new FakeSchedule();
   const calls = { remounts: 0, heals: 0 };
   const snapshots: StreamReconnectSnapshot[] = [];
@@ -34,6 +34,7 @@ function setup() {
       snapshots.push(s);
     },
     schedule,
+    networkAvailable,
     random: NO_JITTER,
   });
   // Simulate React: every remount request results in a mounted attempt.
@@ -534,7 +535,7 @@ describe('network availability', () => {
     controller.handleWake();
     controller.attemptMounted();
     schedule.advance(45_001);
-    expect(controller.getSnapshot()).toEqual({ status: 'connecting', attempt: 0 });
+    expect(controller.getSnapshot()).toEqual({ status: 'unavailable', attempt: 0 });
     expect(schedule.pendingCount).toBe(0);
     expect(calls).toEqual({ remounts: 0, heals: 0 });
     controller.setNetworkAvailable(true);
@@ -573,7 +574,7 @@ describe('network availability', () => {
     controller.handleDisconnected();
     controller.handleFailure();
     schedule.advance(60_000);
-    expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 1 });
+    expect(controller.getSnapshot()).toEqual({ status: 'unavailable', attempt: 1 });
     expect(schedule.pendingCount).toBe(0);
     expect(calls).toEqual({ remounts: 0, heals: 0 });
     controller.dispose();
@@ -643,7 +644,7 @@ test('offline explicit Retry resets the counter and a timed out forced attempt w
   expect(errors).toEqual([
     { reason: 'unknown', message: 'Connection failed', attempt: 1, final: false },
     { reason: 'unknown', message: 'Connection failed', attempt: 2, final: false },
-    { reason: 'unknown', message: 'Connection attempt timed out', attempt: 1, final: false },
+    { reason: 'unknown', message: 'Connection attempt timed out', attempt: 1, final: true },
   ]);
   controller.handleFailure();
   controller.handleWake();
@@ -655,5 +656,20 @@ test('offline explicit Retry resets the counter and a timed out forced attempt w
   controller.setNetworkAvailable(true);
   expect(remounts).toEqual([false, true, false]);
   expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 0 });
+  controller.dispose();
+});
+
+test('initial offline state offers Retry and network return starts one fresh cycle', () => {
+  const { controller, calls, schedule } = setup(false);
+  expect(controller.getSnapshot()).toEqual({ status: 'unavailable', attempt: 0 });
+  controller.attemptMounted(false);
+  controller.handleWake();
+  schedule.advance(60_000);
+  expect(controller.getSnapshot()).toEqual({ status: 'unavailable', attempt: 0 });
+  expect(calls.remounts).toBe(0);
+  controller.setNetworkAvailable(true);
+  controller.setNetworkAvailable(true);
+  expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 0 });
+  expect(calls.remounts).toBe(1);
   controller.dispose();
 });

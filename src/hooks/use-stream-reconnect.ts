@@ -56,10 +56,10 @@ export function useStreamReconnect<T>({
   enabled,
   watchdogFromSocket = false,
 }: UseStreamReconnectOptions<T>) {
-  const [snapshot, setSnapshot] = useState<StreamReconnectSnapshot>({
-    status: 'connecting',
+  const [snapshot, setSnapshot] = useState<StreamReconnectSnapshot>(() => ({
+    status: browserReportsOnline() ? 'connecting' : 'unavailable',
     attempt: 0,
-  });
+  }));
   // The mount epoch and the target that mount uses advance atomically, so a
   // remounted stream never renders one commit on a stale target.
   const [mount, setMount] = useState<{ epoch: number; target: T; allowOffline: boolean }>(
@@ -124,7 +124,7 @@ export function useStreamReconnect<T>({
   const activeEpochRef = useRef<number | null>(mount.epoch);
   const onConnectionAttemptStarted = useCallback(() => {
     if (activeEpochRef.current !== mount.epoch) return;
-    controllerRef.current?.attemptMounted(true, mount.allowOffline);
+    controllerRef.current?.attemptMounted(true, mount.allowOffline, true);
   }, [mount.epoch]);
 
   // Seed commit-time connectivity before the child's passive startup. A render

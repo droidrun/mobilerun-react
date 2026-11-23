@@ -149,12 +149,15 @@ watchdogs are cancelled; late provider results are ignored without an error. An 
 this hint for one fresh attempt (direct `useStreamReconnect` consumers forward its `allowOffline`
 value to the socket hook/component); if it fails offline, the failure is reported once and automatic
 retries, visibility wake and target changes remain gated until online. An advisory offline notification preserves
-healthy media until its transport actually fails.
+healthy media until its transport actually fails. Retry is ignored while connected or while an explicit
+attempt is still live; otherwise an offline pause shows `unavailable` with the default Retry action.
 
 A false-to-true network transition starts one immediate fresh attempt when a connection is needed,
 resets backoff to attempt 0, and calls the latest provider for a new stream token. Duplicate online
 events do nothing; a healthy stream is not remounted. Connectivity is only a scheduling hint,
-not proof that the server is reachable. Existing labels and bounded retries still apply.
+not proof that the server is reachable. A forced attempt with an allocated socket continues when online
+returns, while a forced provider wait is discarded for a fresh attempt. Existing labels and bounded
+retries still apply.
 
 `DeviceStream` manages this through `useStreamReconnect`. Direct `RemoteControl` or
 `useWebRtcConnection` consumers get offline gating and cancellation, but must own remounting and

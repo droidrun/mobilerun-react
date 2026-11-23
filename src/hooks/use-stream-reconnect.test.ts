@@ -5,7 +5,7 @@ import { expect, mock, test } from 'bun:test';
 import { FakeSchedule } from '../lib/test-clock';
 import type { StreamError, StreamFailure } from '../lib/stream-error';
 import { runHook, tick } from './test-hook-runner';
-import { fixture } from './webrtc-test-fixture';
+import { deferred, fixture } from './webrtc-test-fixture';
 import type { useStreamReconnect } from './use-stream-reconnect';
 
 async function reconnectFixture(online = true, enabled = true) {
@@ -45,6 +45,7 @@ test('initial offline, target change and visibility wait for one fresh online at
   const f = await fixture();
   f.networkChange(false);
   let result = r.render();
+  expect(result.status).toBe('unavailable');
   const provider = mock(async () => 'fresh');
   f.mount(result.activeTarget, undefined, { tokenProvider: provider });
   r.listeners.visibilitychange.forEach(fn => fn());
@@ -52,8 +53,8 @@ test('initial offline, target change and visibility wait for one fresh online at
   result = r.render('b'); // Settle React's render-phase target update.
   r.clock.advance(45_001);
   await tick();
-  expect(result.streamKey).toBe('1');
-  expect(result.activeTarget).toBe('b');
+  expect(result.streamKey).toBe('0');
+  expect(result.activeTarget).toBe('a');
   expect(provider).not.toHaveBeenCalled();
   expect(f.sockets).toHaveLength(0);
   expect(r.error).not.toHaveBeenCalled();
@@ -64,7 +65,7 @@ test('initial offline, target change and visibility wait for one fresh online at
   f.networkChange(true);
   f.mount(result.activeTarget, undefined, { tokenProvider: provider });
   await tick();
-  expect(result.streamKey).toBe('2');
+  expect(result.streamKey).toBe('1');
   expect(result.activeTarget).toBe('b');
   expect(result.attempt).toBe(0);
   expect(provider).toHaveBeenCalledTimes(1);
@@ -102,7 +103,7 @@ test('network return resets high backoff, uses latest callback and ignores the o
   stale.onConnectionAttemptStarted();
   r.network(true);
   result = r.render('new', latestHeal);
-  expect(result.streamKey).toBe('4');
+  expect(result.streamKey).toBe('3');
   expect(result.activeTarget).toBe('new');
   expect(result.attempt).toBe(0);
   expect(result.status).toBe('reconnecting');
@@ -162,7 +163,7 @@ test('offline switch from connected A to B tears down A and acquires B once on r
   r.render('b');
   result = r.render('b'); // Observe the snapshot emitted by the new mount's layout effect.
   expect(result.activeTarget).toBe('b');
-  expect(result.status).toBe('connecting');
+  expect(result.status).toBe('unavailable');
   f.mount(result.activeTarget, undefined, { tokenProvider: provider });
   await tick();
   expect(oldPeer.closed).toBe(true);
@@ -236,8 +237,9 @@ test('explicit Retry offline opens once, reports one failure and resumes once on
   result.onConnectionFailed(f.failureInfos[0] as StreamFailure);
   result = r.render();
   expect(r.error.mock.calls).toEqual([[{
-    reason: 'connection_refused', message: 'Signaling connection closed before it opened', attempt: 1, final: false,
+    reason: 'connection_refused', message: 'Signaling connection closed before it opened', attempt: 1, final: true,
   }]]);
+  expect(result.status).toBe('unavailable');
   expect(r.clock.pendingCount).toBe(0);
   r.listeners.visibilitychange.forEach(fn => fn());
   r.clock.advance(60_000);
@@ -280,6 +282,123 @@ test('an automatic target change cannot reuse the explicit offline Retry permiss
   expect(provider).toHaveBeenCalledTimes(1);
   expect(f.sockets).toHaveLength(1);
   expect(f.sockets[0].readyState).toBe(3);
+  r.unmount();
+  f.unmount();
+});
+
+test('offline Retry keeps healthy media without minting or remounting', async () => {
+  const r = await reconnectFixture();
+  const f = await fixture();
+  const provider = mock(async () => 'fresh');
+  let result = r.render();
+  f.mount('a', undefined, { tokenProvider: provider });
+  await tick();
+  f.sockets[0].open();
+  await tick();
+  f.sockets[0].config();
+  await tick();
+  const pc = f.peers[0];
+  pc.connectionState = 'connected';
+  pc.onconnectionstatechange!();
+  pc.ontrack({ track: { kind: 'video' } });
+  const media = f.video.current.srcObject;
+  result.onConnectionStateChange(true);
+  r.network(false);
+  f.networkChange(false);
+  result.retry();
+  result.retry();
+  result = r.render();
+  await tick();
+  expect(result.streamKey).toBe('0');
+  expect(result.status).toBe('connected');
+  expect(provider).toHaveBeenCalledTimes(1);
+  expect(f.sockets).toHaveLength(1);
+  expect(pc.closed).toBe(false);
+  expect(pc.channels.map(channel => channel.closed)).toEqual([false, false]);
+  expect(f.video.current.srcObject).toBe(media);
+  r.unmount();
+  f.unmount();
+});
+
+test('offline Retry double taps share one live provider and socket attempt', async () => {
+  const r = await reconnectFixture(false);
+  const f = await fixture();
+  f.networkChange(false);
+  const pending = deferred<string>();
+  const provider = mock(() => pending.promise);
+  let result = r.render();
+  result.retry();
+  result.retry(); // Before React commits the requested mount.
+  result = r.render();
+  f.mount('a', undefined, { tokenProvider: provider, allowOffline: result.allowOffline, onConnectionAttemptStarted: result.onConnectionAttemptStarted });
+  result.retry(); // The provider is still live.
+  expect(r.render().streamKey).toBe('1');
+  pending.resolve('fresh');
+  await tick();
+  result.retry(); // The socket is now live.
+  expect(r.render().streamKey).toBe('1');
+  expect(provider).toHaveBeenCalledTimes(1);
+  expect(f.sockets).toHaveLength(1);
+  expect(r.heal).toHaveBeenCalledTimes(1);
+  r.unmount();
+  f.unmount();
+});
+
+test.each([['opening', 0], ['open', 1]] as const)('online return keeps the forced %s socket and its original watchdog', async (phase, expectedReadyState) => {
+  const r = await reconnectFixture(false);
+  const f = await fixture();
+  f.networkChange(false);
+  const provider = mock(async () => 'fresh');
+  let result = r.render();
+  result.retry();
+  result = r.render();
+  f.mount('a', undefined, { tokenProvider: provider, allowOffline: result.allowOffline, onConnectionAttemptStarted: result.onConnectionAttemptStarted });
+  await tick();
+  const socket = f.sockets[0];
+  const enterPhase = { opening: () => {}, open: () => socket.open() };
+  enterPhase[phase]();
+  await tick();
+  r.clock.advance(10_000);
+  r.network(true);
+  f.networkChange(true);
+  result = r.render();
+  await tick();
+  expect(result.streamKey).toBe('1');
+  expect(provider).toHaveBeenCalledTimes(1);
+  expect(f.sockets).toHaveLength(1);
+  expect(socket.readyState).toBe(expectedReadyState);
+  expect(r.clock.pendingCount).toBe(1);
+  expect(r.heal).toHaveBeenCalledTimes(1);
+  r.clock.advance(34_999);
+  expect(r.error).not.toHaveBeenCalled();
+  r.clock.advance(1);
+  expect(r.error).toHaveBeenCalledTimes(1); // Online did not reset the 45s deadline.
+  r.unmount();
+  f.unmount();
+});
+
+test('online return discards a forced provider wait before opening one fresh socket', async () => {
+  const r = await reconnectFixture(false);
+  const f = await fixture();
+  f.networkChange(false);
+  const pending = deferred<string>();
+  const provider = mock(async () => 'fresh').mockImplementationOnce(() => pending.promise);
+  let result = r.render();
+  result.retry();
+  result = r.render();
+  f.mount('a', undefined, { tokenProvider: provider, allowOffline: result.allowOffline, onConnectionAttemptStarted: result.onConnectionAttemptStarted });
+  r.network(true);
+  f.networkChange(true);
+  result = r.render();
+  f.mount('a', undefined, { tokenProvider: provider, allowOffline: result.allowOffline, onConnectionAttemptStarted: result.onConnectionAttemptStarted });
+  pending.resolve('obsolete');
+  await tick();
+  expect(result.streamKey).toBe('2');
+  expect(result.allowOffline).toBe(false);
+  expect(provider).toHaveBeenCalledTimes(2);
+  expect(f.sockets).toHaveLength(1);
+  expect(f.failures).toEqual([]);
+  expect(r.error).not.toHaveBeenCalled();
   r.unmount();
   f.unmount();
 });

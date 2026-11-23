@@ -91,8 +91,8 @@ export interface StreamReconnectControllerOptions {
 }
 
 export interface StreamReconnectController {
-  /** Begin an attempt; defer the watchdog until socket allocation when false. */
-  attemptMounted(startWatchdog?: boolean, allowOffline?: boolean): void;
+  /** Begin an attempt; false defers the watchdog. fromSocket marks actual socket allocation. */
+  attemptMounted(startWatchdog?: boolean, allowOffline?: boolean, fromSocket?: boolean): void;
   /** No stream target anymore (URL gone) — stop timers, reset counters. */
   setDisabled(): void;
   handleConnected(): void;
@@ -130,7 +130,8 @@ export function createStreamReconnectController({
   let enabled = false;
   let disposed = false;
   let forcedAttempt = false;
-  let status: StreamReconnectStatus = 'connecting';
+  let socketStarted = false;
+  let status: StreamReconnectStatus = networkAvailable ? 'connecting' : 'unavailable';
   let attempt = 0;
   // Whether the current mount epoch ever reached 'connected'. Gates
   // handleDisconnected: the peer connection reports non-connected states
@@ -188,7 +189,7 @@ export function createStreamReconnectController({
     watchdogTimer = clearTimer(watchdogTimer);
     stabilityTimer = clearTimer(stabilityTimer);
     attempt += 1;
-    if (attempt > STREAM_RECONNECT_MAX_ATTEMPTS) {
+    if (!networkAvailable || attempt > STREAM_RECONNECT_MAX_ATTEMPTS) {
       status = 'unavailable';
       emit();
       reportError(failure, true);
@@ -204,7 +205,6 @@ export function createStreamReconnectController({
     // Credentials fetched at cycle start stay fresh across the cycle's ~2min
     // span, and a refresh that resolves after a retry started still applies
     // via shouldDeferTargetChange/onRemount.
-    if (!networkAvailable) return;
     if (!healedThisCycle) {
       healedThisCycle = true;
       onHeal();
@@ -220,6 +220,7 @@ export function createStreamReconnectController({
 
   const freshCycle = (allowOffline = false) => {
     forcedAttempt = allowOffline;
+    socketStarted = false;
     attempt = 0;
     failureLatched = false;
     everConnectedThisEpoch = false;
@@ -233,10 +234,17 @@ export function createStreamReconnectController({
   };
 
   return {
-    attemptMounted(startWatchdog = true, allowOffline = false) {
+    attemptMounted(startWatchdog = true, allowOffline = false, fromSocket = false) {
       forcedAttempt = allowOffline;
+      socketStarted = fromSocket;
       enabled = true;
       disposed = false;
+      if (!networkAvailable && !forcedAttempt) {
+        clearAllTimers();
+        status = 'unavailable';
+        emit();
+        return;
+      }
       // Mid-wait mounts are stale (StrictMode remount): the scheduled
       // attempt owns the next watchdog.
       if (backoffTimer !== null || status === 'unavailable') return;
@@ -320,11 +328,22 @@ export function createStreamReconnectController({
     setNetworkAvailable(available, initialCommit = false) {
       if (disposed || available === networkAvailable) return;
       networkAvailable = available;
+      if (forcedAttempt && socketStarted) return;
       watchdogTimer = clearTimer(watchdogTimer);
       backoffTimer = clearTimer(backoffTimer);
-      if (!available) return;
+      if (!available) {
+        if (status !== 'connected' && !forcedAttempt) {
+          status = 'unavailable';
+          emit();
+        }
+        return;
+      }
       if (status === 'connected') return;
-      if (initialCommit && status === 'connecting' && attempt === 0) return;
+      if (initialCommit && attempt === 0) {
+        status = 'connecting';
+        emit();
+        return;
+      }
       if (enabled) freshCycle();
       else onHeal(); // No target yet: its existing owner resumes discovery.
     },
@@ -345,6 +364,7 @@ export function createStreamReconnectController({
 
     retry() {
       if (!enabled) return;
+      if (!networkAvailable && (status === 'connected' || forcedAttempt)) return;
       if (!networkAvailable || status === 'unavailable') {
         clearAllTimers();
         freshCycle(!networkAvailable);
