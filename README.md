@@ -149,6 +149,8 @@ default. Add `.dark` to an ancestor, or to the component root, for the bundled d
 
 ## Guides
 
+Coding agents: [Mobilerun device stream skill](https://github.com/droidrun/mobilerun-react/blob/main/skills/mobilerun-device-stream/SKILL.md).
+
 | Guide | Covers |
 | --- | --- |
 | [Stream tokens](https://github.com/droidrun/mobilerun-react/blob/main/docs/stream-tokens.md) | Server routes, device metadata, `tokenProvider`, retries and device tokens (legacy). |
