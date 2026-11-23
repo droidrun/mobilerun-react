@@ -45,7 +45,7 @@ interface UseStreamReconnectOptions<T> {
  * when the tab becomes visible / the browser comes back online / `retry()`
  * is called.
  *
- * Forward `onConnectionStateChange` and `onConnectionFailed` to the stream
+ * Forward `onConnectionStateChange`, `onConnectionFailed` and `allowOffline` to the stream
  * component; render status/attempt as the user-facing connection state.
  */
 export function useStreamReconnect<T>({
@@ -62,7 +62,9 @@ export function useStreamReconnect<T>({
   });
   // The mount epoch and the target that mount uses advance atomically, so a
   // remounted stream never renders one commit on a stale target.
-  const [mount, setMount] = useState<{ epoch: number; target: T }>(() => ({ epoch: 0, target }));
+  const [mount, setMount] = useState<{ epoch: number; target: T; allowOffline: boolean }>(
+    () => ({ epoch: 0, target, allowOffline: false }),
+  );
   // Key of the last APPLIED target — the comparison base for detecting
   // pending target changes. Deliberately not advanced when a change is
   // deferred; see the render-phase check below.
@@ -85,9 +87,9 @@ export function useStreamReconnect<T>({
 
   // Applying a target always records its key too, so a change that was
   // pending while deferred is not re-applied a second time afterwards.
-  const bumpMount = useCallback(() => {
+  const bumpMount = useCallback((allowOffline = false) => {
     setLastTargetKey(targetKeyRef.current);
-    setMount((m) => ({ epoch: m.epoch + 1, target: targetRef.current }));
+    setMount((m) => ({ epoch: m.epoch + 1, target: targetRef.current, allowOffline }));
   }, []);
 
   // Lazy-initialized once; stable for the component's lifetime, so effects
@@ -116,13 +118,13 @@ export function useStreamReconnect<T>({
   // the next committed render instead of being consumed and lost.
   if (lastTargetKey !== targetKey && !controllerRef.current.shouldDeferTargetChange()) {
     setLastTargetKey(targetKey);
-    setMount((m) => ({ epoch: m.epoch + 1, target }));
+    setMount((m) => ({ epoch: m.epoch + 1, target, allowOffline: false }));
   }
 
   const activeEpochRef = useRef<number | null>(mount.epoch);
   const onConnectionAttemptStarted = useCallback(() => {
     if (activeEpochRef.current !== mount.epoch) return;
-    controllerRef.current?.attemptMounted();
+    controllerRef.current?.attemptMounted(true, mount.allowOffline);
   }, [mount.epoch]);
 
   // Seed commit-time connectivity before the child's passive startup. A render
@@ -137,7 +139,7 @@ export function useStreamReconnect<T>({
   useLayoutEffect(() => {
     activeEpochRef.current = mount.epoch;
     if (enabled) {
-      controllerRef.current?.attemptMounted(!watchdogFromSocket);
+      controllerRef.current?.attemptMounted(!watchdogFromSocket, mount.allowOffline);
     } else {
       controllerRef.current?.setDisabled();
     }
@@ -183,6 +185,8 @@ export function useStreamReconnect<T>({
     streamKey: String(mount.epoch),
     /** The pinned target to render the stream from — NOT the raw props. */
     activeTarget: mount.target,
+    /** Forward to the socket hook/component for this explicit Retry mount only. */
+    allowOffline: mount.allowOffline,
     status: snapshot.status,
     attempt: snapshot.attempt,
     onConnectionStateChange,

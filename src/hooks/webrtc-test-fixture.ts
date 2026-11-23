@@ -138,6 +138,7 @@ export async function fixture(clock?: FakeSchedule) {
     url?: string;
     token?: string;
     tokenProvider?: () => Promise<string>;
+    allowOffline?: boolean;
     onConnectionAttemptStarted?: () => void;
   };
   const render = (id = 'a', openUrl?: string, credentials: Credentials = {}) => {

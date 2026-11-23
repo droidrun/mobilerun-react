@@ -532,7 +532,6 @@ describe('network availability', () => {
     controller.setNetworkAvailable(false);
     expect(schedule.pendingCount).toBe(0);
     controller.handleWake();
-    controller.retry();
     controller.attemptMounted();
     schedule.advance(45_001);
     expect(controller.getSnapshot()).toEqual({ status: 'connecting', attempt: 0 });
@@ -556,7 +555,6 @@ describe('network availability', () => {
     controller.handleFailure();
     expect(controller.getSnapshot()).toEqual({ status: 'unavailable', attempt: 7 });
     controller.setNetworkAvailable(false);
-    controller.retry();
     controller.handleWake();
     expect(calls.remounts).toBe(6);
     controller.setNetworkAvailable(true);
@@ -617,5 +615,45 @@ test('a peer connecting while offline still refills its stability budget', () =>
   controller.setNetworkAvailable(true);
   controller.handleDisconnected();
   expect(calls.heals).toBe(2);
+  controller.dispose();
+});
+
+test('offline explicit Retry resets the counter and a timed out forced attempt waits for online', () => {
+  const schedule = new FakeSchedule();
+  const remounts: (boolean | undefined)[] = [];
+  const errors: object[] = [];
+  const controller = createStreamReconnectController({
+    schedule, random: NO_JITTER, onRemount: allowOffline => remounts.push(allowOffline),
+    onHeal: () => {}, onSnapshot: () => {}, onError: error => errors.push(error),
+  });
+  controller.attemptMounted();
+  controller.handleFailure();
+  schedule.advance(1_000);
+  controller.attemptMounted();
+  controller.handleFailure();
+  expect(controller.getSnapshot().attempt).toBe(2);
+  controller.setNetworkAvailable(false);
+  controller.retry();
+  expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 0 });
+  expect(remounts).toEqual([false, true]);
+  controller.attemptMounted(true, true);
+  schedule.advance(44_999);
+  expect(errors).toHaveLength(2);
+  schedule.advance(1);
+  expect(errors).toEqual([
+    { reason: 'unknown', message: 'Connection failed', attempt: 1, final: false },
+    { reason: 'unknown', message: 'Connection failed', attempt: 2, final: false },
+    { reason: 'unknown', message: 'Connection attempt timed out', attempt: 1, final: false },
+  ]);
+  controller.handleFailure();
+  controller.handleWake();
+  schedule.advance(60_000);
+  expect(remounts).toEqual([false, true]);
+  expect(schedule.pendingCount).toBe(0);
+  expect(errors).toHaveLength(3);
+  controller.setNetworkAvailable(true);
+  controller.setNetworkAvailable(true);
+  expect(remounts).toEqual([false, true, false]);
+  expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 0 });
   controller.dispose();
 });

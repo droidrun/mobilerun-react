@@ -3,6 +3,7 @@
 
 import { expect, mock, test } from 'bun:test';
 import { FakeSchedule } from '../lib/test-clock';
+import type { StreamError, StreamFailure } from '../lib/stream-error';
 import { runHook, tick } from './test-hook-runner';
 import { fixture } from './webrtc-test-fixture';
 import type { useStreamReconnect } from './use-stream-reconnect';
@@ -16,7 +17,7 @@ async function reconnectFixture(online = true, enabled = true) {
     removeEventListener(name: keyof typeof listeners, fn: () => void) { listeners[name].delete(fn); },
   };
   const heal = mock(() => {});
-  const error = mock(() => {});
+  const error = mock((_error: StreamError) => {});
   const runner = await runHook<{ useStreamReconnect: typeof useStreamReconnect<string> }>(
     import.meta.dir + '/use-stream-reconnect.ts', {
       navigator, window: events, document: { ...events, visibilityState: 'visible' },
@@ -39,14 +40,13 @@ async function reconnectFixture(online = true, enabled = true) {
   return { clock, listeners, heal, error, render, network, navigator, commit: runner.flushEffects, unmount: runner.unmount };
 }
 
-test('initial offline, target change, visibility and retry wait for one fresh online attempt', async () => {
+test('initial offline, target change and visibility wait for one fresh online attempt', async () => {
   const r = await reconnectFixture(false);
   const f = await fixture();
   f.networkChange(false);
   let result = r.render();
   const provider = mock(async () => 'fresh');
   f.mount(result.activeTarget, undefined, { tokenProvider: provider });
-  result.retry();
   r.listeners.visibilitychange.forEach(fn => fn());
   r.render('b');
   result = r.render('b'); // Settle React's render-phase target update.
@@ -90,7 +90,6 @@ test('network return resets high backoff, uses latest callback and ignores the o
   const stale = result;
   const latestHeal = mock(() => {});
   r.network(false);
-  result.retry();
   r.listeners.visibilitychange.forEach(fn => fn());
   r.render('new', latestHeal);
   r.render('new', latestHeal);
@@ -202,6 +201,85 @@ test('offline render followed by online commit starts one provider call without 
   expect(f.sockets).toHaveLength(1);
   expect(r.heal).not.toHaveBeenCalled();
   expect(r.clock.pendingCount).toBe(1); // The one allocated socket owns its watchdog.
+  r.unmount();
+  f.unmount();
+});
+
+test('explicit Retry offline opens once, reports one failure and resumes once online', async () => {
+  const r = await reconnectFixture(false);
+  const f = await fixture();
+  f.networkChange(false);
+  const provider = mock(async () => 'fresh');
+  let result = r.render();
+  f.mount(result.activeTarget, undefined, { tokenProvider: provider, allowOffline: result.allowOffline });
+  r.listeners.visibilitychange.forEach(fn => fn());
+  r.clock.advance(60_000);
+  await tick();
+  expect(provider).not.toHaveBeenCalled();
+  expect(f.sockets).toHaveLength(0);
+  result.retry();
+  result = r.render();
+  f.mount(result.activeTarget, undefined, {
+    tokenProvider: provider, allowOffline: result.allowOffline,
+    onConnectionAttemptStarted: result.onConnectionAttemptStarted,
+  });
+  await tick();
+  expect(result.streamKey).toBe('1');
+  expect(result.allowOffline).toBe(true);
+  expect(result.attempt).toBe(0);
+  expect(provider).toHaveBeenCalledTimes(1);
+  expect(f.sockets).toHaveLength(1);
+  expect(r.clock.pendingCount).toBe(1);
+  f.sockets[0].close(1006);
+  await tick();
+  result.onConnectionFailed(f.failureInfos[0] as StreamFailure);
+  result.onConnectionFailed(f.failureInfos[0] as StreamFailure);
+  result = r.render();
+  expect(r.error.mock.calls).toEqual([[{
+    reason: 'connection_refused', message: 'Signaling connection closed before it opened', attempt: 1, final: false,
+  }]]);
+  expect(r.clock.pendingCount).toBe(0);
+  r.listeners.visibilitychange.forEach(fn => fn());
+  r.clock.advance(60_000);
+  await tick();
+  expect(r.render().streamKey).toBe('1');
+  expect(provider).toHaveBeenCalledTimes(1);
+  expect(f.sockets).toHaveLength(1);
+  r.network(true);
+  f.networkChange(true);
+  result = r.render();
+  f.mount(result.activeTarget, undefined, { tokenProvider: provider, allowOffline: result.allowOffline });
+  await tick();
+  r.network(true);
+  r.listeners.visibilitychange.forEach(fn => fn());
+  expect(result.streamKey).toBe('2');
+  expect(result.allowOffline).toBe(false);
+  expect(result.attempt).toBe(0);
+  expect(provider).toHaveBeenCalledTimes(2);
+  expect(f.sockets).toHaveLength(2);
+  r.unmount();
+  f.unmount();
+});
+
+test('an automatic target change cannot reuse the explicit offline Retry permission', async () => {
+  const r = await reconnectFixture(false);
+  const f = await fixture();
+  f.networkChange(false);
+  const provider = mock(async () => 'fresh');
+  let result = r.render();
+  result.retry();
+  result = r.render();
+  f.mount(result.activeTarget, undefined, { tokenProvider: provider, allowOffline: result.allowOffline });
+  await tick();
+  expect(provider).toHaveBeenCalledTimes(1);
+  r.render('b');
+  result = r.render('b');
+  f.mount(result.activeTarget, undefined, { tokenProvider: provider, allowOffline: result.allowOffline });
+  await tick();
+  expect(result.allowOffline).toBe(false);
+  expect(provider).toHaveBeenCalledTimes(1);
+  expect(f.sockets).toHaveLength(1);
+  expect(f.sockets[0].readyState).toBe(3);
   r.unmount();
   f.unmount();
 });

@@ -845,3 +845,18 @@ test('offline reports a previously connected stalled peer before stopping it', a
   expect(f.failures).toEqual([]);
   f.unmount();
 });
+
+test('an explicit offline Retry ignores offline notifications while awaiting its fresh token', async () => {
+  const f = await fixture();
+  const pending = deferred<string>();
+  const provider = mock(() => pending.promise);
+  f.networkChange(false);
+  f.mount('a', undefined, { tokenProvider: provider, allowOffline: true });
+  f.networkChange(false);
+  pending.resolve('fresh');
+  await tick();
+  expect(provider).toHaveBeenCalledTimes(1);
+  expect(f.sockets).toHaveLength(1);
+  expect(f.failures).toEqual([]);
+  f.unmount();
+});

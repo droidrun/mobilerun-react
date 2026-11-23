@@ -96,6 +96,7 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
   const {
     streamKey,
     activeTarget,
+    allowOffline,
     status,
     attempt,
     onConnectionStateChange: onReconnectConnectionChange,
@@ -155,6 +156,7 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
               url={activeTarget.url ?? streamUrl}
               token={activeTarget.token}
               tokenProvider={tokenProvider}
+              allowOffline={allowOffline}
               className="w-full h-full"
               onConnectionStateChange={handleConnectionStateChange}
               onConnectionFailed={onConnectionFailed}

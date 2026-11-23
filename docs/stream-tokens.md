@@ -145,8 +145,10 @@ URL/token mode is a device token (legacy) diagnostic path; a pasted single-use s
 
 While the browser reports offline (`navigator.onLine === false` or an `offline` event), no new
 `tokenProvider` call or socket allocation starts. Pending acquisition, retry waits and connect
-watchdogs are cancelled; late provider results are ignored without an error. Retry, visibility
-wake and target changes cannot bypass this pause. An advisory offline notification preserves
+watchdogs are cancelled; late provider results are ignored without an error. An explicit Retry overrides
+this hint for one fresh attempt (direct `useStreamReconnect` consumers forward its `allowOffline`
+value to the socket hook/component); if it fails offline, the failure is reported once and automatic
+retries, visibility wake and target changes remain gated until online. An advisory offline notification preserves
 healthy media until its transport actually fails.
 
 A false-to-true network transition starts one immediate fresh attempt when a connection is needed,

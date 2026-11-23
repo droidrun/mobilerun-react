@@ -77,7 +77,7 @@ export interface StreamReconnectSchedule {
 
 export interface StreamReconnectControllerOptions {
   /** Bump the mount epoch — remounts the stream component. */
-  onRemount(): void;
+  onRemount(allowOffline?: boolean): void;
   /** Status/attempt changed. */
   onSnapshot(snapshot: StreamReconnectSnapshot): void;
   /** A reconnect attempt is being scheduled — refetch stream credentials. */
@@ -92,7 +92,7 @@ export interface StreamReconnectControllerOptions {
 
 export interface StreamReconnectController {
   /** Begin an attempt; defer the watchdog until socket allocation when false. */
-  attemptMounted(startWatchdog?: boolean): void;
+  attemptMounted(startWatchdog?: boolean, allowOffline?: boolean): void;
   /** No stream target anymore (URL gone) — stop timers, reset counters. */
   setDisabled(): void;
   handleConnected(): void;
@@ -112,7 +112,7 @@ export interface StreamReconnectController {
   setNetworkAvailable(available: boolean, initialCommit?: boolean): void;
   /** Tab became visible. */
   handleWake(): void;
-  /** Manual retry (Unavailable-state button). */
+  /** Manual retry; explicitly overrides advisory offline for one fresh attempt. */
   retry(): void;
   dispose(): void;
   getSnapshot(): StreamReconnectSnapshot;
@@ -129,6 +129,7 @@ export function createStreamReconnectController({
 }: StreamReconnectControllerOptions): StreamReconnectController {
   let enabled = false;
   let disposed = false;
+  let forcedAttempt = false;
   let status: StreamReconnectStatus = 'connecting';
   let attempt = 0;
   // Whether the current mount epoch ever reached 'connected'. Gates
@@ -171,9 +172,9 @@ export function createStreamReconnectController({
     }
   };
 
-  const startAttempt = () => {
-    if (!enabled || !networkAvailable || disposed) return;
-    onRemount();
+  const startAttempt = (allowOffline = false) => {
+    if (!enabled || (!networkAvailable && !allowOffline) || disposed) return;
+    onRemount(allowOffline);
     // The resulting mount calls attemptMounted(), which arms the watchdog.
   };
 
@@ -181,7 +182,8 @@ export function createStreamReconnectController({
     // A wait is already scheduled (or we already gave up) — e.g. a stale
     // watchdog armed by a StrictMode double-mount. Never stack timers.
     if (backoffTimer !== null || status === 'unavailable') return;
-    if (!networkAvailable && !everConnectedThisEpoch) return;
+    if (!networkAvailable && !everConnectedThisEpoch && !forcedAttempt) return;
+    forcedAttempt = false;
     failureLatched = true;
     watchdogTimer = clearTimer(watchdogTimer);
     stabilityTimer = clearTimer(stabilityTimer);
@@ -216,7 +218,8 @@ export function createStreamReconnectController({
     );
   };
 
-  const freshCycle = () => {
+  const freshCycle = (allowOffline = false) => {
+    forcedAttempt = allowOffline;
     attempt = 0;
     failureLatched = false;
     everConnectedThisEpoch = false;
@@ -226,11 +229,12 @@ export function createStreamReconnectController({
     status = 'reconnecting';
     emit();
     onHeal();
-    startAttempt();
+    startAttempt(allowOffline);
   };
 
   return {
-    attemptMounted(startWatchdog = true) {
+    attemptMounted(startWatchdog = true, allowOffline = false) {
+      forcedAttempt = allowOffline;
       enabled = true;
       disposed = false;
       // Mid-wait mounts are stale (StrictMode remount): the scheduled
@@ -246,7 +250,7 @@ export function createStreamReconnectController({
         status = 'connecting';
         emit();
       }
-      if (!networkAvailable || !startWatchdog) return;
+      if ((!networkAvailable && !forcedAttempt) || !startWatchdog) return;
       watchdogTimer = schedule.setTimeout(() => {
         watchdogTimer = null;
         countFailure({ reason: 'unknown', message: 'Connection attempt timed out' });
@@ -254,6 +258,7 @@ export function createStreamReconnectController({
     },
 
     setDisabled() {
+      forcedAttempt = false;
       enabled = false;
       disposed = false;
       clearAllTimers();
@@ -339,11 +344,15 @@ export function createStreamReconnectController({
     },
 
     retry() {
-      if (!enabled || !networkAvailable) return;
-      if (status === 'unavailable') freshCycle();
+      if (!enabled) return;
+      if (!networkAvailable || status === 'unavailable') {
+        clearAllTimers();
+        freshCycle(!networkAvailable);
+      }
     },
 
     dispose() {
+      forcedAttempt = false;
       disposed = true;
       enabled = false;
       clearAllTimers();

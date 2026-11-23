@@ -51,6 +51,8 @@ interface UseWebRtcConnectionOptions {
   url: string;
   token?: string;
   tokenProvider?: () => Promise<string>;
+  /** Set by an explicit Retry mount; automatic mounts leave this false. */
+  allowOffline?: boolean;
   sessionId: string;
   openUrl?: string;
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -84,6 +86,7 @@ export function useWebRtcConnection({
   url,
   token,
   tokenProvider,
+  allowOffline = false,
   sessionId,
   openUrl,
   videoRef,
@@ -219,7 +222,7 @@ export function useWebRtcConnection({
   };
 
   const start = async () => {
-    if (!browserReportsOnline()) return;
+    if (!allowOffline && !browserReportsOnline()) return;
     const generation = ++attemptGenerationRef.current;
     const provider = tokenProviderRef.current;
     const isActive = () => attemptGenerationRef.current === generation;
@@ -280,7 +283,7 @@ export function useWebRtcConnection({
         if (!streamToken?.trim()) throw new Error('Stream token provider returned an empty stream token');
         phase = 'unknown';
       }
-      if (!isActive() || !browserReportsOnline()) return;
+      if (!isActive() || (!allowOffline && !browserReportsOnline())) return;
       const wsUrl = buildWebSocketUrl(url, streamToken);
       const ws = new WebSocket(wsUrl);
       attemptWs = ws;
@@ -814,6 +817,7 @@ export function useWebRtcConnection({
   useEffect(() => {
     // Connectivity only gates/cancels here; useStreamReconnect owns recovery.
     const onOffline = () => {
+      if (allowOffline) return;
       if (peerConnectionRef.current?.connectionState === 'connected' ||
         Date.now() < iceRestartGraceUntilRef.current) return;
       if (lastReportedConnectedRef.current) reportConnectionState(false);

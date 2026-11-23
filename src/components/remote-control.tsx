@@ -26,6 +26,8 @@ interface RemoteControlProps {
   token?: string;
   /** Resolves a fresh stream token before each WebSocket attempt. Overrides token. */
   tokenProvider?: () => Promise<string>;
+  /** Permit one explicitly requested Retry mount despite advisory offline. */
+  allowOffline?: boolean;
 
   // className is the class name to apply to the component
   // on top of the default styles.
@@ -129,6 +131,7 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
       url,
       token,
       tokenProvider,
+      allowOffline,
       sessionId: propSessionId,
       openUrl,
       onConnectionStateChange,
@@ -162,6 +165,7 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
       url,
       token,
       tokenProvider,
+      allowOffline,
       sessionId,
       openUrl,
       videoRef,
