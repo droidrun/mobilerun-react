@@ -9,7 +9,8 @@ const fixtureSource = `
   const effectSlots = new Set();
   export function useRef(value) { return slots[cursor++] ??= { current: value }; }
   export function useState(value) {
-    const ref = useRef(value);
+    const ref = slots[cursor] ?? { current: typeof value === 'function' ? value() : value };
+    slots[cursor++] = ref;
     return [ref.current, next => {
       ref.current = typeof next === 'function' ? next(ref.current) : next;
       stateWrites.push(ref.current);
@@ -27,6 +28,7 @@ const fixtureSource = `
     const slot = ref.current = { deps, cleanup: undefined };
     pending.push(() => { slot.cleanup = fn(); });
   }
+  export const useLayoutEffect = useEffect;
   globalThis.beginRender = () => { cursor = 0; };
   globalThis.cleanupEffects = () => {
     for (const ref of effectSlots) {

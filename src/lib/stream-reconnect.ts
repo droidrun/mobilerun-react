@@ -25,7 +25,7 @@ import type { StreamError, StreamFailure } from './stream-error';
  *  - Holding a connection for STABILITY_MS refills the retry budget, so the
  *    known server-side ~2min disconnect loop (DRO-2705) keeps reconnecting
  *    quickly forever instead of escalating into `unavailable`.
- *  - `handleWake` (tab visible / back online) short-circuits a pending
+ *  - `handleWake` (tab visible) short-circuits a pending
  *    backoff wait, and starts a fresh retry cycle when unavailable.
  */
 
@@ -86,6 +86,8 @@ export interface StreamReconnectControllerOptions {
   onError?(error: StreamError): void;
   schedule?: StreamReconnectSchedule;
   random?: () => number;
+  /** Unknown connectivity is optimistic; false pauses acquisition and retry timing. */
+  networkAvailable?: boolean;
 }
 
 export interface StreamReconnectController {
@@ -106,7 +108,9 @@ export interface StreamReconnectController {
    * disabled — the new target applies immediately.
    */
   shouldDeferTargetChange(): boolean;
-  /** Tab became visible / browser back online. */
+  /** Observe browser connectivity; only false → true starts a fresh cycle. */
+  setNetworkAvailable(available: boolean): void;
+  /** Tab became visible. */
   handleWake(): void;
   /** Manual retry (Unavailable-state button). */
   retry(): void;
@@ -121,8 +125,10 @@ export function createStreamReconnectController({
   onError,
   schedule = { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (id) => clearTimeout(id) },
   random = Math.random,
+  networkAvailable = true,
 }: StreamReconnectControllerOptions): StreamReconnectController {
   let enabled = false;
+  let disposed = false;
   let status: StreamReconnectStatus = 'connecting';
   let attempt = 0;
   // Whether the current mount epoch ever reached 'connected'. Gates
@@ -166,6 +172,7 @@ export function createStreamReconnectController({
   };
 
   const startAttempt = () => {
+    if (!enabled || !networkAvailable || disposed) return;
     onRemount();
     // The resulting mount calls attemptMounted(), which arms the watchdog.
   };
@@ -174,6 +181,7 @@ export function createStreamReconnectController({
     // A wait is already scheduled (or we already gave up) — e.g. a stale
     // watchdog armed by a StrictMode double-mount. Never stack timers.
     if (backoffTimer !== null || status === 'unavailable') return;
+    if (!networkAvailable && !everConnectedThisEpoch) return;
     failureLatched = true;
     watchdogTimer = clearTimer(watchdogTimer);
     stabilityTimer = clearTimer(stabilityTimer);
@@ -194,10 +202,12 @@ export function createStreamReconnectController({
     // Credentials fetched at cycle start stay fresh across the cycle's ~2min
     // span, and a refresh that resolves after a retry started still applies
     // via shouldDeferTargetChange/onRemount.
+    if (!networkAvailable) return;
     if (!healedThisCycle) {
       healedThisCycle = true;
       onHeal();
     }
+    if (!networkAvailable) return;
     backoffTimer = schedule.setTimeout(
       () => {
         backoffTimer = null;
@@ -223,6 +233,8 @@ export function createStreamReconnectController({
   return {
     attemptMounted(startWatchdog = true) {
       enabled = true;
+      disposed = false;
+      if (!networkAvailable) return;
       // Mid-wait mounts are stale (StrictMode remount): the scheduled
       // attempt owns the next watchdog.
       if (backoffTimer !== null || status === 'unavailable') return;
@@ -245,6 +257,7 @@ export function createStreamReconnectController({
 
     setDisabled() {
       enabled = false;
+      disposed = false;
       clearAllTimers();
       everConnectedThisEpoch = false;
       failureLatched = false;
@@ -269,6 +282,7 @@ export function createStreamReconnectController({
         emit();
       }
       stabilityTimer = clearTimer(stabilityTimer);
+      if (!networkAvailable) return;
       stabilityTimer = schedule.setTimeout(() => {
         stabilityTimer = null;
         // The cycle is over — the next failure run heals anew.
@@ -298,11 +312,24 @@ export function createStreamReconnectController({
       // retry has started; outside the two deferred states the change must
       // apply immediately or an in-flight attempt would run on stale
       // credentials until the connect watchdog fails it.
-      return backoffTimer !== null || status === 'unavailable';
+      return !networkAvailable || backoffTimer !== null || status === 'unavailable';
+    },
+
+    setNetworkAvailable(available) {
+      if (disposed || available === networkAvailable) return;
+      networkAvailable = available;
+      clearAllTimers();
+      if (!available) return;
+      if (status === 'connected') {
+        emit(); // Let the hook apply a target change held back while offline.
+        return;
+      }
+      if (enabled) freshCycle();
+      else onHeal(); // No target yet: its existing owner resumes discovery.
     },
 
     handleWake() {
-      if (!enabled) return;
+      if (!enabled || !networkAvailable) return;
       if (status === 'unavailable') {
         freshCycle();
         return;
@@ -316,11 +343,12 @@ export function createStreamReconnectController({
     },
 
     retry() {
-      if (!enabled) return;
+      if (!enabled || !networkAvailable) return;
       if (status === 'unavailable') freshCycle();
     },
 
     dispose() {
+      disposed = true;
       enabled = false;
       clearAllTimers();
     },

@@ -108,8 +108,13 @@ export async function fixture(clock?: FakeSchedule) {
       this.tracks = this.tracks.filter(t => t !== track);
     }
   }
+  const navigator = { onLine: true };
+  const networkListeners = { online: new Set<() => void>(), offline: new Set<() => void>() };
   const context = {
+    navigator,
     window: {
+      addEventListener(name: 'online' | 'offline', fn: () => void) { networkListeners[name].add(fn); },
+      removeEventListener(name: 'online' | 'offline', fn: () => void) { networkListeners[name].delete(fn); },
       setTimeout: clock?.setTimeout ?? setTimer, clearTimeout: clock?.clearTimeout ?? clearTimer,
       setInterval: setIntervalTimer, clearInterval: clearTimer,
       location: { href: 'https://example.invalid' },
@@ -154,7 +159,11 @@ export async function fixture(clock?: FakeSchedule) {
     return render(id, openUrl, credentials);
   };
   return {
-    hooks,
+    hooks, navigator, networkListeners,
+    networkChange(online: boolean) {
+      navigator.onLine = online;
+      networkListeners[online ? 'online' : 'offline'].forEach(fn => fn());
+    },
     sockets, peers, timers, scheduled, states, failures, failureInfos, bindings, stateWrites,
     video, mount, render,
     document,

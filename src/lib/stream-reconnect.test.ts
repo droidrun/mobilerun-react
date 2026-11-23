@@ -523,3 +523,61 @@ describe('attempt counting', () => {
     expect(reconnectPillLabel('Getrennt', 2, 6)).toBe('Getrennt (2/6)');
   });
 });
+
+describe('network availability', () => {
+  test('offline stops a watchdog across its deadline without counting failures', () => {
+    const { controller, schedule, calls } = setup();
+    controller.attemptMounted();
+    schedule.advance(44_999);
+    controller.setNetworkAvailable(false);
+    expect(schedule.pendingCount).toBe(0);
+    controller.handleWake();
+    controller.retry();
+    controller.attemptMounted();
+    schedule.advance(45_001);
+    expect(controller.getSnapshot()).toEqual({ status: 'connecting', attempt: 0 });
+    expect(schedule.pendingCount).toBe(0);
+    expect(calls).toEqual({ remounts: 0, heals: 0 });
+    controller.setNetworkAvailable(true);
+    controller.setNetworkAvailable(true);
+    expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 0 });
+    expect(calls).toEqual({ remounts: 1, heals: 1 });
+    controller.dispose();
+  });
+
+  test('network return revives unavailable with a full budget exactly once', () => {
+    const { controller, schedule, calls } = setup();
+    controller.attemptMounted();
+    DELAYS.forEach(delay => {
+      controller.handleFailure();
+      schedule.advance(delay);
+      controller.attemptMounted();
+    });
+    controller.handleFailure();
+    expect(controller.getSnapshot()).toEqual({ status: 'unavailable', attempt: 7 });
+    controller.setNetworkAvailable(false);
+    controller.retry();
+    controller.handleWake();
+    expect(calls.remounts).toBe(6);
+    controller.setNetworkAvailable(true);
+    controller.setNetworkAvailable(true);
+    expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 0 });
+    expect(calls.remounts).toBe(7);
+    expect(calls.heals).toBe(2);
+    controller.dispose();
+  });
+
+  test('a live transport can report one drop offline but cannot schedule another retry', () => {
+    const { controller, schedule, calls } = setup();
+    controller.attemptMounted();
+    controller.handleConnected();
+    controller.setNetworkAvailable(false);
+    controller.handleDisconnected();
+    controller.handleFailure();
+    schedule.advance(60_000);
+    expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 1 });
+    expect(schedule.pendingCount).toBe(0);
+    expect(calls).toEqual({ remounts: 0, heals: 0 });
+    controller.dispose();
+  });
+});

@@ -715,3 +715,80 @@ test.each([
   expectNoCredential(f, throughController(f.failureInfos));
   f.unmount();
 });
+
+test.each([false, true])('offline start gates provider and socket (provider=%s)', async (withProvider) => {
+  const f = await fixture();
+  const provider = mock(async () => 'fresh');
+  f.networkChange(false);
+  f.mount('a', undefined, withProvider ? { tokenProvider: provider } : { token: 'legacy' });
+  f.visibilityChange();
+  f.fireTimers();
+  f.render('b', undefined, withProvider ? { tokenProvider: provider } : { token: 'legacy' });
+  await tick();
+  expect(provider).not.toHaveBeenCalled();
+  expect(f.sockets).toEqual([]);
+  expect(f.failures).toEqual([]);
+  f.unmount();
+  expect(f.networkListeners.online.size + f.networkListeners.offline.size).toBe(0);
+});
+
+test.each(['resolve', 'reject'] as const)('offline cancels provider wait and ignores late %s', async (outcome) => {
+  const clock = new FakeSchedule();
+  const f = await fixture(clock);
+  const pending = deferred<string>();
+  f.mount('a', undefined, { tokenProvider: () => pending.promise });
+  f.networkChange(false);
+  await tick();
+  expect(clock.pendingCount).toBe(0);
+  const settle = { resolve: () => pending.resolve('unused'), reject: () => pending.reject(new Error('late')) };
+  settle[outcome]();
+  clock.advance(45_001);
+  await tick();
+  expect(clock.pendingCount).toBe(0);
+  expect(f.sockets).toEqual([]);
+  expect(f.failures).toEqual([]);
+  f.networkChange(true);
+  await tick();
+  expect(f.sockets).toEqual([]); // Low-level hook has no autonomous retry loop.
+  f.unmount();
+});
+
+test('availability is rechecked before socket allocation without an offline event', async () => {
+  const f = await fixture();
+  const pending = deferred<string>();
+  f.mount('a', undefined, { tokenProvider: () => pending.promise });
+  f.navigator.onLine = false;
+  pending.resolve('unused');
+  await tick();
+  expect(f.sockets).toEqual([]);
+  expect(f.failures).toEqual([]);
+  f.unmount();
+});
+
+test('offline cancels a socket handshake without reporting a failure', async () => {
+  const clock = new FakeSchedule();
+  const f = await fixture(clock);
+  f.mount();
+  f.networkChange(false);
+  clock.advance(45_001);
+  await tick();
+  expect(f.sockets[0].readyState).toBe(3);
+  expect(f.failures).toEqual([]);
+  expect(clock.pendingCount).toBe(0);
+  f.unmount();
+});
+
+test('advisory offline preserves connected media and online allocates no second socket', async () => {
+  const f = await fixture();
+  await f.negotiate();
+  const pc = f.peers[0];
+  pc.connectionState = 'connected';
+  pc.onconnectionstatechange!();
+  f.networkChange(false);
+  f.networkChange(true);
+  await tick();
+  expect(pc.closed).toBe(false);
+  expect(f.sockets).toHaveLength(1);
+  expect(f.failures).toEqual([]);
+  f.unmount();
+});

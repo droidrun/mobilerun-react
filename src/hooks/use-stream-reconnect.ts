@@ -77,7 +77,7 @@ export function useStreamReconnect<T>({
   // abandons never leaks its value into a later attempt.
   const targetRef = useRef(target);
   const targetKeyRef = useRef(targetKey);
-  useEffect(() => {
+  useLayoutEffect(() => {
     targetRef.current = target;
     targetKeyRef.current = targetKey;
   });
@@ -94,6 +94,7 @@ export function useStreamReconnect<T>({
   const controllerRef = useRef<ReturnType<typeof createStreamReconnectController> | null>(null);
   if (controllerRef.current === null) {
     controllerRef.current = createStreamReconnectController({
+      networkAvailable: typeof navigator === 'undefined' || navigator.onLine !== false,
       onRemount: bumpMount,
       onSnapshot: (s) => setSnapshot(s),
       onHeal: () => onHealRef.current?.(),
@@ -117,31 +118,42 @@ export function useStreamReconnect<T>({
     setMount((m) => ({ epoch: m.epoch + 1, target }));
   }
 
+  const activeEpochRef = useRef<number | null>(mount.epoch);
   const onConnectionAttemptStarted = useCallback(() => {
+    if (activeEpochRef.current !== mount.epoch) return;
     controllerRef.current?.attemptMounted();
-  }, []);
+  }, [mount.epoch]);
 
   // Enable failure accounting before the child's passive startup effect, so
   // synchronous failures count too. DeviceStream defers the watchdog to its
   // socket event; existing hook consumers keep mount-driven arming.
   useLayoutEffect(() => {
+    activeEpochRef.current = mount.epoch;
     if (enabled) {
       controllerRef.current?.attemptMounted(!watchdogFromSocket);
     } else {
       controllerRef.current?.setDisabled();
     }
+    return () => { activeEpochRef.current = null; };
   }, [mount.epoch, enabled, watchdogFromSocket]);
 
   useEffect(() => {
     const onVisibility = () => {
       if (document.visibilityState === 'visible') controllerRef.current?.handleWake();
     };
-    const onOnline = () => controllerRef.current?.handleWake();
+    const onOnline = () => controllerRef.current?.setNetworkAvailable(true);
+    const onOffline = () => controllerRef.current?.setNetworkAvailable(false);
+    // Re-read after commit in case connectivity changed between render and effects.
+    controllerRef.current?.setNetworkAvailable(
+      typeof navigator === 'undefined' || navigator.onLine !== false,
+    );
     document.addEventListener('visibilitychange', onVisibility);
     window.addEventListener('online', onOnline);
+    window.addEventListener('offline', onOffline);
     return () => {
       document.removeEventListener('visibilitychange', onVisibility);
       window.removeEventListener('online', onOnline);
+      window.removeEventListener('offline', onOffline);
     };
   }, []);
 
@@ -150,13 +162,16 @@ export function useStreamReconnect<T>({
   }, []);
 
   const onConnectionStateChange = useCallback((connected: boolean) => {
+    if (activeEpochRef.current !== mount.epoch) return;
     if (connected) controllerRef.current?.handleConnected();
     else controllerRef.current?.handleDisconnected();
-  }, []);
+  }, [mount.epoch]);
 
   const onConnectionFailed = useCallback(
-    (failure?: StreamFailure) => controllerRef.current?.handleFailure(failure),
-    [],
+    (failure?: StreamFailure) => {
+      if (activeEpochRef.current === mount.epoch) controllerRef.current?.handleFailure(failure);
+    },
+    [mount.epoch],
   );
 
   const retry = useCallback(() => controllerRef.current?.retry(), []);
