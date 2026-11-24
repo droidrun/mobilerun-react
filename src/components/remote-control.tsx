@@ -7,6 +7,8 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'rea
 import { StreamStatusPill } from './stream-status-pill';
 import { resolveDeviceStreamLabels, type DeviceStreamLabels, type StreamFailure } from '../lib/stream-error';
 
+import type { DevicePublishCapabilities, PublishState, PublishOptions, PublishErrorEvent } from '../lib/publish';
+
 import { ANDROID_KEYS, codeMap } from '../constants';
 import { createInjectKeycodeMessage, createScreenshotRequest } from '../webrtc-messages';
 import { useScrcpyInput } from '../hooks/use-scrcpy-input';
@@ -19,6 +21,9 @@ declare global {
 }
 
 interface RemoteControlProps {
+  publishCapabilities?: DevicePublishCapabilities;
+  onPublishStateChange?: (state: PublishState) => void;
+  onPublishError?: (error: PublishErrorEvent) => void;
   // url is the URL of the instance to connect to.
   url: string;
 
@@ -111,6 +116,12 @@ export interface RemoteControlHandle {
   screenshot: () => Promise<ScreenshotData>;
 }
 
+export interface DeviceStreamHandle extends RemoteControlHandle {
+  startPublish: (options: PublishOptions) => Promise<PublishState>;
+  stopPublish: () => Promise<void>;
+  getPublishState: () => PublishState;
+}
+
 const debugLog = (...args: any[]) => {
   if (window.debugRemoteControl) {
     // eslint-disable-next-line no-console -- opt-in debug channel (window.debugRemoteControl)
@@ -124,9 +135,12 @@ const debugWarn = (...args: any[]) => {
   }
 };
 
-export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>(
+export const RemoteControl = forwardRef<DeviceStreamHandle | RemoteControlHandle, RemoteControlProps>(
   (
     {
+      publishCapabilities,
+      onPublishStateChange,
+      onPublishError,
       className,
       url,
       token,
@@ -155,6 +169,7 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
     );
 
     const {
+      publisher,
       wsRef,
       dataChannelRef,
       hoverChannelRef,
@@ -162,6 +177,9 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
       pendingScreenshotResolversRef,
       pendingScreenshotRejectersRef,
     } = useWebRtcConnection({
+      publishCapabilities,
+      onPublishStateChange,
+      onPublishError,
       url,
       token,
       tokenProvider,
@@ -206,6 +224,9 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
 
     // Expose sendOpenUrlCommand via ref
     useImperativeHandle(ref, () => ({
+      startPublish: publisher.start,
+      stopPublish: publisher.stop,
+      getPublishState: publisher.getState,
       openUrl: (newUrl: string) => {
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
           debugWarn('WebSocket not open, cannot send open_url command via ref.');

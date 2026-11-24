@@ -125,3 +125,52 @@
   object-fit: contain !important;
   display: block !important;
 }
+
+/* Capture controls float above both video and the optional input-blocking overlay. */
+.mobilerun-device-stream .mr-publish-controls {
+  position: absolute;
+  z-index: 60;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  max-width: calc(100% - 24px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.mobilerun-device-stream .mr-publish-pill {
+  display: flex;
+  padding: 4px;
+  gap: 4px;
+  border: 1px solid var(--mr-border, var(--border, #d4d4d4));
+  border-radius: 999px;
+  background: var(--mr-card, var(--card, var(--mr-default-card, #fff)));
+  color: var(--mr-card-foreground, var(--card-foreground, var(--mr-default-card-foreground, #171717)));
+  box-shadow: 0 3px 16px #0003;
+}
+.mobilerun-device-stream .mr-publish-pill button {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.mobilerun-device-stream .mr-publish-pill button[aria-pressed='true'] {
+  background: var(--mr-publish-live, #b91c1c);
+  color: var(--mr-publish-live-foreground, #fff);
+}
+.mobilerun-device-stream .mr-publish-pill button:disabled { opacity: 0.45; cursor: default; }
+.mobilerun-device-stream .mr-publish-pill button:focus-visible { outline: 2px solid var(--mr-ring, #737373); outline-offset: 2px; }
+.mobilerun-device-stream .mr-publish-status {
+  padding: 6px 10px;
+  border-radius: 10px;
+  font: 12px/1.4 system-ui, sans-serif;
+  text-align: center;
+  color: var(--mr-card-foreground, var(--mr-default-card-foreground, #171717));
+  background: var(--mr-card, var(--mr-default-card, #fff));
+}

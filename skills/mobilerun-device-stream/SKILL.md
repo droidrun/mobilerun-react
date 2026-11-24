@@ -121,7 +121,7 @@ While offline, automatic attempts pause; the Retry button can request a fresh at
 
 ## Labels and theming
 
-`labels?: Partial<DeviceStreamLabels>` accepts exactly these keys, all optional:
+`labels?: Partial<DeviceStreamLabels>` accepts the following connection keys and the publish keys below, all optional:
 
 | Key | English default |
 | --- | --- |
@@ -150,6 +150,35 @@ Set variables on `.mobilerun-device-stream` or an ancestor:
 Add `.dark` on an ancestor or the root for bundled dark defaults. Colors resolve from `--mr-*`,
 then legacy unprefixed variables (supported for one more minor release), then bundled defaults.
 The package does not define generic variables on `:root`. Keep retry text/button contrast at WCAG AA.
+
+## Microphone and camera publishing
+
+Get the specific device's `GET /v1/devices/{deviceId}/capabilities` response through the authorized
+backend and pass its `.capabilities` as `publishCapabilities`. A stream token cannot call that API.
+`microphoneInjection: true` and `mediaInjectionTransport: 'direct'` enable the floating publish pill;
+camera additionally requires `cameraInjection: true` and a compatible local H.264 encoder.
+Capabilities describe support; the server decides admission on every start, independently of `hasControl`.
+
+Use a `DeviceStreamHandle` ref for `startPublish({ audio: true, video?: boolean })`,
+`stopPublish()` and `getPublishState()`. Start resolves only after server `active` and successful
+track attachment. Audio is required. To change camera mode, stop then start. Set
+`hidePublishControls` to use your own controls. Observe `onPublishStateChange` separately from
+connection state; `onError` publish events have `operation: 'publish'`, the viewer attempt index,
+`final: true`, and optional `mediaSessionId`, `detail`, `serverReason`. Handle rejected starts with
+`PublishError.reason`. `forbidden` → `publish_not_allowed`; silence after 5 s →
+`publish_unsupported`; acceptance without active after 15 s → `publish_timeout`. There is no retry.
+
+Use HTTPS (or localhost), permit microphone/camera in Permissions Policy and set iframe
+`allow="microphone; camera"` when embedding. Capture only starts on explicit action and is stopped
+on stop, pagehide, disconnection or unmount. Reconnect never resumes it. Receiving audio mute
+is independent. Capability changes require a new viewer connection and fresh token (remount the
+component with a new `key`). No privileged API key belongs in the browser.
+
+Publish labels and English defaults: `publishMicrophone` (“Microphone”), `publishCamera` (“Camera”),
+`publishStarting` (“Starting inputs”), `publishPermissionDenied` (“Microphone or camera permission denied”),
+`publishNotAllowed` (“Publishing is not allowed”), `publishFailed` (“Unable to publish inputs”).
+Style the pill with existing card/border tokens and `--mr-publish-live` / `--mr-publish-live-foreground`.
+See [Publishing inputs](../../docs/publish.md) for the full API and failure details.
 
 ## Security rules
 

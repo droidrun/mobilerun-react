@@ -10,9 +10,12 @@ import {
   STREAM_RTC_CONFIG_TIMEOUT_MS,
   STREAM_WS_OPEN_TIMEOUT_MS,
 } from '../lib/stream-reconnect';
-import { STREAM_FAILURE_MESSAGES, type StreamErrorReason, type StreamFailure } from '../lib/stream-error';
+import { STREAM_FAILURE_MESSAGES, type ConnectionErrorReason, type StreamFailure } from '../lib/stream-error';
 import { createRTCConfigurationRequest } from '../webrtc-messages';
 import { browserReportsOnline } from '../lib/browser-network';
+import { PublishController } from '../lib/publish-controller';
+import { inspectPublishOffer, reservePublish } from '../lib/publish-media';
+import type { DevicePublishCapabilities, PublishState, PublishErrorEvent } from '../lib/publish';
 
 const debugLog = (...args: any[]) => {
   if (window.debugRemoteControl) {
@@ -48,6 +51,9 @@ interface ScreenshotData {
 }
 
 interface UseWebRtcConnectionOptions {
+  publishCapabilities?: DevicePublishCapabilities;
+  onPublishStateChange?: (state: PublishState) => void;
+  onPublishError?: (error: PublishErrorEvent) => void;
   url: string;
   token?: string;
   tokenProvider?: () => Promise<string>;
@@ -72,6 +78,7 @@ interface UseWebRtcConnectionOptions {
 }
 
 interface UseWebRtcConnectionResult {
+  publisher: PublishController;
   wsRef: React.MutableRefObject<WebSocket | null>;
   dataChannelRef: React.MutableRefObject<RTCDataChannel | null>;
   hoverChannelRef: React.MutableRefObject<RTCDataChannel | null>;
@@ -83,6 +90,9 @@ interface UseWebRtcConnectionResult {
 }
 
 export function useWebRtcConnection({
+  publishCapabilities,
+  onPublishStateChange,
+  onPublishError,
   url,
   token,
   tokenProvider,
@@ -95,6 +105,14 @@ export function useWebRtcConnection({
   onConnectionAttemptStarted,
   onPeerConnectionChange,
 }: UseWebRtcConnectionOptions): UseWebRtcConnectionResult {
+  const publishCallbacks = useRef({ onPublishStateChange, onPublishError });
+  publishCallbacks.current = { onPublishStateChange, onPublishError };
+  const publisherRef = useRef<PublishController | null>(null);
+  if (!publisherRef.current) publisherRef.current = new PublishController({
+    onState: state => publishCallbacks.current.onPublishStateChange?.(state),
+    onError: error => publishCallbacks.current.onPublishError?.(error),
+  });
+  const publisher = publisherRef.current;
   const tokenRef = useRef(token);
   tokenRef.current = token;
   const tokenProviderRef = useRef(tokenProvider);
@@ -179,6 +197,7 @@ export function useWebRtcConnection({
         }
         const state = pcAtArm.connectionState;
         if (state === 'connected') return;
+        publisher.disconnect();
         updateStatus('ICE-restart grace expired, reporting state: ' + state);
         setIsConnected(false);
         reportConnectionState(false);
@@ -255,7 +274,7 @@ export function useWebRtcConnection({
     let attemptWs: WebSocket | null = null;
     let cancelStartup = () => {};
     // Set while a startup step runs so the catch below can name the failing step.
-    let phase: StreamErrorReason = 'unknown';
+    let phase: ConnectionErrorReason = 'unknown';
     try {
       let streamToken = tokenRef.current;
       if (provider) {
@@ -344,6 +363,7 @@ export function useWebRtcConnection({
       // signaling closes leave a connected media path running, as before.
       ws.onclose = (event) => {
         if (!isCurrent()) return;
+        publisher.disconnect();
         updateStatus('WebSocket closed');
         const dropped: StreamFailure = {
           reason: 'disconnected',
@@ -391,6 +411,9 @@ export function useWebRtcConnection({
       const videoTransceiver = pc.addTransceiver('video', {
         direction: 'recvonly',
       });
+
+      const reservations = reservePublish(pc, publishCapabilities);
+      publisher.bind({ socket: ws, peer: pc, capabilities: publishCapabilities, reservations });
 
       // Ask the jitter buffer to target zero playout delay. Trades a bit of
       // smoothness for ~100ms lower glass-to-glass latency — critical for
@@ -514,6 +537,7 @@ export function useWebRtcConnection({
         updateStatus('Connection state: ' + state);
         const connected = state === 'connected';
         if (connected) everConnected = true;
+        if (state === 'failed' || state === 'closed' || (state === 'disconnected' && Date.now() >= iceRestartGraceUntilRef.current)) publisher.disconnect();
         if (state === 'failed' || state === 'closed') {
           // Terminal: this peer connection will not come back on its own.
           failAttempt({
@@ -610,6 +634,9 @@ export function useWebRtcConnection({
         }
         updateStatus('Received: ' + message.type);
         switch (message.type) {
+          case 'publishState':
+            publisher.handle(ws, message);
+            break;
           case 'answer':
             if (!peerConnectionRef.current) {
               updateStatus('No peer connection, skipping answer');
@@ -752,7 +779,9 @@ export function useWebRtcConnection({
       if (!isCurrent() || peerConnectionRef.current !== pc) return;
       await pc.setLocalDescription(offer);
       if (!isCurrent() || peerConnectionRef.current !== pc) return;
-      ws.send(JSON.stringify({ type: 'offer', sdp: offer.sdp, sessionId }));
+      const sdp = pc.localDescription?.sdp ?? offer.sdp ?? '';
+      inspectPublishOffer(reservations, sdp);
+      ws.send(JSON.stringify({ type: 'offer', sdp, sessionId }));
       updateStatus('Sent offer');
     } catch (e) {
       if (!isActive()) return;
@@ -768,6 +797,7 @@ export function useWebRtcConnection({
   };
 
   const stop = () => {
+    publisher.disconnect();
     ++attemptGenerationRef.current;
     stopKeepAlive();
     cancelStartupRef.current?.();
@@ -815,6 +845,7 @@ export function useWebRtcConnection({
   };
 
   useEffect(() => {
+    publisher.open(publishCapabilities);
     // Connectivity only gates/cancels here; useStreamReconnect owns recovery.
     const onOffline = () => {
       if (allowOffline) return;
@@ -823,6 +854,8 @@ export function useWebRtcConnection({
       if (lastReportedConnectedRef.current) reportConnectionState(false);
       stop();
     };
+    const onPageHide = () => { void publisher.stop(); };
+    window.addEventListener('pagehide', onPageHide);
     window.addEventListener('offline', onOffline);
     start();
 
@@ -836,7 +869,9 @@ export function useWebRtcConnection({
 
     // Clean up
     return () => {
+      publisher.dispose();
       stop();
+      window.removeEventListener('pagehide', onPageHide);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('offline', onOffline);
     };
@@ -844,6 +879,7 @@ export function useWebRtcConnection({
   }, [url, sessionId]);
 
   return {
+    publisher,
     wsRef,
     dataChannelRef,
     hoverChannelRef,

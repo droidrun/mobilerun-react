@@ -131,6 +131,21 @@ device or a refused origin; browsers cannot see the HTTP status), `disconnected`
 dropped, including the 30-minute server cap) or `unknown`. `final: true` means retries stopped and
 the Retry button is showing. `labels` replaces every text the component renders.
 
+## Microphone and camera publishing
+
+Pass your backend's per-device `publishCapabilities` snapshot to enable microphone injection
+(and camera injection when supported). A floating pill over the stream provides both toggles;
+active inputs show red. Set `hidePublishControls` for your own controls and use a
+`DeviceStreamHandle` ref's `startPublish({ audio: true, video: true })`, `stopPublish()` and
+`getPublishState()`. Audio is required; the SDK never silently starts a video-only session.
+
+`onPublishStateChange` observes this separate state. Publish errors carry `operation: 'publish'`
+in `onError`; an explicit server `forbidden` maps to `publish_not_allowed`, while a silent server
+maps to `publish_unsupported` after 5 seconds. Permission prompts require an explicit start.
+Stopping or reconnecting releases capture; publication never resumes automatically.
+See [Publishing inputs](https://github.com/droidrun/mobilerun-react/blob/main/docs/publish.md)
+for capabilities, permissions, ref types and labels.
+
 ## Theming
 
 The stylesheet defines no unprefixed CSS variable, so it cannot clash with your own `--background`. Set

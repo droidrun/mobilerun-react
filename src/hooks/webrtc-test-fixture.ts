@@ -1,6 +1,8 @@
 // Copyright 2026 Mobilerun
 // SPDX-License-Identifier: Apache-2.0
 
+import type { PublishController } from '../lib/publish-controller';
+import type { DevicePublishCapabilities } from '../lib/publish';
 import type { FakeSchedule } from '../lib/test-clock';
 import { runHook, tick } from './test-hook-runner';
 
@@ -79,7 +81,14 @@ export async function fixture(clock?: FakeSchedule) {
     onicecandidate = (_event: object) => {};
     ontrack = (_event: object) => {};
     constructor() { peers.push(this); }
-    addTransceiver() { return { receiver: {} }; }
+    transceivers: { kind: string; direction: string; mid: string; currentDirection: string; receiver: object; sender: { replaceTrack: (track: unknown) => Promise<void> }; setCodecPreferences: (codecs: unknown) => void }[] = [];
+    attachments: unknown[] = [];
+    addTransceiver(kind: string, options: { direction: string }) {
+      const transceiver = { kind, direction: options.direction, mid: String(this.transceivers.length), currentDirection: options.direction,
+        receiver: {}, sender: { replaceTrack: async (track: unknown) => { this.attachments.push(track); } }, setCodecPreferences: () => {} };
+      this.transceivers.push(transceiver);
+      return transceiver;
+    }
     createDataChannel(label: string, options: Record<string, unknown>) { this.channelOptions.push({ label, options }); const c = new FakeChannel(); this.channels.push(c); return c; }
     createOffer() { return this.offer.promise; }
     setLocalDescription() { this.localCalls++; return this.local.promise; }
@@ -108,8 +117,10 @@ export async function fixture(clock?: FakeSchedule) {
       this.tracks = this.tracks.filter(t => t !== track);
     }
   }
-  const navigator = { onLine: true };
-  const networkListeners = { online: new Set<() => void>(), offline: new Set<() => void>() };
+  const capture = deferred<MediaStream>();
+  const captureRequests: MediaStreamConstraints[] = [];
+  const navigator = { onLine: true, mediaDevices: { getUserMedia(constraints: MediaStreamConstraints) { captureRequests.push(constraints); return capture.promise; } } };
+  const networkListeners = { online: new Set<() => void>(), offline: new Set<() => void>(), pagehide: new Set<() => void>() };
   const context = {
     navigator,
     window: {
@@ -123,6 +134,10 @@ export async function fixture(clock?: FakeSchedule) {
     Date: clock ? class extends Date { static now() { return clock.now; } } : Date,
     WebSocket: FakeSocket, RTCPeerConnection: FakePeer,
     RTCRtpReceiver: { getCapabilities: () => null },
+    RTCRtpSender: { getCapabilities: (kind: string) => ({ codecs: kind === 'audio'
+      ? [{ mimeType: 'audio/opus', clockRate: 48000, channels: 2 }]
+      : [{ mimeType: 'video/H264', clockRate: 90000, sdpFmtpLine: 'packetization-mode=1;profile-level-id=42e01f' }] }) },
+    crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' },
     RTCSessionDescription: class { constructor(value: object) { Object.assign(this, value); } },
     RTCIceCandidate: class { constructor(value: object) { Object.assign(this, value); } },
     setTimeout: clock?.setTimeout ?? setTimer, clearTimeout: clock?.clearTimeout ?? clearTimer,
@@ -131,10 +146,13 @@ export async function fixture(clock?: FakeSchedule) {
     Error,
     console, stateWrites,
   };
-  const runner = await runHook<{ useWebRtcConnection: (options: object) => { wsRef: { current: FakeSocket | null } } }>(
+  const runner = await runHook<{ useWebRtcConnection: (options: object) => { wsRef: { current: FakeSocket | null }; publisher: PublishController } }>(
     import.meta.dir + '/use-webrtc-connection.ts', context,
   );
   type Credentials = {
+    publishCapabilities?: DevicePublishCapabilities;
+    onPublishStateChange?: (state: unknown) => void;
+    onPublishError?: (error: unknown) => void;
     url?: string;
     token?: string;
     tokenProvider?: () => Promise<string>;
@@ -161,7 +179,7 @@ export async function fixture(clock?: FakeSchedule) {
     return render(id, openUrl, credentials);
   };
   return {
-    hooks, navigator, networkListeners,
+    hooks, navigator, networkListeners, capture, captureRequests,
     networkChange(online: boolean) {
       navigator.onLine = online;
       networkListeners[online ? 'online' : 'offline'].forEach(fn => fn());

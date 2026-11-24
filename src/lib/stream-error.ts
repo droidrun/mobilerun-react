@@ -1,6 +1,8 @@
 // Copyright 2026 Mobilerun
 // SPDX-License-Identifier: Apache-2.0
 
+import type { PublishFailureReason } from './publish';
+
 /**
  * Why a stream connection attempt failed (stream client contract v1).
  *
@@ -13,7 +15,7 @@
  *   signaling protocol has no such message, so this package does not report it yet.
  * - `unknown`: anything else, e.g. a handshake timeout.
  */
-export type StreamErrorReason =
+export type ConnectionErrorReason =
   | 'credentials_unavailable'
   | 'connection_refused'
   | 'disconnected'
@@ -26,12 +28,12 @@ export type StreamErrorReason =
  * can carry a stream token or a `?token=` URL and are never forwarded.
  */
 export interface StreamFailure {
-  reason: StreamErrorReason;
+  reason: ConnectionErrorReason;
   message: string;
 }
 
 /** Fixed, credential-free text for a failure whose cause is an arbitrary exception. */
-export const STREAM_FAILURE_MESSAGES: Record<StreamErrorReason, string> = {
+export const STREAM_FAILURE_MESSAGES: Record<ConnectionErrorReason, string> = {
   credentials_unavailable: 'Stream token provider failed',
   connection_refused: 'Signaling connection closed before it opened',
   disconnected: 'The stream connection dropped',
@@ -39,8 +41,16 @@ export const STREAM_FAILURE_MESSAGES: Record<StreamErrorReason, string> = {
   unknown: 'Stream connection attempt failed',
 };
 
-/** Payload of `onError`. */
-export interface StreamError extends StreamFailure {
+export type StreamErrorReason = ConnectionErrorReason | PublishFailureReason;
+
+/** Payload of `onError`; publish failures never change the viewer retry state. */
+export interface StreamError {
+  reason: StreamErrorReason;
+  message: string;
+  operation?: 'publish';
+  mediaSessionId?: string;
+  detail?: string;
+  serverReason?: string;
   /**
    * Consecutive failed attempts in the current reconnect cycle: 1 for the failed first connect,
    * up to 7 (the first connect plus 6 retries), which is the `final` one. It is the same number
@@ -61,6 +71,12 @@ export interface DeviceStreamLabels {
   unavailable: string;
   /** Retry button text. Default `Retry`. */
   retry: string;
+  publishMicrophone: string;
+  publishCamera: string;
+  publishStarting: string;
+  publishPermissionDenied: string;
+  publishNotAllowed: string;
+  publishFailed: string;
 }
 
 const DEFAULT_DEVICE_STREAM_LABELS: DeviceStreamLabels = {
@@ -68,6 +84,12 @@ const DEFAULT_DEVICE_STREAM_LABELS: DeviceStreamLabels = {
   disconnected: 'reconnecting',
   unavailable: 'device stream unavailable',
   retry: 'Retry',
+  publishMicrophone: 'Microphone',
+  publishCamera: 'Camera',
+  publishStarting: 'Starting inputs',
+  publishPermissionDenied: 'Microphone or camera permission denied',
+  publishNotAllowed: 'Publishing is not allowed',
+  publishFailed: 'Unable to publish inputs',
 };
 
 /** Fills every label the integrator left out (or set to undefined) with its English default. */
@@ -77,6 +99,13 @@ export function resolveDeviceStreamLabels(overrides?: Partial<DeviceStreamLabels
     disconnected: overrides?.disconnected ?? DEFAULT_DEVICE_STREAM_LABELS.disconnected,
     unavailable: overrides?.unavailable ?? DEFAULT_DEVICE_STREAM_LABELS.unavailable,
     retry: overrides?.retry ?? DEFAULT_DEVICE_STREAM_LABELS.retry,
+    publishMicrophone: overrides?.publishMicrophone ?? DEFAULT_DEVICE_STREAM_LABELS.publishMicrophone,
+    publishCamera: overrides?.publishCamera ?? DEFAULT_DEVICE_STREAM_LABELS.publishCamera,
+    publishStarting: overrides?.publishStarting ?? DEFAULT_DEVICE_STREAM_LABELS.publishStarting,
+    publishPermissionDenied: overrides?.publishPermissionDenied ?? DEFAULT_DEVICE_STREAM_LABELS.publishPermissionDenied,
+    publishNotAllowed: overrides?.publishNotAllowed ?? DEFAULT_DEVICE_STREAM_LABELS.publishNotAllowed,
+    publishFailed: overrides?.publishFailed ?? DEFAULT_DEVICE_STREAM_LABELS.publishFailed,
+
   };
 }
 

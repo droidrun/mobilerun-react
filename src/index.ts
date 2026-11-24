@@ -2,6 +2,9 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Components
+export type { DeviceStreamHandle } from './components/remote-control';
+export { PublishError } from './lib/publish';
+export type { PublishOptions, PublishKind, PublishPhase, PublishFailureReason, PublishFailure, PublishState, DevicePublishCapabilities } from './lib/publish';
 export { DeviceStream, type DeviceStreamProps } from './components/device-stream';
 export {
   RemoteControl,
