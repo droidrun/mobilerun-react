@@ -93,9 +93,9 @@ export function createExampleApp(sdk: MobilerunSDK | null) {
       return c.json({ error: 'missing_api_key', detail: 'Set MOBILERUN_API_KEY to use SDK mode.' }, 500);
     }
     try {
-      const minted = await sdk.api.post<{ key: string; keyId: string; expiresAt: string }>(
-        '/identity/stream-keys',
-        { body: { deviceId, ttlSeconds: 120 }, maxRetries: 0 },
+      const minted = await sdk.streamTokens.create(
+        { deviceId, ttlSeconds: 120 },
+        { maxRetries: 0 },
       );
       const { key, keyId, expiresAt } = minted;
       return c.json({ key, keyId, expiresAt }, 201);
