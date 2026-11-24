@@ -133,13 +133,17 @@
   bottom: max(16px, env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
+  pointer-events: none;
   max-width: calc(100% - 24px);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 8px;
 }
+.mobilerun-device-stream .mr-publish-controls[data-dimmed='true'] .mr-publish-pill { opacity: 0.5; }
 .mobilerun-device-stream .mr-publish-pill {
+  pointer-events: none;
+  transition: opacity 150ms ease;
   display: flex;
   padding: 4px;
   gap: 4px;
@@ -150,6 +154,7 @@
   box-shadow: 0 3px 16px #0003;
 }
 .mobilerun-device-stream .mr-publish-pill button {
+  pointer-events: auto;
   display: grid;
   place-items: center;
   width: 40px;
@@ -167,6 +172,11 @@
 .mobilerun-device-stream .mr-publish-pill button:disabled { opacity: 0.45; cursor: default; }
 .mobilerun-device-stream .mr-publish-pill button:focus-visible { outline: 2px solid var(--mr-ring, #737373); outline-offset: 2px; }
 .mobilerun-device-stream .mr-publish-status {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  pointer-events: none;
   padding: 6px 10px;
   border-radius: 10px;
   font: 12px/1.4 system-ui, sans-serif;

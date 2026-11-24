@@ -153,6 +153,7 @@ export async function fixture(clock?: FakeSchedule) {
     publishCapabilities?: DevicePublishCapabilities;
     onPublishStateChange?: (state: unknown) => void;
     onPublishError?: (error: unknown) => void;
+    onPublishKindsChange?: (kinds: unknown) => void;
     url?: string;
     token?: string;
     tokenProvider?: () => Promise<string>;

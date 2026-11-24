@@ -897,3 +897,67 @@ test('publish stops on signaling loss even while downstream stays connected; ICE
   expect(f.states.at(-1)).toBe(true);
   f.unmount();
 });
+
+test('late capabilities renew the viewer with a fresh token and publish reservations', async () => {
+  const f = await fixture();
+  let mints = 0;
+  const tokenProvider = async () => 'fresh-' + ++mints;
+  const kinds: unknown[] = [];
+  f.render('late', undefined, { tokenProvider });
+  await tick();
+  f.sockets[0].open();
+  await tick();
+  f.sockets[0].config();
+  await tick();
+  expect(f.peers[0].transceivers.map(t => t.direction)).toEqual(['recvonly', 'recvonly']);
+  const publishCapabilities = { microphoneInjection: true, cameraInjection: true, mediaInjectionTransport: 'direct' };
+  f.render('late', undefined, { tokenProvider, publishCapabilities, onPublishKindsChange: value => kinds.push(value) });
+  await tick();
+  expect(mints).toBe(2);
+  expect(f.peers[0].closed).toBe(true);
+  f.sockets[1].open();
+  await tick();
+  f.sockets[1].config();
+  await tick();
+  expect(f.peers[1].transceivers.map(t => [t.kind, t.direction])).toEqual([['audio', 'recvonly'], ['video', 'recvonly'], ['video', 'sendonly'], ['audio', 'sendonly']]);
+  f.peers[1].offer.resolve({ sdp: 'v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=mid:3\r\na=sendonly\r\na=ssrc:101 cname:test\r\na=rtpmap:111 opus/48000/2\r\n' });
+  f.peers[1].local.resolve();
+  await tick();
+  expect(kinds).toEqual([[], ['audio']]); // No verified camera section in this offer.
+  f.render('late', undefined, { tokenProvider, publishCapabilities: { ...publishCapabilities } });
+  await tick();
+  expect(mints).toBe(2); // A new object with the same values does not reconnect.
+  expect(f.captureRequests).toEqual([]);
+  f.unmount();
+});
+
+test.each(['target', 'capabilities'] as const)('%s replacement terminates publishing once', async replacement => {
+  const f = await fixture();
+  const errors: unknown[] = [];
+  const states: unknown[] = [];
+  const publishCapabilities = { microphoneInjection: true, cameraInjection: true, mediaInjectionTransport: 'direct' };
+  const credentials = { publishCapabilities, onPublishError: (error: unknown) => errors.push(error), onPublishStateChange: (state: unknown) => states.push(state) };
+  const result = f.mount('old', undefined, credentials);
+  f.sockets[0].open();
+  await tick();
+  f.sockets[0].config();
+  await tick();
+  f.peers[0].offer.resolve({ sdp: 'v=0\r\nm=audio 9 UDP/TLS/RTP/SAVPF 111\r\na=mid:3\r\na=sendonly\r\na=ssrc:101 cname:test\r\na=rtpmap:111 opus/48000/2\r\n' });
+  f.peers[0].local.resolve();
+  await tick();
+  f.peers[0].connectionState = 'connected';
+  const starting = result.publisher.start({ audio: true });
+  const outcome = starting.catch(error => error);
+  const actions = {
+    target: () => f.render('new', undefined, credentials),
+    capabilities: () => f.render('old', undefined, { ...credentials, publishCapabilities: { ...publishCapabilities, cameraInjection: false } }),
+  };
+  actions[replacement]();
+  await tick();
+  expect(await outcome).toMatchObject({ reason: 'disconnected' });
+  expect(errors).toHaveLength(1);
+  expect(states.at(-1)).toMatchObject({ phase: 'error', reason: 'disconnected' });
+  expect(f.captureRequests).toEqual([]);
+  expect(result.publisher.getState()).toMatchObject({ phase: 'error', reason: 'disconnected' });
+  f.unmount();
+});

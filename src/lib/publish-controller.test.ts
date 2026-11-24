@@ -24,6 +24,7 @@ function fixture(config: { capabilities?: DevicePublishCapabilities | null; came
   let holdAudio = false;
   let failVideo = false;
   let stopThrows = false;
+  let startThrows = false;
   class Track extends EventTarget {
     readyState = 'live';
     stops = 0;
@@ -44,6 +45,7 @@ function fixture(config: { capabilities?: DevicePublishCapabilities | null; came
   const reservations = { transceivers: { audio: transceiver('audio'), video: transceiver('video') }, offered: new Set<'audio' | 'video'>(config.offered === false ? [] : ['audio', 'video']) };
   const socket = { readyState: 1, send(data: string) {
     const frame = JSON.parse(data);
+    if (startThrows && frame.type === 'publishStart') throw new Error('closed');
     if (stopThrows && frame.type === 'stopPublish') throw new Error('closed');
     sent.push(frame);
   } } as unknown as WebSocket;
@@ -72,7 +74,7 @@ function fixture(config: { capabilities?: DevicePublishCapabilities | null; came
       captureResult = Promise.resolve({ getTracks: () => [track] } as unknown as MediaStream);
       return track;
     },
-    holdAudio() { holdAudio = true; }, releaseAudio() { pendingAttach.resolve(); }, failVideo() { failVideo = true; }, stopThrows() { stopThrows = true; } };
+    holdAudio() { holdAudio = true; }, releaseAudio() { pendingAttach.resolve(); }, failVideo() { failVideo = true; }, stopThrows() { stopThrows = true; }, startThrows() { startThrows = true; } };
 }
 
 describe('publish wire and state', () => {
@@ -86,12 +88,12 @@ describe('publish wire and state', () => {
     f.signal('accepted');
     f.signal('active');
     await tick();
-    expect(f.controller.getState().phase).toBe('accepted');
+    expect(f.controller.getState().phase).toBe('capturing');
     expect(f.attachments).toEqual([{ kind: 'audio', track: f.audio }]);
     f.releaseAudio();
     await tick();
     expect(await result).toEqual({ phase: 'active', mediaSessionId: uuid, kinds: ['audio', 'video'] });
-    expect(f.states.map(state => state.phase)).toEqual(['capturing', 'starting', 'accepted', 'active']);
+    expect(f.states.map(state => state.phase)).toEqual(['starting', 'accepted', 'capturing', 'active']);
     expect(f.attachments).toEqual([{ kind: 'audio', track: f.audio }, { kind: 'video', track: f.video }]);
     await f.controller.stop();
     await f.controller.stop();
@@ -116,7 +118,7 @@ describe('publish wire and state', () => {
     f.signal('accepted');
     f.signal('active');
     await result;
-    expect(f.states.map(state => state.phase)).toEqual(['capturing', 'starting', 'accepted', 'active']);
+    expect(f.states.map(state => state.phase)).toEqual(['starting', 'accepted', 'capturing', 'active']);
     expect(f.attachments).toEqual([{ kind: 'audio', track: f.audio }]);
     await f.controller.stop();
     f.signal('active');
@@ -140,7 +142,8 @@ describe('publish wire and state', () => {
     expect(failure.serverReason).toBe(typeof reason === 'string' ? reason : undefined);
     expect(f.controller.getState()).toMatchObject({ phase: 'error', reason: expected });
     expect(f.errors).toHaveLength(1);
-    expect(f.audio.stops).toBe(1);
+    expect(f.audio.stops).toBe(0);
+    expect(f.captures).toEqual([]);
     expect(f.attachments.filter(call => call.track !== null)).toEqual([]);
     expect(f.sent[1]).toEqual({ type: 'stopPublish', mediaSessionId: uuid });
     expect(f.clock.pendingCount).toBe(0);
@@ -155,19 +158,21 @@ describe('publish wire and state', () => {
     expect(await outcome).toMatchObject({ reason: 'publish_unsupported', detail: 'response_timeout' });
     f.signal('active');
     await tick();
-    expect(f.audio.stops).toBe(1);
+    expect(f.audio.stops).toBe(0);
+    expect(f.captures).toEqual([]);
     expect(f.attachments.filter(call => call.track !== null)).toEqual([]);
   });
 
-  test('acceptance has its own 15-second deadline, which duplicates do not extend', async () => {
+  test('acceptance has its own 30-second deadline, which duplicates do not extend', async () => {
     const f = fixture();
     const { outcome } = await f.start();
     f.clock.advance(4999);
     f.signal('accepted');
     await tick();
-    f.clock.advance(14999);
+    f.clock.advance(29999);
+    await tick();
     f.signal('accepted');
-    expect(f.controller.getState().phase).toBe('accepted');
+    expect(f.controller.getState().phase).toBe('capturing');
     f.clock.advance(1);
     expect(await outcome).toMatchObject({ reason: 'publish_timeout', detail: 'active_timeout' });
     expect(f.audio.stops).toBe(1);
@@ -249,18 +254,20 @@ describe('publish local guards and capture', () => {
   test.each([['NotAllowedError', 'permission_denied', 'capture_permission'], ['SecurityError', 'permission_denied', 'capture_permission'], ['NotReadableError', 'publish_failed', 'capture_unavailable'], ['AbortError', 'publish_failed', 'capture_unavailable']])('capture %s is %s', async (name, reason, detail) => {
     const f = fixture();
     const result = f.controller.start({ audio: true });
+    f.signal('accepted');
     f.media.reject(Object.assign(new Error('capture'), { name }));
     await expect(result).rejects.toMatchObject({ reason, detail });
-    expect(f.sent).toEqual([]);
+    expect(f.sent).toEqual([{ type: 'publishStart', mediaSessionId: uuid, kinds: ['audio'] }, { type: 'stopPublish', mediaSessionId: uuid }]);
     expect(f.errors).toHaveLength(1);
   });
 
-  test('a partial camera capture stops the microphone without signaling', async () => {
+  test('a partial camera capture stops the accepted session and microphone', async () => {
     const f = fixture();
     const { outcome } = await f.start({ audio: true, video: true });
+    f.signal('accepted');
     expect(await outcome).toMatchObject({ reason: 'publish_failed', detail: 'capture_unavailable' });
     expect(f.audio.stops).toBe(1);
-    expect(f.sent).toEqual([]);
+    expect(f.sent).toEqual([{ type: 'publishStart', mediaSessionId: uuid, kinds: ['audio', 'video'] }, { type: 'stopPublish', mediaSessionId: uuid }]);
   });
 });
 
@@ -269,15 +276,16 @@ describe('publish cancellation and teardown', () => {
     const f = fixture();
     const result = f.controller.start({ audio: true });
     const failure = result.catch(error => error);
-    f.clock.advance(60000); // permission prompts do not consume the response deadline
+    f.signal('accepted');
+    f.clock.advance(29999); // The accepted window includes the permission prompt.
     expect(f.controller.getState().phase).toBe('capturing');
     await f.controller.stop();
     expect(await failure).toMatchObject({ reason: 'publish_cancelled' });
     f.media.resolve(f.stream);
     await tick();
     expect(f.audio.stops).toBe(1);
-    expect(f.sent).toEqual([]);
-    expect(f.attachments).toEqual([]);
+    expect(f.sent).toEqual([{ type: 'publishStart', mediaSessionId: uuid, kinds: ['audio'] }, { type: 'stopPublish', mediaSessionId: uuid }]);
+    expect(f.attachments.filter(call => call.track !== null)).toEqual([]);
     expect(f.errors).toEqual([]);
   });
 
@@ -344,7 +352,7 @@ describe('publish cancellation and teardown', () => {
     expect(f.errors).toEqual([{ reason: 'publish_failed', message: 'A local input stopped', detail: 'capture_unavailable', mediaSessionId: uuid }]);
   });
 
-  test('a failing stop write cannot hold capture open', async () => {
+  test('a failing stop write reports disconnected and cannot hold capture open', async () => {
     const f = fixture();
     const { result } = await f.start();
     f.signal('active');
@@ -353,7 +361,8 @@ describe('publish cancellation and teardown', () => {
     await f.controller.stop();
     expect(f.audio.stops).toBe(1);
     expect(f.attachments.at(-1)).toEqual({ kind: 'audio', track: null });
-    expect(f.errors).toEqual([]);
+    expect(f.errors).toEqual([{ reason: 'disconnected', message: 'Publishing connection closed', mediaSessionId: uuid }]);
+    expect(f.controller.getState()).toMatchObject({ phase: 'error', reason: 'disconnected' });
     expect(f.clock.pendingCount).toBe(0);
   });
 
@@ -371,4 +380,45 @@ describe('publish cancellation and teardown', () => {
     expect(f.states).toHaveLength(count);
     expect(f.errors).toEqual([]);
   });
+});
+
+test('no permission or capture before acceptance; the 30-second window covers a stalled prompt', async () => {
+  const f = fixture();
+  const result = f.controller.start({ audio: true });
+  const outcome = result.catch(error => error);
+  expect(f.captures).toEqual([]);
+  expect(f.sent).toEqual([{ type: 'publishStart', mediaSessionId: uuid, kinds: ['audio'] }]);
+  f.signal('accepted');
+  expect(f.captures).toHaveLength(1);
+  f.clock.advance(29999);
+  await tick();
+  expect(f.controller.getState().phase).toBe('capturing');
+  f.signal('accepted');
+  f.clock.advance(1);
+  expect(await outcome).toMatchObject({ reason: 'publish_timeout', detail: 'active_timeout' });
+  f.media.resolve(f.stream);
+  await tick();
+  expect(f.audio.stops).toBe(1);
+  expect(f.attachments.filter(call => call.track !== null)).toEqual([]);
+});
+
+test('throwing publishStart reports disconnected without capture', async () => {
+  const f = fixture();
+  f.startThrows();
+  await expect(f.controller.start({ audio: true })).rejects.toMatchObject({ reason: 'disconnected' });
+  expect(f.captures).toEqual([]);
+  expect(f.errors).toHaveLength(1);
+  expect(f.clock.pendingCount).toBe(0);
+});
+
+test('viewer replacement reports one disconnected terminal state and error', async () => {
+  const f = fixture();
+  const { result } = await f.start();
+  f.signal('active');
+  await result;
+  await f.controller.replace();
+  f.signal('error', 'connection_closed');
+  expect(f.controller.getState()).toMatchObject({ phase: 'error', reason: 'disconnected', mediaSessionId: uuid });
+  expect(f.errors).toEqual([{ reason: 'disconnected', message: 'Publishing connection closed', mediaSessionId: uuid }]);
+  expect(f.audio.stops).toBe(1);
 });

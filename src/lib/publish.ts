@@ -49,3 +49,8 @@ export const INITIAL_PUBLISH_STATE: PublishState = Object.freeze({
 export function supportsPublish(capabilities?: DevicePublishCapabilities): boolean {
   return capabilities?.microphoneInjection === true && capabilities.mediaInjectionTransport === 'direct';
 }
+
+/** Value key: arriving/changed capabilities require fresh first-offer reservations. */
+export function publishCapabilitiesKey(capabilities?: DevicePublishCapabilities): string {
+  return capabilities ? `${capabilities.microphoneInjection}|${capabilities.cameraInjection}|${capabilities.mediaInjectionTransport ?? ''}` : '';
+}

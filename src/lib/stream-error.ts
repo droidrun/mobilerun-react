@@ -71,8 +71,10 @@ export interface DeviceStreamLabels {
   unavailable: string;
   /** Retry button text. Default `Retry`. */
   retry: string;
-  publishMicrophone: string;
-  publishCamera: string;
+  microphone: string;
+  camera: string;
+  stopMicrophone: string;
+  stopCamera: string;
   publishStarting: string;
   publishPermissionDenied: string;
   publishNotAllowed: string;
@@ -84,12 +86,14 @@ const DEFAULT_DEVICE_STREAM_LABELS: DeviceStreamLabels = {
   disconnected: 'reconnecting',
   unavailable: 'device stream unavailable',
   retry: 'Retry',
-  publishMicrophone: 'Microphone',
-  publishCamera: 'Camera',
+  microphone: 'Microphone',
+  camera: 'Camera',
+  stopMicrophone: 'Stop microphone',
+  stopCamera: 'Stop camera',
   publishStarting: 'Starting inputs',
   publishPermissionDenied: 'Microphone or camera permission denied',
   publishNotAllowed: 'Publishing is not allowed',
-  publishFailed: 'Unable to publish inputs',
+  publishFailed: 'Could not publish inputs',
 };
 
 /** Fills every label the integrator left out (or set to undefined) with its English default. */
@@ -99,8 +103,10 @@ export function resolveDeviceStreamLabels(overrides?: Partial<DeviceStreamLabels
     disconnected: overrides?.disconnected ?? DEFAULT_DEVICE_STREAM_LABELS.disconnected,
     unavailable: overrides?.unavailable ?? DEFAULT_DEVICE_STREAM_LABELS.unavailable,
     retry: overrides?.retry ?? DEFAULT_DEVICE_STREAM_LABELS.retry,
-    publishMicrophone: overrides?.publishMicrophone ?? DEFAULT_DEVICE_STREAM_LABELS.publishMicrophone,
-    publishCamera: overrides?.publishCamera ?? DEFAULT_DEVICE_STREAM_LABELS.publishCamera,
+    microphone: overrides?.microphone ?? DEFAULT_DEVICE_STREAM_LABELS.microphone,
+    camera: overrides?.camera ?? DEFAULT_DEVICE_STREAM_LABELS.camera,
+    stopMicrophone: overrides?.stopMicrophone ?? DEFAULT_DEVICE_STREAM_LABELS.stopMicrophone,
+    stopCamera: overrides?.stopCamera ?? DEFAULT_DEVICE_STREAM_LABELS.stopCamera,
     publishStarting: overrides?.publishStarting ?? DEFAULT_DEVICE_STREAM_LABELS.publishStarting,
     publishPermissionDenied: overrides?.publishPermissionDenied ?? DEFAULT_DEVICE_STREAM_LABELS.publishPermissionDenied,
     publishNotAllowed: overrides?.publishNotAllowed ?? DEFAULT_DEVICE_STREAM_LABELS.publishNotAllowed,

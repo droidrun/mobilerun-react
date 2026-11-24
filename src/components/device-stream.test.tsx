@@ -16,12 +16,14 @@ describe('labels', () => {
       disconnected: 'reconnecting',
       unavailable: 'device stream unavailable',
       retry: 'Retry',
-      publishMicrophone: 'Microphone',
-      publishCamera: 'Camera',
+      microphone: 'Microphone',
+      camera: 'Camera',
+      stopMicrophone: 'Stop microphone',
+      stopCamera: 'Stop camera',
       publishStarting: 'Starting inputs',
       publishPermissionDenied: 'Microphone or camera permission denied',
       publishNotAllowed: 'Publishing is not allowed',
-      publishFailed: 'Unable to publish inputs',
+      publishFailed: 'Could not publish inputs',
     });
     expect(resolveDeviceStreamLabels({ retry: undefined, unavailable: 'x' })).toMatchObject({ retry: 'Retry', unavailable: 'x' });
   });

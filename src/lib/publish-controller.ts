@@ -25,6 +25,7 @@ type Operation = {
   attached: boolean;
   timer?: ReturnType<typeof setTimeout>;
   ended?: () => void;
+  sendFailed?: boolean;
   resolve: (state: PublishState) => void;
   reject: (error: PublishError) => void;
 };
@@ -63,6 +64,12 @@ export class PublishController {
     const op = this.operation;
     this.binding = undefined;
     if (op) void this.fail(op, { reason: 'disconnected', message: 'Publishing connection closed' });
+  }
+  async replace(): Promise<void> {
+    const op = this.operation;
+    this.binding = undefined;
+    if (op) await this.fail(op, { reason: 'disconnected', message: 'Publishing connection closed' });
+    this.closed = true;
   }
   dispose(): void {
     this.closed = true;
@@ -106,8 +113,16 @@ export class PublishController {
     const promise = new Promise<PublishState>((resolve, reject) => {
       const op: Operation = { binding, kinds, id: null, sent: false, accepted: false, active: false, attached: false, resolve, reject };
       this.operation = op;
-      this.emit({ phase: 'capturing', mediaSessionId: null, kinds });
-      if (this.current(op)) void this.capture(op);
+      try {
+        op.id = (this.options.uuid ?? (() => crypto.randomUUID()))();
+        this.emit({ phase: 'starting', mediaSessionId: op.id, kinds });
+        if (!this.current(op)) return;
+        op.sent = true;
+        op.timer = this.setTimer(() => { void this.fail(op, { reason: 'publish_unsupported', message: 'The device did not answer the publish request', detail: 'response_timeout' }); }, 5000);
+        binding.socket.send(JSON.stringify({ type: 'publishStart', mediaSessionId: op.id, kinds }));
+      } catch {
+        void this.fail(op, { reason: 'disconnected', message: 'Publishing connection closed' });
+      }
     });
     return promise;
   };
@@ -125,12 +140,7 @@ export class PublishController {
       }
       op.ended = () => { void this.fail(op, { reason: 'publish_failed', message: 'A local input stopped', detail: 'capture_unavailable' }); };
       stream.getTracks().forEach(track => track.addEventListener('ended', op.ended!));
-      op.id = (this.options.uuid ?? (() => crypto.randomUUID()))();
-      this.emit({ phase: 'starting', mediaSessionId: op.id, kinds: op.kinds });
-      if (!this.current(op)) return;
-      op.sent = true;
-      op.timer = this.setTimer(() => { void this.fail(op, { reason: 'publish_unsupported', message: 'The device did not answer the publish request', detail: 'response_timeout' }); }, 5000);
-      op.binding.socket.send(JSON.stringify({ type: 'publishStart', mediaSessionId: op.id, kinds: op.kinds }));
+      await this.attach(op);
     } catch (error) {
       const name = error && typeof error === 'object' && 'name' in error ? error.name : undefined;
       const denied = name === 'NotAllowedError' || name === 'SecurityError';
@@ -145,13 +155,16 @@ export class PublishController {
     if (frame.type !== 'publishState' || typeof frame.mediaSessionId !== 'string' || frame.mediaSessionId !== op.id
       || !['accepted', 'active', 'rejected', 'error', 'stopped'].includes(String(frame.state)) || typeof frame.state !== 'string') return;
     if (frame.state === 'accepted' || frame.state === 'active') {
-      if (frame.state === 'active') { op.active = true; this.clearTimer(op.timer); }
+      if (frame.state === 'active') op.active = true;
       if (!op.accepted) {
         op.accepted = true;
         this.clearTimer(op.timer);
-        if (!op.active) op.timer = this.setTimer(() => { void this.fail(op, { reason: 'publish_timeout', message: 'Publishing did not become active', detail: 'active_timeout' }); }, 15000);
+        op.timer = this.setTimer(() => { void this.fail(op, { reason: 'publish_timeout', message: 'Publishing did not become active', detail: 'active_timeout' }); }, 30000);
         this.emit({ phase: 'accepted', mediaSessionId: op.id, kinds: op.kinds });
-        if (this.current(op)) void this.attach(op);
+        if (this.current(op)) {
+          this.emit({ phase: 'capturing', mediaSessionId: op.id, kinds: op.kinds });
+          if (this.current(op)) void this.capture(op);
+        }
       }
       this.complete(op);
       return;
@@ -184,6 +197,7 @@ export class PublishController {
   }
   private complete(op: Operation): void {
     if (!this.current(op) || !op.active || !op.attached || this.state.phase === 'active') return;
+    this.clearTimer(op.timer);
     this.emit({ phase: 'active', mediaSessionId: op.id, kinds: op.kinds });
     op.resolve(this.state);
   }
@@ -197,7 +211,7 @@ export class PublishController {
     this.clearTimer(op.timer);
     op.stream?.getTracks().forEach(track => { if (op.ended) track.removeEventListener('ended', op.ended); track.stop(); });
     if (op.sent && op.binding.socket.readyState === 1) {
-      try { op.binding.socket.send(JSON.stringify({ type: 'stopPublish', mediaSessionId: op.id })); } catch { /* local cleanup always wins */ }
+      try { op.binding.socket.send(JSON.stringify({ type: 'stopPublish', mediaSessionId: op.id })); } catch { op.sendFailed = true; }
     }
     const cleanup = !op.accepted ? Promise.resolve() : this.mutate(async () => {
       for (const kind of op.kinds) {
@@ -211,6 +225,7 @@ export class PublishController {
     if (this.operation !== op) return;
     await this.teardown(op);
     this.ending = undefined;
+    if (op.sendFailed) failure = { reason: 'disconnected', message: 'Publishing connection closed' };
     this.emit({ phase: 'error', mediaSessionId: op.id, kinds: op.kinds, ...failure });
     op.reject(this.report(failure, op.id));
   }
@@ -219,6 +234,12 @@ export class PublishController {
     if (!op) { await this.ending; return; }
     await this.teardown(op);
     this.ending = undefined;
+    if (op.sendFailed) {
+      const failure: PublishFailure = { reason: 'disconnected', message: 'Publishing connection closed' };
+      this.emit({ phase: 'error', mediaSessionId: op.id, kinds: op.kinds, ...failure });
+      op.reject(this.report(failure, op.id));
+      return;
+    }
     this.emit({ phase: 'stopped', mediaSessionId: op.id, kinds: op.kinds, reason: 'stopped_by_client' });
     op.reject(new PublishError({ reason: 'publish_cancelled', message: 'Publishing was cancelled' }));
   };

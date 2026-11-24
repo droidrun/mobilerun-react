@@ -141,7 +141,8 @@ active inputs show red. Set `hidePublishControls` for your own controls and use 
 
 `onPublishStateChange` observes this separate state. Publish errors carry `operation: 'publish'`
 in `onError`; an explicit server `forbidden` maps to `publish_not_allowed`, while a silent server
-maps to `publish_unsupported` after 5 seconds. Permission prompts require an explicit start.
+maps to `publish_unsupported` after 5 seconds. Permission prompts happen only after the device accepts an explicit start; the 30-second active
+window includes the prompt. Refused or silent requests never capture.
 Stopping or reconnecting releases capture; publication never resumes automatically.
 See [Publishing inputs](https://github.com/droidrun/mobilerun-react/blob/main/docs/publish.md)
 for capabilities, permissions, ref types and labels.

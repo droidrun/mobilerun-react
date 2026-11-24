@@ -166,17 +166,20 @@ track attachment. Audio is required. To change camera mode, stop then start. Set
 connection state; `onError` publish events have `operation: 'publish'`, the viewer attempt index,
 `final: true`, and optional `mediaSessionId`, `detail`, `serverReason`. Handle rejected starts with
 `PublishError.reason`. `forbidden` → `publish_not_allowed`; silence after 5 s →
-`publish_unsupported`; acceptance without active after 15 s → `publish_timeout`. There is no retry.
+`publish_unsupported`; acceptance without active after 30 s (including the permission prompt) → `publish_timeout`. There is no retry.
 
 Use HTTPS (or localhost), permit microphone/camera in Permissions Policy and set iframe
-`allow="microphone; camera"` when embedding. Capture only starts on explicit action and is stopped
+`allow="microphone; camera"` when embedding. Capture only starts after an explicit action is accepted by the device and is stopped
 on stop, pagehide, disconnection or unmount. Reconnect never resumes it. Receiving audio mute
-is independent. Capability changes require a new viewer connection and fresh token (remount the
-component with a new `key`). No privileged API key belongs in the browser.
+is independent. Arriving or changed capabilities automatically renew the viewer with a fresh token; equivalent
+snapshots do not reconnect. Camera controls follow verified first-offer reservations. No privileged API key belongs in the browser.
 
-Publish labels and English defaults: `publishMicrophone` (“Microphone”), `publishCamera` (“Camera”),
-`publishStarting` (“Starting inputs”), `publishPermissionDenied` (“Microphone or camera permission denied”),
-`publishNotAllowed` (“Publishing is not allowed”), `publishFailed` (“Unable to publish inputs”).
+Publish labels and English defaults: `microphone` (“Microphone”), `camera` (“Camera”),
+`stopMicrophone` (“Stop microphone”), `stopCamera` (“Stop camera”), `publishStarting` (“Starting inputs”), `publishPermissionDenied` (“Microphone or camera permission denied”),
+`publishNotAllowed` (“Publishing is not allowed”), `publishFailed` (“Could not publish inputs”).
+Only pill buttons receive input; its background/status text pass through. It fades to 50% after
+3 s and restores on nearby pointer/touch input. Status text stays above it. A viewer replacement or
+throwing start/stop socket write emits `disconnected` once and releases capture.
 Style the pill with existing card/border tokens and `--mr-publish-live` / `--mr-publish-live-foreground`.
 See [Publishing inputs](../../docs/publish.md) for the full API and failure details.
 

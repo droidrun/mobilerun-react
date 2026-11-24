@@ -15,7 +15,7 @@ import { createRTCConfigurationRequest } from '../webrtc-messages';
 import { browserReportsOnline } from '../lib/browser-network';
 import { PublishController } from '../lib/publish-controller';
 import { inspectPublishOffer, reservePublish } from '../lib/publish-media';
-import type { DevicePublishCapabilities, PublishState, PublishErrorEvent } from '../lib/publish';
+import { publishCapabilitiesKey, type DevicePublishCapabilities, type PublishState, type PublishErrorEvent, type PublishKind } from '../lib/publish';
 
 const debugLog = (...args: any[]) => {
   if (window.debugRemoteControl) {
@@ -54,6 +54,7 @@ interface UseWebRtcConnectionOptions {
   publishCapabilities?: DevicePublishCapabilities;
   onPublishStateChange?: (state: PublishState) => void;
   onPublishError?: (error: PublishErrorEvent) => void;
+  onPublishKindsChange?: (kinds: PublishKind[]) => void;
   url: string;
   token?: string;
   tokenProvider?: () => Promise<string>;
@@ -93,6 +94,7 @@ export function useWebRtcConnection({
   publishCapabilities,
   onPublishStateChange,
   onPublishError,
+  onPublishKindsChange,
   url,
   token,
   tokenProvider,
@@ -105,14 +107,16 @@ export function useWebRtcConnection({
   onConnectionAttemptStarted,
   onPeerConnectionChange,
 }: UseWebRtcConnectionOptions): UseWebRtcConnectionResult {
-  const publishCallbacks = useRef({ onPublishStateChange, onPublishError });
-  publishCallbacks.current = { onPublishStateChange, onPublishError };
-  const publisherRef = useRef<PublishController | null>(null);
-  if (!publisherRef.current) publisherRef.current = new PublishController({
+  const publishCallbacks = useRef({ onPublishStateChange, onPublishError, onPublishKindsChange });
+  publishCallbacks.current = { onPublishStateChange, onPublishError, onPublishKindsChange };
+  const capabilitiesKey = publishCapabilitiesKey(publishCapabilities);
+  const viewerKey = `${url}|${sessionId}|${capabilitiesKey}`;
+  const publisherRef = useRef<{ key: string; publisher: PublishController } | null>(null);
+  if (publisherRef.current?.key !== viewerKey) publisherRef.current = { key: viewerKey, publisher: new PublishController({
     onState: state => publishCallbacks.current.onPublishStateChange?.(state),
     onError: error => publishCallbacks.current.onPublishError?.(error),
-  });
-  const publisher = publisherRef.current;
+  }) };
+  const publisher = publisherRef.current.publisher;
   const tokenRef = useRef(token);
   tokenRef.current = token;
   const tokenProviderRef = useRef(tokenProvider);
@@ -781,6 +785,7 @@ export function useWebRtcConnection({
       if (!isCurrent() || peerConnectionRef.current !== pc) return;
       const sdp = pc.localDescription?.sdp ?? offer.sdp ?? '';
       inspectPublishOffer(reservations, sdp);
+      publishCallbacks.current.onPublishKindsChange?.([...reservations.offered]);
       ws.send(JSON.stringify({ type: 'offer', sdp, sessionId }));
       updateStatus('Sent offer');
     } catch (e) {
@@ -846,6 +851,7 @@ export function useWebRtcConnection({
 
   useEffect(() => {
     publisher.open(publishCapabilities);
+    publishCallbacks.current.onPublishKindsChange?.([]);
     // Connectivity only gates/cancels here; useStreamReconnect owns recovery.
     const onOffline = () => {
       if (allowOffline) return;
@@ -869,14 +875,14 @@ export function useWebRtcConnection({
 
     // Clean up
     return () => {
-      publisher.dispose();
+      void publisher.replace();
       stop();
       window.removeEventListener('pagehide', onPageHide);
       document.removeEventListener('visibilitychange', onVisibilityChange);
       window.removeEventListener('offline', onOffline);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: reconnect only on url/session change; start/stop/keepAlive helpers are re-created each render and must not be deps
-  }, [url, sessionId]);
+  }, [url, sessionId, capabilitiesKey]);
 
   return {
     publisher,

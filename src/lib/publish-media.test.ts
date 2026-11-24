@@ -64,3 +64,17 @@ test('incompatible H.264 profile is not a camera encoder', () => {
   globalThis.RTCRtpSender = { getCapabilities: () => ({ codecs: [{ ...video, sdpFmtpLine: 'packetization-mode=0;profile-level-id=42e01f' }] }) } as unknown as typeof RTCRtpSender;
   expect(supportsPublishCamera()).toBe(false);
 });
+
+test.each(['42e01f', '42e02a', '42c020', '4d0028', '640c33'])('camera accepts profile and offered level %s unchanged', profile => {
+  const f = fixture();
+  const offered = { ...video, sdpFmtpLine: 'packetization-mode=1;profile-level-id=' + profile };
+  globalThis.RTCRtpSender = { getCapabilities: () => ({ codecs: [offered] }) } as unknown as typeof RTCRtpSender;
+  expect(supportsPublishCamera()).toBe(true);
+  reservePublish(f.pc, caps);
+  expect(f.preferred[0]).toEqual([offered]);
+});
+
+test.each(['42e01e', '42c00b', '4d001e', '640c1e', '12342a'])('camera rejects unsupported profile/level %s', profile => {
+  globalThis.RTCRtpSender = { getCapabilities: () => ({ codecs: [{ ...video, sdpFmtpLine: 'packetization-mode=1;profile-level-id=' + profile }] }) } as unknown as typeof RTCRtpSender;
+  expect(supportsPublishCamera()).toBe(false);
+});

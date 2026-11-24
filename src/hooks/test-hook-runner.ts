@@ -17,6 +17,11 @@ const fixtureSource = `
     }];
   }
   export function useCallback(fn) { return fn; }
+  export function jsx(type, props) { return { type, props }; }
+  export const jsxDEV = jsx, jsxs = jsx;
+  export const Fragment = Symbol.for('react.fragment');
+  export function forwardRef(fn) { return fn; }
+  export function createElement(type, props, ...children) { return { type, props: { ...props, children } }; }
   export function useEffect(fn, deps) {
     const ref = useRef(undefined);
     effectSlots.add(ref);
@@ -51,7 +56,7 @@ async function bundleHook(entry: string): Promise<string> {
     plugins: [{
       name: 'hook-runner',
       setup(build) {
-        build.onResolve({ filter: /^react$/ }, () => ({ path: 'react', namespace: 'fixture' }));
+        build.onResolve({ filter: /^react(?:\/jsx(?:-dev)?-runtime)?$/ }, () => ({ path: 'react', namespace: 'fixture' }));
         build.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ loader: 'js', contents: fixtureSource }));
       },
     }],

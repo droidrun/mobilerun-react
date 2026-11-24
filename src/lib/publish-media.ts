@@ -8,13 +8,16 @@ export type PublishReservations = {
   offered: Set<PublishKind>;
 };
 
+const H264_PUBLISH_PROFILE = /(?:^|;)\s*profile-level-id=(42e0|42c0|4d00|640c)([0-9a-f]{2})(?:;|$)/i;
+
 function codecs(kind: PublishKind): RTCRtpCodec[] {
   if (typeof RTCRtpSender === 'undefined' || !RTCRtpSender.getCapabilities) return [];
   return (RTCRtpSender.getCapabilities(kind)?.codecs ?? []).filter(codec => {
     if (kind === 'audio') return codec.mimeType.toLowerCase() === 'audio/opus' && codec.clockRate === 48000 && codec.channels === 2;
     const fmtp = codec.sdpFmtpLine ?? '';
+    const profile = fmtp.match(H264_PUBLISH_PROFILE);
     return codec.mimeType.toLowerCase() === 'video/h264' && /(?:^|;)\s*packetization-mode=1(?:;|$)/i.test(fmtp)
-      && /(?:^|;)\s*profile-level-id=(42e01f|42c01f|4d001f|640c1f)(?:;|$)/i.test(fmtp);
+      && !!profile && Number.parseInt(profile[2], 16) >= 0x1f;
   }).sort((a, b) => Number(!/profile-level-id=42/i.test(a.sdpFmtpLine ?? '')) - Number(!/profile-level-id=42/i.test(b.sdpFmtpLine ?? '')));
 }
 

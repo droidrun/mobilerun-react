@@ -7,7 +7,7 @@ import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'rea
 import { StreamStatusPill } from './stream-status-pill';
 import { resolveDeviceStreamLabels, type DeviceStreamLabels, type StreamFailure } from '../lib/stream-error';
 
-import type { DevicePublishCapabilities, PublishState, PublishOptions, PublishErrorEvent } from '../lib/publish';
+import type { DevicePublishCapabilities, PublishState, PublishOptions, PublishErrorEvent, PublishKind } from '../lib/publish';
 
 import { ANDROID_KEYS, codeMap } from '../constants';
 import { createInjectKeycodeMessage, createScreenshotRequest } from '../webrtc-messages';
@@ -24,6 +24,7 @@ interface RemoteControlProps {
   publishCapabilities?: DevicePublishCapabilities;
   onPublishStateChange?: (state: PublishState) => void;
   onPublishError?: (error: PublishErrorEvent) => void;
+  onPublishKindsChange?: (kinds: PublishKind[]) => void;
   // url is the URL of the instance to connect to.
   url: string;
 
@@ -141,6 +142,7 @@ export const RemoteControl = forwardRef<DeviceStreamHandle | RemoteControlHandle
       publishCapabilities,
       onPublishStateChange,
       onPublishError,
+      onPublishKindsChange,
       className,
       url,
       token,
@@ -180,6 +182,7 @@ export const RemoteControl = forwardRef<DeviceStreamHandle | RemoteControlHandle
       publishCapabilities,
       onPublishStateChange,
       onPublishError,
+      onPublishKindsChange,
       url,
       token,
       tokenProvider,

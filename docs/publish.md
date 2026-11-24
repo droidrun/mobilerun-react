@@ -34,7 +34,9 @@ export function Phone({ streamUrl, tokenProvider, capabilities }: {
 }
 ```
 
-The default pill floats at the bottom centre without changing the video layout. Microphone toggles
+The default pill floats at the bottom centre without changing the video layout. Only its buttons receive taps; the background and separate status
+text above the pill pass taps through. After 3 seconds without nearby interaction it fades to 50%;
+nearby pointer/touch input or button focus restores full opacity. Microphone toggles
 publication on/off. Camera starts microphone+camera; toggling it off restarts microphone-only.
 Live inputs show red. Both controls are disabled during setup. The pill is hidden without a snapshot
 with `microphoneInjection: true` and `mediaInjectionTransport: 'direct'`; camera also requires
@@ -53,11 +55,13 @@ Set `hidePublishControls` to hide the pill and call the ref methods from your ow
   `{ phase: 'idle', mediaSessionId: null, kinds: [] }`.
 
 `DeviceStreamHandle` extends `RemoteControlHandle`; existing ref operations remain supported.
-`onPublishStateChange` observes `capturing → starting → accepted → active` and terminal
-`stopped`/`error` states. Captured tracks stay detached until acceptance. Only one operation is
+`onPublishStateChange` observes `starting → accepted → capturing → active` and terminal
+`stopped`/`error` states. The SDK sends the start request before opening inputs; refused and silent requests never prompt
+or capture. Acceptance starts a 30-second window covering the permission prompt, capture and activation. Only one operation is
 allowed; a concurrent start rejects without changing it. Explicitly stop then start to change kinds.
-Capabilities are fixed for the first viewer offer: remount with a new `key` and fresh stream token
-to apply a different snapshot. No publish-time SDP renegotiation or automatic resume occurs.
+When capabilities arrive or their values change, the SDK renews the viewer connection and obtains
+a fresh token through `tokenProvider` to reserve the inputs in its first offer. Equivalent snapshots
+do not reconnect. The camera button follows the verified offer reservation. No publish-time SDP renegotiation or automatic resume occurs.
 Browsers unable to produce compatible SSRC-bearing trackless sender reservations keep viewing
 and reject publication with `publish_unsupported`.
 
@@ -65,9 +69,12 @@ and reject publication with `publish_unsupported`.
 
 Use HTTPS or localhost and permit the required inputs in your site's Permissions Policy. For
 cross-origin iframe embeds configure the parent policy and `allow="microphone; camera"` on the
-iframe. Only explicit start requests capture permission; mounting, connecting and reconnecting
+iframe. Only an explicit start accepted by the device requests capture permission; mounting, connecting and reconnecting
 never prompt. Audio-only does not request camera permission. The default browser input devices
 are used. The capture profile targets 720p at 24–30 fps with a 1 Mbps uplink cap where supported.
+
+Viewer replacement/remount emits terminal `disconnected` once through state and `onError`. A
+throwing start/stop signaling write also reports `disconnected` and releases capture.
 
 Capture is released on cancellation, failure, source loss, signaling/peer loss, pagehide and
 unmount. A pending permission prompt may remain visible, but any later tracks are stopped without
@@ -91,7 +98,7 @@ viewer unavailable.
 | `permission_denied` | Browser `NotAllowedError`/`SecurityError` (`capture_permission`). |
 | `publish_busy` | Another publisher holds the device's lease. No stealing or retry. |
 | `publish_failed` | Invalid options, concurrent start, missing/busy inputs, source loss, attachment/injection failure or unexpected terminal server response. |
-| `publish_timeout` | Accepted but no server active within 15 s (`active_timeout`). |
+| `publish_timeout` | Accepted but no server active within 30 s (including the permission prompt) (`active_timeout`). |
 | `publish_cancelled` | Pending start cancelled locally; no error callback. |
 | `disconnected` | Viewer is not connected, is closed, or loses its socket/peer. |
 
@@ -104,12 +111,14 @@ All pill text uses `labels` with English defaults:
 
 | Key | Default |
 | --- | --- |
-| `publishMicrophone` | Microphone |
-| `publishCamera` | Camera |
+| `microphone` | Microphone |
+| `camera` | Camera |
+| `stopMicrophone` | Stop microphone |
+| `stopCamera` | Stop camera |
 | `publishStarting` | Starting inputs |
 | `publishPermissionDenied` | Microphone or camera permission denied |
 | `publishNotAllowed` | Publishing is not allowed |
-| `publishFailed` | Unable to publish inputs |
+| `publishFailed` | Could not publish inputs |
 
 The pill uses the existing card, foreground, border and ring tokens. Override the red live state
 with `--mr-publish-live` and `--mr-publish-live-foreground` on `.mobilerun-device-stream` or an

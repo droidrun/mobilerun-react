@@ -14,14 +14,14 @@ import {
 import { STREAM_RECONNECT_MAX_ATTEMPTS } from '../lib/stream-reconnect';
 import { RemoteControl, type DeviceStreamHandle, type RemoteControlHandle } from './remote-control';
 import { PublishControls } from './publish-controls';
-import { INITIAL_PUBLISH_STATE, PublishError, type DevicePublishCapabilities, type PublishState, type PublishErrorEvent } from '../lib/publish';
+import { INITIAL_PUBLISH_STATE, PublishError, publishCapabilitiesKey, type PublishKind, type DevicePublishCapabilities, type PublishState, type PublishErrorEvent } from '../lib/publish';
 import { StreamStatusPill } from './stream-status-pill';
 import { StreamUnavailable } from './stream-unavailable';
 import { useStaticTokenWarning } from '../hooks/use-static-token-warning';
 import { useStreamReconnect } from '../hooks/use-stream-reconnect';
 
 export interface DeviceStreamProps {
-  /** Device capability snapshot supplied by your backend, fixed for this viewer connection. */
+  /** Device capability snapshot supplied by your backend; changed values renew the viewer connection. */
   publishCapabilities?: DevicePublishCapabilities;
   onPublishStateChange?: (state: PublishState) => void;
   /** Hide the built-in floating microphone/camera pill. Headless ref methods remain available. */
@@ -101,16 +101,23 @@ export const DeviceStream = forwardRef<DeviceStreamHandle | RemoteControlHandle,
   const remoteRef = useRef<DeviceStreamHandle | null>(null);
   const [publishState, setPublishState] = useState<PublishState>(INITIAL_PUBLISH_STATE);
   const [connected, setConnected] = useState(false);
+  const [offeredKinds, setOfferedKinds] = useState<PublishKind[]>([]);
+  const observers = useRef({ onError, onPublishStateChange });
+  observers.current = { onError, onPublishStateChange };
   const publishStateRef = useRef(publishState);
   const disposed = useRef(false);
   useEffect(() => {
     disposed.current = false;
     return () => {
-      disposed.current = true;
       const state = publishStateRef.current;
       if (['capturing', 'starting', 'accepted', 'active'].includes(state.phase)) {
-        publishStateRef.current = Object.freeze({ ...state, phase: 'stopped', reason: 'stopped_by_client' });
+        const failure = { reason: 'disconnected' as const, message: 'Publishing connection closed' };
+        publishStateRef.current = Object.freeze({ ...state, phase: 'error', ...failure });
+        observers.current.onPublishStateChange?.(publishStateRef.current);
+        observers.current.onError?.({ ...failure, operation: 'publish', attempt: attemptIndex.current, final: true,
+          ...(state.mediaSessionId ? { mediaSessionId: state.mediaSessionId } : {}) });
       }
+      disposed.current = true;
     };
   }, []);
   const attemptIndex = useRef(1);
@@ -128,7 +135,7 @@ export const DeviceStream = forwardRef<DeviceStreamHandle | RemoteControlHandle,
     sendKeyEvent: event => remoteRef.current?.sendKeyEvent(event),
     sendSystemKey: button => remoteRef.current?.sendSystemKey(button),
     screenshot: () => remoteRef.current?.screenshot() ?? Promise.reject(new Error('The viewer is not connected')),
-    getPublishState: () => remoteRef.current?.getPublishState() ?? publishStateRef.current,
+    getPublishState: () => publishStateRef.current,
     stopPublish: () => remoteRef.current?.stopPublish() ?? Promise.resolve(),
     startPublish: options => {
       if (disposed.current) return Promise.reject(new PublishError({ reason: 'disconnected', message: 'The session is closed', detail: 'session_closed' }));
@@ -163,18 +170,14 @@ export const DeviceStream = forwardRef<DeviceStreamHandle | RemoteControlHandle,
     watchdogFromSocket: true,
   });
 
-  // Capabilities describe this viewer's first offer. A new viewer takes a new snapshot.
-  const connectionPublishCapabilities = useMemo(
-    () => publishCapabilities ? { ...publishCapabilities } : undefined,
-    [streamKey, activeTarget.url],
-  );
+  const capabilitiesKey = publishCapabilitiesKey(publishCapabilities);
 
   useEffect(() => {
     const state = remoteRef.current?.getPublishState() ?? INITIAL_PUBLISH_STATE;
     publishStateRef.current = state;
     setPublishState(state);
     setConnected(false);
-  }, [streamKey, streamUrl]);
+  }, [streamKey, streamUrl, capabilitiesKey]);
 
   const handleConnectionStateChange = useCallback(
     (connected: boolean) => {
@@ -217,9 +220,10 @@ export const DeviceStream = forwardRef<DeviceStreamHandle | RemoteControlHandle,
           <div className="device-stream-wrapper w-full h-full flex items-center justify-center relative">
             <RemoteControl
               ref={remoteRef}
-              publishCapabilities={connectionPublishCapabilities}
+              publishCapabilities={publishCapabilities}
               onPublishStateChange={updatePublishState}
               onPublishError={onPublishError}
+              onPublishKindsChange={setOfferedKinds}
               key={streamKey}
               url={activeTarget.url ?? streamUrl}
               token={activeTarget.token}
@@ -235,7 +239,7 @@ export const DeviceStream = forwardRef<DeviceStreamHandle | RemoteControlHandle,
             />
           </div>
 
-          <PublishControls capabilities={connectionPublishCapabilities} hidden={hidePublishControls} connected={connected && status === 'connected'}
+          <PublishControls capabilities={publishCapabilities} offeredKinds={offeredKinds} hidden={hidePublishControls} connected={connected && status === 'connected'}
             state={publishState} labels={labels}
             start={options => remoteRef.current!.startPublish(options)}
             stop={() => remoteRef.current?.stopPublish() ?? Promise.resolve()} />
