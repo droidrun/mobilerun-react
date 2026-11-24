@@ -26,6 +26,14 @@
 
 </div>
 
+## Install
+
+```sh
+npm install @mobilerun/react @mobilerun/sdk react react-dom
+```
+
+`react`, `react-dom` and `@mobilerun/sdk` are peer dependencies.
+
 > **Building Mobilerun phones into your platform?** Start with the [Partner guide](https://docs.mobilerun.ai/partners). It walks through the API key, one phone per user, stream tokens and live viewing step by step.
 
 <table>
@@ -53,14 +61,6 @@
 </td>
 </tr>
 </table>
-
-## Install
-
-```sh
-npm install @mobilerun/react @mobilerun/sdk react react-dom
-```
-
-`react`, `react-dom` and `@mobilerun/sdk` are peer dependencies.
 
 ## Quick start
 
