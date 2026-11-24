@@ -10,68 +10,66 @@
  *   import '@mobilerun/react/styles.css';
  *
  * All colors resolve through CSS custom properties, so a host app can override
- * any token by redefining e.g. `--background` on `:root` (or scope a `.dark`).
+ * any token by setting e.g. `--mr-background` on an ancestor or on the component
+ * root (`.mobilerun-device-stream`). The unprefixed names (`--background`, ...)
+ * still work for one more minor release.
  */
 
 @layer theme, base, components, utilities;
 
-@import 'tailwindcss/theme.css' layer(theme);
-@import 'tailwindcss/utilities.css' layer(utilities);
+/* `theme(inline)` resolves Tailwind's theme values (spacing, text sizes, radii, ...) into the
+ * utilities instead of declaring them as variables on :root, so the package adds no global
+ * custom property to the host page. */
+@import 'tailwindcss/theme.css' layer(theme) theme(inline);
+/* `source(none)`: only the @source below is scanned, so a mention of a theme name in a test or
+ * doc can never pull Tailwind's variables back onto :root. */
+@import 'tailwindcss/utilities.css' layer(utilities) source(none);
 @import 'tw-animate-css';
 
 /* Scan the component source so only used utilities are emitted. */
 @source './components/**/*.{ts,tsx}';
 
 /* Map semantic color utilities (bg-background, text-muted-foreground, ...) onto
- * overridable CSS variables. `inline` keeps the var() reference so host apps can
- * restyle by setting the variables below. */
+ * overridable CSS variables. `inline` keeps the var() reference.
+ *
+ * Each color resolves, in order: `--mr-<token>` (the documented name, set it on
+ * any ancestor or on the component root), then the legacy unprefixed `--<token>`
+ * for one more minor release (host themes such as shadcn already define it), then
+ * the bundled default below. The package itself defines no unprefixed variable. */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-border: var(--border);
-  --color-ring: var(--ring);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
+  --color-background: var(--mr-background, var(--background, var(--mr-default-background, oklch(1 0 0))));
+  --color-foreground: var(--mr-foreground, var(--foreground, var(--mr-default-foreground, oklch(0.145 0 0))));
+  --color-card: var(--mr-card, var(--card, var(--mr-default-card, oklch(1 0 0))));
+  --color-card-foreground: var(--mr-card-foreground, var(--card-foreground, var(--mr-default-card-foreground, oklch(0.145 0 0))));
+  --color-muted: var(--mr-muted, var(--muted, var(--mr-default-muted, oklch(0.97 0 0))));
+  --color-muted-foreground: var(--mr-muted-foreground, var(--muted-foreground, var(--mr-default-muted-foreground, oklch(0.556 0 0))));
+  --color-border: var(--mr-border, var(--border, var(--mr-default-border, oklch(0.922 0 0))));
+  --color-ring: var(--mr-ring, var(--ring, var(--mr-default-ring, oklch(0.708 0 0))));
+  --color-primary: var(--mr-primary, var(--primary, var(--mr-default-primary, oklch(0.205 0 0))));
+  --color-primary-foreground: var(--mr-primary-foreground, var(--primary-foreground, var(--mr-default-primary-foreground, oklch(0.985 0 0))));
+  --color-accent: var(--mr-accent, var(--accent, var(--mr-default-accent, oklch(0.97 0 0))));
+  --color-accent-foreground: var(--mr-accent-foreground, var(--accent-foreground, var(--mr-default-accent-foreground, oklch(0.205 0 0))));
+  --color-destructive: var(--mr-destructive, var(--destructive, var(--mr-default-destructive, oklch(0.577 0.245 27.325))));
 }
 
-/* Default token values (light). Override on the host's :root to retheme. */
-:root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --border: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-}
-
-.dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --border: oklch(1 0 0 / 10%);
-  --ring: oklch(0.556 0 0);
-  --primary: oklch(0.985 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
+/* Bundled dark defaults, scoped to the component roots (never to :root or a bare
+ * `.dark`). Light defaults are the literal fallbacks above. Add `.dark` to an
+ * ancestor of the component, or to the root itself, to use them. */
+:is(.dark .mobilerun-device-stream, .dark .mobilerun-task-approval, .dark .mobilerun-navigation-bar, .dark .rc-container),
+:is(.mobilerun-device-stream, .mobilerun-task-approval, .mobilerun-navigation-bar, .rc-container).dark {
+  --mr-default-background: oklch(0.145 0 0);
+  --mr-default-foreground: oklch(0.985 0 0);
+  --mr-default-card: oklch(0.205 0 0);
+  --mr-default-card-foreground: oklch(0.985 0 0);
+  --mr-default-muted: oklch(0.269 0 0);
+  --mr-default-muted-foreground: oklch(0.708 0 0);
+  --mr-default-border: oklch(1 0 0 / 10%);
+  --mr-default-ring: oklch(0.556 0 0);
+  --mr-default-primary: oklch(0.985 0 0);
+  --mr-default-primary-foreground: oklch(0.205 0 0);
+  --mr-default-accent: oklch(0.269 0 0);
+  --mr-default-accent-foreground: oklch(0.985 0 0);
+  --mr-default-destructive: oklch(0.704 0.191 22.216);
 }
 
 /* ---- Structural component CSS (not utility-based) ---- */
@@ -126,4 +124,63 @@
   max-height: 100% !important;
   object-fit: contain !important;
   display: block !important;
+}
+
+/* Capture controls float above both video and the optional input-blocking overlay. */
+.mobilerun-device-stream .mr-publish-controls {
+  position: absolute;
+  z-index: 60;
+  bottom: max(16px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  pointer-events: none;
+  max-width: calc(100% - 24px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.mobilerun-device-stream .mr-publish-controls[data-dimmed='true'] .mr-publish-pill { opacity: 0.5; }
+.mobilerun-device-stream .mr-publish-pill {
+  pointer-events: none;
+  transition: opacity 150ms ease;
+  display: flex;
+  padding: 4px;
+  gap: 4px;
+  border: 1px solid var(--mr-border, var(--border, #d4d4d4));
+  border-radius: 999px;
+  background: var(--mr-card, var(--card, var(--mr-default-card, #fff)));
+  color: var(--mr-card-foreground, var(--card-foreground, var(--mr-default-card-foreground, #171717)));
+  box-shadow: 0 3px 16px #0003;
+}
+.mobilerun-device-stream .mr-publish-pill button {
+  pointer-events: auto;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+}
+.mobilerun-device-stream .mr-publish-pill button[aria-pressed='true'] {
+  background: var(--mr-publish-live, #b91c1c);
+  color: var(--mr-publish-live-foreground, #fff);
+}
+.mobilerun-device-stream .mr-publish-pill button:disabled { opacity: 0.45; cursor: default; }
+.mobilerun-device-stream .mr-publish-pill button:focus-visible { outline: 2px solid var(--mr-ring, #737373); outline-offset: 2px; }
+.mobilerun-device-stream .mr-publish-status {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  width: max-content;
+  max-width: calc(100vw - 24px);
+  pointer-events: none;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font: 12px/1.4 system-ui, sans-serif;
+  text-align: center;
+  color: var(--mr-card-foreground, var(--mr-default-card-foreground, #171717));
+  background: var(--mr-card, var(--mr-default-card, #fff));
 }

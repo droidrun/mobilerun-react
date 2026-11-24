@@ -6,10 +6,16 @@ import type React from 'react';
 import { useEffect, useRef, useState } from 'react';
 
 import {
+  STREAM_TOKEN_PROVIDER_TIMEOUT_MS,
   STREAM_RTC_CONFIG_TIMEOUT_MS,
   STREAM_WS_OPEN_TIMEOUT_MS,
 } from '../lib/stream-reconnect';
+import { STREAM_FAILURE_MESSAGES, type ConnectionErrorReason, type StreamFailure } from '../lib/stream-error';
 import { createRTCConfigurationRequest } from '../webrtc-messages';
+import { browserReportsOnline } from '../lib/browser-network';
+import { PublishController } from '../lib/publish-controller';
+import { inspectPublishOffer, reservePublish } from '../lib/publish-media';
+import { publishCapabilitiesKey, type DevicePublishCapabilities, type PublishState, type PublishErrorEvent, type PublishKind } from '../lib/publish';
 
 const debugLog = (...args: any[]) => {
   if (window.debugRemoteControl) {
@@ -32,13 +38,28 @@ function buildWebSocketUrl(url: string, token?: string): string {
   return wsUrl.toString();
 }
 
+// A stream token may only travel over TLS, except for local development sockets.
+function isSecureStreamUrl(url: string): boolean {
+  const resolved = new URL(url, window.location.href);
+  if (resolved.protocol === 'wss:') return true;
+  const isLoopback = ['localhost', '127.0.0.1', '[::1]'].includes(resolved.hostname);
+  return resolved.protocol === 'ws:' && isLoopback;
+}
+
 interface ScreenshotData {
   dataUri: string;
 }
 
 interface UseWebRtcConnectionOptions {
+  publishCapabilities?: DevicePublishCapabilities;
+  onPublishStateChange?: (state: PublishState) => void;
+  onPublishError?: (error: PublishErrorEvent) => void;
+  onPublishKindsChange?: (kinds: PublishKind[]) => void;
   url: string;
   token?: string;
+  tokenProvider?: () => Promise<string>;
+  /** Set by an explicit Retry mount; automatic mounts leave this false. */
+  allowOffline?: boolean;
   sessionId: string;
   openUrl?: string;
   videoRef: React.RefObject<HTMLVideoElement | null>;
@@ -48,7 +69,9 @@ interface UseWebRtcConnectionOptions {
   // connection reaches 'failed'/'closed'. Never fired on intentional teardown
   // (stop/unmount). Distinct from onConnectionStateChange(false), which also
   // fires for transient non-connected states during normal negotiation.
-  onConnectionFailed?: () => void;
+  // Carries the reason of the failure (stream client contract v1).
+  onConnectionFailed?: (failure: StreamFailure) => void;
+  onConnectionAttemptStarted?: () => void;
   // Fired with the RTCPeerConnection once it is created and with null when
   // it is torn down. Lets consumers observe the connection (e.g. getStats())
   // without owning its lifecycle.
@@ -56,6 +79,7 @@ interface UseWebRtcConnectionOptions {
 }
 
 interface UseWebRtcConnectionResult {
+  publisher: PublishController;
   wsRef: React.MutableRefObject<WebSocket | null>;
   dataChannelRef: React.MutableRefObject<RTCDataChannel | null>;
   hoverChannelRef: React.MutableRefObject<RTCDataChannel | null>;
@@ -67,20 +91,49 @@ interface UseWebRtcConnectionResult {
 }
 
 export function useWebRtcConnection({
+  publishCapabilities,
+  onPublishStateChange,
+  onPublishError,
+  onPublishKindsChange,
   url,
   token,
+  tokenProvider,
+  allowOffline = false,
   sessionId,
   openUrl,
   videoRef,
   onConnectionStateChange,
   onConnectionFailed,
+  onConnectionAttemptStarted,
   onPeerConnectionChange,
 }: UseWebRtcConnectionOptions): UseWebRtcConnectionResult {
+  const publishCallbacks = useRef({ onPublishStateChange, onPublishError, onPublishKindsChange });
+  publishCallbacks.current = { onPublishStateChange, onPublishError, onPublishKindsChange };
+  const capabilitiesKey = publishCapabilitiesKey(publishCapabilities);
+  const viewerKey = `${url}|${sessionId}|${capabilitiesKey}`;
+  const publisherRef = useRef<{ key: string; publisher: PublishController } | null>(null);
+  if (publisherRef.current?.key !== viewerKey) publisherRef.current = { key: viewerKey, publisher: new PublishController({
+    onState: state => publishCallbacks.current.onPublishStateChange?.(state),
+    onError: error => publishCallbacks.current.onPublishError?.(error),
+  }) };
+  const publisher = publisherRef.current.publisher;
   const tokenRef = useRef(token);
   tokenRef.current = token;
+  const tokenProviderRef = useRef(tokenProvider);
+  tokenProviderRef.current = tokenProvider;
+  const attemptGenerationRef = useRef(0);
 
+  const lastReportedConnectedRef = useRef(false);
   const onConnectionStateChangeRef = useRef(onConnectionStateChange);
   onConnectionStateChangeRef.current = onConnectionStateChange;
+
+  const reportConnectionState = (connected: boolean) => {
+    lastReportedConnectedRef.current = connected;
+    onConnectionStateChangeRef.current?.(connected);
+  };
+
+  const onConnectionAttemptStartedRef = useRef(onConnectionAttemptStarted);
+  onConnectionAttemptStartedRef.current = onConnectionAttemptStarted;
 
   const onConnectionFailedRef = useRef(onConnectionFailed);
   onConnectionFailedRef.current = onConnectionFailed;
@@ -148,9 +201,10 @@ export function useWebRtcConnection({
         }
         const state = pcAtArm.connectionState;
         if (state === 'connected') return;
+        publisher.disconnect();
         updateStatus('ICE-restart grace expired, reporting state: ' + state);
         setIsConnected(false);
-        onConnectionStateChangeRef.current?.(false);
+        reportConnectionState(false);
       },
       Math.max(0, iceRestartGraceUntilRef.current - Date.now()),
     );
@@ -191,6 +245,24 @@ export function useWebRtcConnection({
   };
 
   const start = async () => {
+    if (!allowOffline && !browserReportsOnline()) return;
+    const generation = ++attemptGenerationRef.current;
+    const provider = tokenProviderRef.current;
+    const isActive = () => attemptGenerationRef.current === generation;
+    let failed = false;
+    // Whether this attempt's peer connection ever reached 'connected': a later
+    // failure is a drop of an open session, an earlier one a failed connect.
+    let everConnected = false;
+    const failAttempt = (failure: StreamFailure, stopMedia = !!provider) => {
+      if (!isActive()) return;
+      if (failed) return;
+      failed = true;
+      if (stopMedia) {
+        reportConnectionState(false);
+        stop();
+      }
+      onConnectionFailedRef.current?.(failure);
+    };
     // Reset ICE buffering state for the new session.
     // Done here (not in stop()) to avoid a race where stale candidates
     // from the old WebSocket leak into the new peer connection.
@@ -205,12 +277,43 @@ export function useWebRtcConnection({
     // nothing about it may be reported anymore.
     let attemptWs: WebSocket | null = null;
     let cancelStartup = () => {};
+    // Set while a startup step runs so the catch below can name the failing step.
+    let phase: ConnectionErrorReason = 'unknown';
     try {
-      const wsUrl = buildWebSocketUrl(url, tokenRef.current);
+      let streamToken = tokenRef.current;
+      if (provider) {
+        if (!isSecureStreamUrl(url)) throw new Error('Stream token requires a secure WebSocket URL');
+        let providerTimer: ReturnType<typeof setTimeout> | undefined;
+        phase = 'credentials_unavailable';
+        try {
+          streamToken = await new Promise<string>((resolve, reject) => {
+            providerTimer = setTimeout(
+              () => reject(new Error('Stream token provider timeout')),
+              STREAM_TOKEN_PROVIDER_TIMEOUT_MS,
+            );
+            cancelStartup = () => {
+              clearTimeout(providerTimer);
+              reject(new Error('Stream token request cancelled'));
+            };
+            cancelStartupRef.current = cancelStartup;
+            Promise.resolve(provider()).then(resolve, reject);
+          });
+        } finally {
+          clearTimeout(providerTimer);
+          if (cancelStartupRef.current === cancelStartup) cancelStartupRef.current = null;
+        }
+        if (!isActive()) return;
+        if (!streamToken?.trim()) throw new Error('Stream token provider returned an empty stream token');
+        phase = 'unknown';
+      }
+      if (!isActive() || (!allowOffline && !browserReportsOnline())) return;
+      const wsUrl = buildWebSocketUrl(url, streamToken);
       const ws = new WebSocket(wsUrl);
       attemptWs = ws;
       wsRef.current = ws;
-      const isCurrent = () => wsRef.current === ws;
+      const isCurrent = () => isActive() && wsRef.current === ws;
+      onConnectionAttemptStartedRef.current?.();
+      if (!isCurrent()) return;
       let pendingTimer: ReturnType<typeof setTimeout> | undefined;
       let configHandler: ((event: MessageEvent) => void) | undefined;
       let rejectStartup: ((reason: Error) => void) | undefined;
@@ -231,12 +334,13 @@ export function useWebRtcConnection({
 
       ws.onerror = (error) => {
         if (!isCurrent()) return;
-        updateStatus('WebSocket error: ' + error);
+        updateStatus(provider ? 'WebSocket error' : 'WebSocket error: ' + error);
       };
 
       // Wait for WebSocket to connect. Teardown settles this wait and removes
       // its timer even when the browser never delivers another socket event.
-      await new Promise<void>((resolve, reject) => {
+      phase = 'connection_refused';
+      const opened = new Promise<void>((resolve, reject) => {
         rejectStartup = reject;
         ws.onopen = () => {
           if (!isCurrent()) return;
@@ -249,22 +353,29 @@ export function useWebRtcConnection({
         };
         pendingTimer = setTimeout(() => {
           if (!isCurrent()) return;
+          // Not a refusal: nothing answered in time.
+          phase = 'unknown';
           reject(new Error('WebSocket connection timeout'));
         }, STREAM_WS_OPEN_TIMEOUT_MS);
       });
+      if (!document.hidden) startKeepAlive();
+      await opened;
       if (!isCurrent()) return;
+      phase = 'unknown';
 
-      // The signaling channel dying is terminal for this session (no TURN
-      // credential refresh, no renegotiation), but while the peer connection
-      // is still 'connected' media keeps flowing without it — there, let the
-      // peer connection state decide, as it does today. Report a failure only
-      // when the media path isn't up either (WS died mid-negotiation).
-      ws.onclose = () => {
+      // A server session end closes media in every credential mode. Other
+      // signaling closes leave a connected media path running, as before.
+      ws.onclose = (event) => {
         if (!isCurrent()) return;
+        publisher.disconnect();
         updateStatus('WebSocket closed');
-        if (peerConnectionRef.current?.connectionState !== 'connected') {
-          onConnectionFailedRef.current?.();
-        }
+        const dropped: StreamFailure = {
+          reason: 'disconnected',
+          message: `Signaling connection closed (code ${event.code})`,
+        };
+        if (event.code === 1001) return failAttempt(dropped, true);
+        if (peerConnectionRef.current?.connectionState === 'connected') return;
+        failAttempt(dropped);
       };
 
       // Request RTCConfiguration
@@ -304,6 +415,9 @@ export function useWebRtcConnection({
       const videoTransceiver = pc.addTransceiver('video', {
         direction: 'recvonly',
       });
+
+      const reservations = reservePublish(pc, publishCapabilities);
+      publisher.bind({ socket: ws, peer: pc, capabilities: publishCapabilities, reservations });
 
       // Ask the jitter buffer to target zero playout delay. Trades a bit of
       // smoothness for ~100ms lower glass-to-glass latency — critical for
@@ -426,9 +540,15 @@ export function useWebRtcConnection({
         const state = pc.connectionState;
         updateStatus('Connection state: ' + state);
         const connected = state === 'connected';
+        if (connected) everConnected = true;
+        if (state === 'failed' || state === 'closed' || (state === 'disconnected' && Date.now() >= iceRestartGraceUntilRef.current)) publisher.disconnect();
         if (state === 'failed' || state === 'closed') {
           // Terminal: this peer connection will not come back on its own.
-          onConnectionFailedRef.current?.();
+          failAttempt({
+            reason: everConnected ? 'disconnected' : 'unknown',
+            message: `Peer connection ${state}`,
+          });
+          if (!isCurrent()) return;
         }
         if (connected) {
           iceRestartGraceUntilRef.current = 0;
@@ -448,7 +568,7 @@ export function useWebRtcConnection({
         }
         clearRestartRecheck();
         setIsConnected(connected);
-        onConnectionStateChangeRef.current?.(connected);
+        reportConnectionState(connected);
       };
 
       pc.oniceconnectionstatechange = () => {
@@ -518,6 +638,9 @@ export function useWebRtcConnection({
         }
         updateStatus('Received: ' + message.type);
         switch (message.type) {
+          case 'publishState':
+            publisher.handle(ws, message);
+            break;
           case 'answer':
             if (!peerConnectionRef.current) {
               updateStatus('No peer connection, skipping answer');
@@ -660,17 +783,28 @@ export function useWebRtcConnection({
       if (!isCurrent() || peerConnectionRef.current !== pc) return;
       await pc.setLocalDescription(offer);
       if (!isCurrent() || peerConnectionRef.current !== pc) return;
-      ws.send(JSON.stringify({ type: 'offer', sdp: offer.sdp, sessionId }));
+      const sdp = pc.localDescription?.sdp ?? offer.sdp ?? '';
+      inspectPublishOffer(reservations, sdp);
+      publishCallbacks.current.onPublishKindsChange?.([...reservations.offered]);
+      ws.send(JSON.stringify({ type: 'offer', sdp, sessionId }));
       updateStatus('Sent offer');
     } catch (e) {
+      if (!isActive()) return;
       if (wsRef.current !== attemptWs) return;
       cancelStartup();
-      updateStatus('Error: ' + e);
-      onConnectionFailedRef.current?.();
+      updateStatus(provider ? 'Stream connection attempt failed' : 'Error: ' + e);
+      failAttempt({
+        reason: phase,
+        // Never forward `e.message`: provider and socket errors can carry the token or a ?token= URL.
+        message: STREAM_FAILURE_MESSAGES[phase],
+      });
     }
   };
 
   const stop = () => {
+    publisher.disconnect();
+    ++attemptGenerationRef.current;
+    stopKeepAlive();
     cancelStartupRef.current?.();
     cancelStartupRef.current = null;
     clearRestartRecheck();
@@ -710,37 +844,48 @@ export function useWebRtcConnection({
       hoverChannelRef.current.close();
       hoverChannelRef.current = null;
     }
+    lastReportedConnectedRef.current = false;
     setIsConnected(false);
     updateStatus('Stopped');
   };
 
   useEffect(() => {
-    // Start connection when component mounts
+    publisher.open(publishCapabilities);
+    publishCallbacks.current.onPublishKindsChange?.([]);
+    // Connectivity only gates/cancels here; useStreamReconnect owns recovery.
+    const onOffline = () => {
+      if (allowOffline) return;
+      if (peerConnectionRef.current?.connectionState === 'connected' ||
+        Date.now() < iceRestartGraceUntilRef.current) return;
+      if (lastReportedConnectedRef.current) reportConnectionState(false);
+      stop();
+    };
+    const onPageHide = () => { void publisher.stop(); };
+    window.addEventListener('pagehide', onPageHide);
+    window.addEventListener('offline', onOffline);
     start();
 
-    // Only start keepAlive if page is visible
-    if (!document.hidden) {
-      startKeepAlive();
-    }
-
     // Add visibility change listener
-    const ws = wsRef.current;
+    const generation = attemptGenerationRef.current;
     const onVisibilityChange = () => {
-      if (wsRef.current !== ws) return;
+      if (attemptGenerationRef.current !== generation) return;
       handleVisibilityChange();
     };
     document.addEventListener('visibilitychange', onVisibilityChange);
 
     // Clean up
     return () => {
-      stopKeepAlive();
+      void publisher.replace();
       stop();
+      window.removeEventListener('pagehide', onPageHide);
       document.removeEventListener('visibilitychange', onVisibilityChange);
+      window.removeEventListener('offline', onOffline);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: reconnect only on url/session change; start/stop/keepAlive helpers are re-created each render and must not be deps
-  }, [url, sessionId]);
+  }, [url, sessionId, capabilitiesKey]);
 
   return {
+    publisher,
     wsRef,
     dataChannelRef,
     hoverChannelRef,

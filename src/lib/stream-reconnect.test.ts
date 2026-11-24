@@ -12,13 +12,14 @@ import {
   streamReconnectDelayMs,
   type StreamReconnectSnapshot,
 } from './stream-reconnect';
+import { reconnectPillLabel } from './stream-error';
 import { FakeSchedule } from './test-clock';
 
 // random() => 0.5 makes the jitter factor exactly 1.0.
 const NO_JITTER = () => 0.5;
 const DELAYS = [1000, 2000, 4000, 8000, 16000, 30000];
 
-function setup() {
+function setup(networkAvailable = true) {
   const schedule = new FakeSchedule();
   const calls = { remounts: 0, heals: 0 };
   const snapshots: StreamReconnectSnapshot[] = [];
@@ -33,6 +34,7 @@ function setup() {
       snapshots.push(s);
     },
     schedule,
+    networkAvailable,
     random: NO_JITTER,
   });
   // Simulate React: every remount request results in a mounted attempt.
@@ -68,9 +70,21 @@ describe('connect watchdog', () => {
     // slow-but-valid handshakes the connection layer still considers on
     // budget — and on the final retry strand the stream in 'unavailable'
     // mid-handshake.
+    expect(STREAM_CONNECT_TIMEOUT_MS).toBe(45_000);
     expect(STREAM_CONNECT_TIMEOUT_MS).toBeGreaterThan(
       STREAM_WS_OPEN_TIMEOUT_MS + STREAM_RTC_CONFIG_TIMEOUT_MS,
     );
+  });
+
+  test('a provider phase defers the watchdog but still counts its own failure', () => {
+    const { schedule, controller } = setup();
+    controller.attemptMounted(false);
+    expect(schedule.pendingCount).toBe(0);
+    schedule.advance(10_000);
+    expect(controller.getSnapshot()).toEqual({ status: 'connecting', attempt: 0 });
+    controller.handleFailure();
+    expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 1 });
+    controller.dispose();
   });
 
   test('an attempt that never connects fails after the timeout and schedules a retry', () => {
@@ -399,4 +413,263 @@ describe('heal cadence', () => {
     expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 1 });
     expect(calls.heals).toBe(3);
   });
+});
+
+describe('onError reporting', () => {
+  function withErrors() {
+    const schedule = new FakeSchedule();
+    const errors: { reason: string; message: string; attempt: number; final: boolean }[] = [];
+    const controller = createStreamReconnectController({
+      onRemount: () => controller.attemptMounted(),
+      onHeal: () => {},
+      onSnapshot: () => {},
+      onError: (error) => {
+        errors.push(error);
+      },
+      schedule,
+      random: NO_JITTER,
+    });
+    controller.attemptMounted();
+    return { schedule, controller, errors };
+  }
+
+  test('reports each failed attempt once with its reason and counter', () => {
+    const { schedule, controller, errors } = withErrors();
+    controller.handleFailure({ reason: 'credentials_unavailable', message: 'no key' });
+    controller.handleFailure({ reason: 'connection_refused', message: 'ignored: same attempt' });
+    expect(errors).toEqual([{ reason: 'credentials_unavailable', message: 'no key', attempt: 1, final: false }]);
+    schedule.advance(DELAYS[0]);
+    controller.handleFailure({ reason: 'connection_refused', message: 'closed' });
+    expect(errors.map((e) => [e.reason, e.attempt, e.final])).toEqual([
+      ['credentials_unavailable', 1, false],
+      ['connection_refused', 2, false],
+    ]);
+  });
+
+  test('marks the last failure final once retries stop, and not before', () => {
+    const { schedule, controller, errors } = withErrors();
+    for (let i = 0; i <= STREAM_RECONNECT_MAX_ATTEMPTS; i++) {
+      controller.handleFailure({ reason: 'connection_refused', message: 'closed' });
+      schedule.advance(30_000);
+    }
+    expect(errors).toHaveLength(STREAM_RECONNECT_MAX_ATTEMPTS + 1);
+    expect(errors.filter((e) => e.final)).toHaveLength(1);
+    expect(errors.at(-1)).toMatchObject({ final: true, attempt: STREAM_RECONNECT_MAX_ATTEMPTS + 1 });
+    expect(controller.getSnapshot().status).toBe('unavailable');
+  });
+
+  test('a dropped session is disconnected and a silent attempt is unknown', () => {
+    const { schedule, controller, errors } = withErrors();
+    controller.handleConnected();
+    controller.handleDisconnected();
+    schedule.advance(DELAYS[0]);
+    schedule.advance(STREAM_CONNECT_TIMEOUT_MS);
+    expect(errors.map((e) => e.reason)).toEqual(['disconnected', 'unknown']);
+  });
+
+  test('a failure without detail is unknown', () => {
+    const { controller, errors } = withErrors();
+    controller.handleFailure();
+    expect(errors.map((e) => e.reason)).toEqual(['unknown']);
+  });
+
+  test('a throwing consumer callback does not stop the retry', () => {
+    const schedule = new FakeSchedule();
+    let remounts = 0;
+    const controller = createStreamReconnectController({
+      onRemount: () => { remounts += 1; },
+      onHeal: () => {},
+      onSnapshot: () => {},
+      onError: () => { throw new Error('consumer bug'); },
+      schedule,
+      random: NO_JITTER,
+    });
+    controller.attemptMounted();
+    controller.handleFailure();
+    schedule.advance(DELAYS[0]);
+    expect(remounts).toBe(1);
+  });
+});
+
+describe('attempt counting', () => {
+  test('the reconnect pill number and onError attempt are the same count at every failure', () => {
+    const schedule = new FakeSchedule();
+    const snapshots: StreamReconnectSnapshot[] = [];
+    const errors: { attempt: number; final: boolean }[] = [];
+    const controller = createStreamReconnectController({
+      onRemount: () => controller.attemptMounted(),
+      onHeal: () => {},
+      onSnapshot: (s) => snapshots.push(s),
+      onError: (e) => { errors.push(e); },
+      schedule,
+      random: NO_JITTER,
+    });
+    controller.attemptMounted();
+    const pills: string[] = [];
+    for (let failure = 1; failure <= STREAM_RECONNECT_MAX_ATTEMPTS + 1; failure++) {
+      controller.handleFailure({ reason: 'connection_refused', message: 'closed' });
+      const { status, attempt } = controller.getSnapshot();
+      expect(errors.at(-1)!.attempt).toBe(attempt);
+      if (status === 'reconnecting') pills.push(reconnectPillLabel('reconnecting', attempt, STREAM_RECONNECT_MAX_ATTEMPTS));
+      schedule.advance(30_000);
+    }
+    expect(pills).toEqual([1, 2, 3, 4, 5, 6].map((n) => `reconnecting (${n}/6)`));
+    expect(errors.map((e) => e.attempt)).toEqual([1, 2, 3, 4, 5, 6, 7]);
+    expect(errors.map((e) => e.final)).toEqual([false, false, false, false, false, false, true]);
+    expect(controller.getSnapshot().status).toBe('unavailable');
+  });
+
+  test('the pill label has no suffix before the first failure', () => {
+    expect(reconnectPillLabel('reconnecting', 0, 6)).toBe('reconnecting');
+    expect(reconnectPillLabel('Getrennt', 2, 6)).toBe('Getrennt (2/6)');
+  });
+});
+
+describe('network availability', () => {
+  test('offline stops a watchdog across its deadline without counting failures', () => {
+    const { controller, schedule, calls } = setup();
+    controller.attemptMounted();
+    schedule.advance(44_999);
+    controller.setNetworkAvailable(false);
+    expect(schedule.pendingCount).toBe(0);
+    controller.handleWake();
+    controller.attemptMounted();
+    schedule.advance(45_001);
+    expect(controller.getSnapshot()).toEqual({ status: 'unavailable', attempt: 0 });
+    expect(schedule.pendingCount).toBe(0);
+    expect(calls).toEqual({ remounts: 0, heals: 0 });
+    controller.setNetworkAvailable(true);
+    controller.setNetworkAvailable(true);
+    expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 0 });
+    expect(calls).toEqual({ remounts: 1, heals: 1 });
+    controller.dispose();
+  });
+
+  test('network return revives unavailable with a full budget exactly once', () => {
+    const { controller, schedule, calls } = setup();
+    controller.attemptMounted();
+    DELAYS.forEach(delay => {
+      controller.handleFailure();
+      schedule.advance(delay);
+      controller.attemptMounted();
+    });
+    controller.handleFailure();
+    expect(controller.getSnapshot()).toEqual({ status: 'unavailable', attempt: 7 });
+    controller.setNetworkAvailable(false);
+    controller.handleWake();
+    expect(calls.remounts).toBe(6);
+    controller.setNetworkAvailable(true);
+    controller.setNetworkAvailable(true);
+    expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 0 });
+    expect(calls.remounts).toBe(7);
+    expect(calls.heals).toBe(2);
+    controller.dispose();
+  });
+
+  test('a live transport can report one drop offline but cannot schedule another retry', () => {
+    const { controller, schedule, calls } = setup();
+    controller.attemptMounted();
+    controller.handleConnected();
+    controller.setNetworkAvailable(false);
+    controller.handleDisconnected();
+    controller.handleFailure();
+    schedule.advance(60_000);
+    expect(controller.getSnapshot()).toEqual({ status: 'unavailable', attempt: 1 });
+    expect(schedule.pendingCount).toBe(0);
+    expect(calls).toEqual({ remounts: 0, heals: 0 });
+    controller.dispose();
+  });
+});
+
+// Fix round 1: advisory offline does not interrupt a stable media session.
+test('stability budget and heal cadence survive connected offline online transitions', () => {
+  const { controller, schedule, calls } = setup();
+  controller.attemptMounted();
+  controller.handleFailure();
+  schedule.advance(1_000);
+  controller.attemptMounted();
+  controller.handleConnected();
+  schedule.advance(10_000);
+  controller.setNetworkAvailable(false);
+  schedule.advance(10_000);
+  controller.setNetworkAvailable(true);
+  schedule.advance(9_999);
+  expect(controller.getSnapshot()).toEqual({ status: 'connected', attempt: 1 });
+  schedule.advance(1);
+  expect(controller.getSnapshot()).toEqual({ status: 'connected', attempt: 0 });
+  controller.handleDisconnected();
+  expect(calls.heals).toBe(2); // A new failure heals anew after stability.
+  expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 1 });
+  controller.dispose();
+});
+
+test('a peer connecting while offline still refills its stability budget', () => {
+  const { controller, schedule, calls } = setup();
+  controller.attemptMounted();
+  controller.handleFailure();
+  schedule.advance(1_000);
+  controller.attemptMounted();
+  controller.setNetworkAvailable(false);
+  controller.handleConnected();
+  schedule.advance(30_000);
+  expect(controller.getSnapshot()).toEqual({ status: 'connected', attempt: 0 });
+  controller.setNetworkAvailable(true);
+  controller.handleDisconnected();
+  expect(calls.heals).toBe(2);
+  controller.dispose();
+});
+
+test('offline explicit Retry resets the counter and a timed out forced attempt waits for online', () => {
+  const schedule = new FakeSchedule();
+  const remounts: (boolean | undefined)[] = [];
+  const errors: object[] = [];
+  const controller = createStreamReconnectController({
+    schedule, random: NO_JITTER, onRemount: allowOffline => remounts.push(allowOffline),
+    onHeal: () => {}, onSnapshot: () => {}, onError: error => errors.push(error),
+  });
+  controller.attemptMounted();
+  controller.handleFailure();
+  schedule.advance(1_000);
+  controller.attemptMounted();
+  controller.handleFailure();
+  expect(controller.getSnapshot().attempt).toBe(2);
+  controller.setNetworkAvailable(false);
+  controller.retry();
+  expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 0 });
+  expect(remounts).toEqual([false, true]);
+  controller.attemptMounted(true, true);
+  schedule.advance(44_999);
+  expect(errors).toHaveLength(2);
+  schedule.advance(1);
+  expect(errors).toEqual([
+    { reason: 'unknown', message: 'Connection failed', attempt: 1, final: false },
+    { reason: 'unknown', message: 'Connection failed', attempt: 2, final: false },
+    { reason: 'unknown', message: 'Connection attempt timed out', attempt: 1, final: true },
+  ]);
+  controller.handleFailure();
+  controller.handleWake();
+  schedule.advance(60_000);
+  expect(remounts).toEqual([false, true]);
+  expect(schedule.pendingCount).toBe(0);
+  expect(errors).toHaveLength(3);
+  controller.setNetworkAvailable(true);
+  controller.setNetworkAvailable(true);
+  expect(remounts).toEqual([false, true, false]);
+  expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 0 });
+  controller.dispose();
+});
+
+test('initial offline state offers Retry and network return starts one fresh cycle', () => {
+  const { controller, calls, schedule } = setup(false);
+  expect(controller.getSnapshot()).toEqual({ status: 'unavailable', attempt: 0 });
+  controller.attemptMounted(false);
+  controller.handleWake();
+  schedule.advance(60_000);
+  expect(controller.getSnapshot()).toEqual({ status: 'unavailable', attempt: 0 });
+  expect(calls.remounts).toBe(0);
+  controller.setNetworkAvailable(true);
+  controller.setNetworkAvailable(true);
+  expect(controller.getSnapshot()).toEqual({ status: 'reconnecting', attempt: 0 });
+  expect(calls.remounts).toBe(1);
+  controller.dispose();
 });

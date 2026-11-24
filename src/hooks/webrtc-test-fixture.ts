@@ -1,6 +1,9 @@
 // Copyright 2026 Mobilerun
 // SPDX-License-Identifier: Apache-2.0
 
+import type { PublishController } from '../lib/publish-controller';
+import type { DevicePublishCapabilities } from '../lib/publish';
+import type { FakeSchedule } from '../lib/test-clock';
 import { runHook, tick } from './test-hook-runner';
 
 export const event = (message: object) => ({ data: JSON.stringify(message) });
@@ -12,7 +15,7 @@ export function deferred<T = void>() {
   return { promise, resolve, reject };
 }
 
-export async function fixture() {
+export async function fixture(clock?: FakeSchedule) {
   const sockets: FakeSocket[] = [];
   const peers: FakePeer[] = [];
   const timers = new Map<number, () => void>();
@@ -27,22 +30,30 @@ export async function fixture() {
   const setTimer = schedule('timeout');
   const setIntervalTimer = schedule('interval');
   const clearTimer = (id: number) => { timers.delete(id); };
+  // Lets a test make the socket constructor throw.
+  const hooks: { onConstruct?: (url: string) => void } = {};
   class FakeSocket {
     static OPEN = 1;
     readyState = 0;
     sent: Record<string, unknown>[] = [];
     listeners = new Set<(event: { data: string }) => void>();
     onopen: (() => void) | null = null;
-    onclose: (() => void) | null = null;
+    onclose: ((event?: { code: number }) => void) | null = null;
     onerror: (() => void) | null = null;
     onmessage: ((event: { data: string }) => Promise<void>) | null = null;
-    constructor() { sockets.push(this); }
+    constructor(readonly url: string) {
+      hooks.onConstruct?.(url);
+      sockets.push(this);
+    }
     open() { this.readyState = 1; this.onopen?.(); }
     config() { for (const fn of this.listeners) fn(event({ type: 'rtcConfiguration', rtcConfiguration: {} })); }
     addEventListener(_name: string, fn: (event: { data: string }) => void) { this.listeners.add(fn); }
     removeEventListener(_name: string, fn: (event: { data: string }) => void) { this.listeners.delete(fn); }
     send(data: string) { this.sent.push(JSON.parse(data)); }
-    close() { this.readyState = 3; this.onclose?.(); }
+    close(code = 1000) {
+      this.readyState = 3;
+      this.onclose?.({ code });
+    }
   }
   class FakeChannel {
     closed = false;
@@ -70,7 +81,14 @@ export async function fixture() {
     onicecandidate = (_event: object) => {};
     ontrack = (_event: object) => {};
     constructor() { peers.push(this); }
-    addTransceiver() { return { receiver: {} }; }
+    transceivers: { kind: string; direction: string; mid: string; currentDirection: string; receiver: object; sender: { replaceTrack: (track: unknown) => Promise<void> }; setCodecPreferences: (codecs: unknown) => void }[] = [];
+    attachments: unknown[] = [];
+    addTransceiver(kind: string, options: { direction: string }) {
+      const transceiver = { kind, direction: options.direction, mid: String(this.transceivers.length), currentDirection: options.direction,
+        receiver: {}, sender: { replaceTrack: async (track: unknown) => { this.attachments.push(track); } }, setCodecPreferences: () => {} };
+      this.transceivers.push(transceiver);
+      return transceiver;
+    }
     createDataChannel(label: string, options: Record<string, unknown>) { this.channelOptions.push({ label, options }); const c = new FakeChannel(); this.channels.push(c); return c; }
     createOffer() { return this.offer.promise; }
     setLocalDescription() { this.localCalls++; return this.local.promise; }
@@ -82,35 +100,95 @@ export async function fixture() {
   const stateWrites: boolean[] = [];
   const states: boolean[] = [];
   const failures: boolean[] = [];
+  const failureInfos: { reason: string; message: string }[] = [];
   const bindings: (FakePeer | null)[] = [];
-  const video = { current: { srcObject: null, muted: true } };
+  const video = { current: { srcObject: null as MediaStream | null, muted: true } };
+  const visibilityListeners = new Set<() => void>();
+  const document = {
+    hidden: false,
+    addEventListener(_name: string, fn: () => void) { visibilityListeners.add(fn); },
+    removeEventListener(_name: string, fn: () => void) { visibilityListeners.delete(fn); },
+  };
+  class FakeMediaStream {
+    tracks: object[] = [];
+    addTrack(track: object) { this.tracks.push(track); }
+    getTracks() { return [...this.tracks]; }
+    removeTrack(track: object) {
+      this.tracks = this.tracks.filter(t => t !== track);
+    }
+  }
+  const capture = deferred<MediaStream>();
+  const captureRequests: MediaStreamConstraints[] = [];
+  const navigator = { onLine: true, mediaDevices: { getUserMedia(constraints: MediaStreamConstraints) { captureRequests.push(constraints); return capture.promise; } } };
+  const networkListeners = { online: new Set<() => void>(), offline: new Set<() => void>(), pagehide: new Set<() => void>() };
   const context = {
-    window: { setTimeout: setTimer, clearTimeout: clearTimer, setInterval: setIntervalTimer, clearInterval: clearTimer },
-    document: { hidden: false, addEventListener() {}, removeEventListener() {} },
+    navigator,
+    window: {
+      addEventListener(name: 'online' | 'offline', fn: () => void) { networkListeners[name].add(fn); },
+      removeEventListener(name: 'online' | 'offline', fn: () => void) { networkListeners[name].delete(fn); },
+      setTimeout: clock?.setTimeout ?? setTimer, clearTimeout: clock?.clearTimeout ?? clearTimer,
+      setInterval: setIntervalTimer, clearInterval: clearTimer,
+      location: { href: 'https://example.invalid' },
+    },
+    document, URL, MediaStream: FakeMediaStream,
+    Date: clock ? class extends Date { static now() { return clock.now; } } : Date,
     WebSocket: FakeSocket, RTCPeerConnection: FakePeer,
     RTCRtpReceiver: { getCapabilities: () => null },
+    RTCRtpSender: { getCapabilities: (kind: string) => ({ codecs: kind === 'audio'
+      ? [{ mimeType: 'audio/opus', clockRate: 48000, channels: 2 }]
+      : [{ mimeType: 'video/H264', clockRate: 90000, sdpFmtpLine: 'packetization-mode=1;profile-level-id=42e01f' }] }) },
+    crypto: { randomUUID: () => '11111111-1111-4111-8111-111111111111' },
     RTCSessionDescription: class { constructor(value: object) { Object.assign(this, value); } },
     RTCIceCandidate: class { constructor(value: object) { Object.assign(this, value); } },
-    setTimeout: setTimer, clearTimeout: clearTimer,
+    setTimeout: clock?.setTimeout ?? setTimer, clearTimeout: clock?.clearTimeout ?? clearTimer,
+    // The hook runs in a VM realm with its own Error; sharing the host's keeps `e instanceof Error`
+    // true for errors the tests throw, as in a browser where there is one realm.
+    Error,
     console, stateWrites,
   };
-  const runner = await runHook<{ useWebRtcConnection: (options: object) => { wsRef: { current: FakeSocket | null } } }>(
-    import.meta.dir + '/use-webrtc-connection.ts', context, { compareEffectDeps: false },
+  const runner = await runHook<{ useWebRtcConnection: (options: object) => { wsRef: { current: FakeSocket | null }; publisher: PublishController } }>(
+    import.meta.dir + '/use-webrtc-connection.ts', context,
   );
-  const mount = (id = 'a', openUrl?: string) => {
-    runner.unmount();
+  type Credentials = {
+    publishCapabilities?: DevicePublishCapabilities;
+    onPublishStateChange?: (state: unknown) => void;
+    onPublishError?: (error: unknown) => void;
+    onPublishKindsChange?: (kinds: unknown) => void;
+    url?: string;
+    token?: string;
+    tokenProvider?: () => Promise<string>;
+    allowOffline?: boolean;
+    onConnectionAttemptStarted?: () => void;
+  };
+  const render = (id = 'a', openUrl?: string, credentials: Credentials = {}) => {
     runner.beginRender();
     const result = runner.module.exports.useWebRtcConnection({
       url: 'wss://example.invalid/' + id, sessionId: id, videoRef: video, openUrl,
+      ...credentials,
       onConnectionStateChange: (state: boolean) => states.push(state),
-      onConnectionFailed: () => failures.push(true),
+      onConnectionFailed: (failure: { reason: string; message: string }) => {
+        failures.push(true);
+        failureInfos.push(failure);
+      },
       onPeerConnectionChange: (pc: FakePeer | null) => bindings.push(pc),
     });
     runner.flushEffects();
     return result;
   };
+  const mount = (id = 'a', openUrl?: string, credentials?: Credentials) => {
+    runner.unmount();
+    return render(id, openUrl, credentials);
+  };
   return {
-    sockets, peers, timers, scheduled, states, failures, bindings, stateWrites, video, mount,
+    hooks, navigator, networkListeners, capture, captureRequests,
+    networkChange(online: boolean) {
+      navigator.onLine = online;
+      networkListeners[online ? 'online' : 'offline'].forEach(fn => fn());
+    },
+    sockets, peers, timers, scheduled, states, failures, failureInfos, bindings, stateWrites,
+    video, mount, render,
+    document,
+    visibilityChange() { visibilityListeners.forEach(fn => fn()); },
     unmount: runner.unmount,
     fireTimers() { const tasks = [...timers.values()]; timers.clear(); tasks.forEach(fn => fn()); },
     async negotiate(id = 'a', openUrl?: string) { mount(id, openUrl); sockets[0].open(); await tick(); sockets[0].config(); await tick(); },

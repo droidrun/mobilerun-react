@@ -61,7 +61,7 @@ export interface UseDeviceStreamDeviceOptions extends UseDeviceStreamBase {
 export interface UseDeviceStreamResult {
   /** WebRTC signaling URL — feed straight into `<DeviceStream streamUrl />`. */
   streamUrl?: string;
-  /** Stream auth token — feed into `<DeviceStream streamToken />`. */
+  /** @deprecated Device token (legacy). Obtain a fresh stream token from your backend with `<DeviceStream tokenProvider />`. */
   streamToken?: string;
   /** The device's lifecycle state (`ready`, `assigned`, ...). */
   state?: string;
@@ -72,22 +72,23 @@ export interface UseDeviceStreamResult {
   /** The last fetch error, if any. */
   error?: unknown;
   /**
-   * Re-fetch fresh stream credentials. Wire this into
+   * Re-fetch the stream URL and device state. Wire this into
    * `<DeviceStream onStreamHealed={refetch} />` so a reconnect pulls a fresh URL.
    */
   refetch: () => void;
 }
 
 /**
- * Resolves live WebRTC stream credentials for a device via `@mobilerun/sdk`,
+ * Resolves the WebRTC stream URL and device state via `@mobilerun/sdk`,
  * polling while the device is still coming up. Pair with `<DeviceStream />`:
  *
  * ```tsx
- * const { streamUrl, streamToken, state, refetch } = useDeviceStream({ device });
+ * const { streamUrl, state, refetch } = useDeviceStream({ device });
+ * // getFreshStreamToken calls your authenticated backend's stream-token endpoint.
  * return (
  *   <DeviceStream
  *     streamUrl={streamUrl}
- *     streamToken={streamToken}
+ *     tokenProvider={getFreshStreamToken}
  *     hasControl
  *     placeholderLabel={state}
  *     onStreamHealed={refetch}
@@ -106,7 +107,7 @@ export function useDeviceStream({
   pollIntervalMs = 3000,
   onError,
 }: UseDeviceStreamOptions | UseDeviceStreamDeviceOptions): UseDeviceStreamResult {
-  const [device, setDevice] = useState<SdkDevice | undefined>(undefined);
+  const [loaded, setLoaded] = useState<{ targetId: string; device: SdkDevice } | undefined>(undefined);
   const [isLoading, setIsLoading] = useState<boolean>(enabled);
   const [error, setError] = useState<unknown>(undefined);
 
@@ -115,6 +116,8 @@ export function useDeviceStream({
   // Keyed by id + client, not handle identity: a fresh handle per render is fine.
   const targetId = deviceHandle?.id ?? deviceId;
   const source = deviceHandle?.api ?? client;
+  // Hide the old URL in the switch render, before effects or a backoff retry can run.
+  const device = loaded?.targetId === targetId ? loaded?.device : undefined;
 
   // Bumping this triggers a re-fetch without changing the polling cadence.
   const [fetchEpoch, setFetchEpoch] = useState(0);
@@ -133,7 +136,7 @@ export function useDeviceStream({
       try {
         const next = await (deviceHandle ? deviceHandle.refresh() : client!.devices.retrieve(targetId!));
         if (cancelled) return;
-        setDevice(next);
+        setLoaded({ targetId, device: next });
         setError(undefined);
         // Keep polling until the backend hands us a stream URL.
         if (!next.streamUrl && pollIntervalMs > 0) {

@@ -9,13 +9,19 @@ const fixtureSource = `
   const effectSlots = new Set();
   export function useRef(value) { return slots[cursor++] ??= { current: value }; }
   export function useState(value) {
-    const ref = useRef(value);
+    const ref = slots[cursor] ?? { current: typeof value === 'function' ? value() : value };
+    slots[cursor++] = ref;
     return [ref.current, next => {
       ref.current = typeof next === 'function' ? next(ref.current) : next;
       stateWrites.push(ref.current);
     }];
   }
   export function useCallback(fn) { return fn; }
+  export function jsx(type, props) { return { type, props }; }
+  export const jsxDEV = jsx, jsxs = jsx;
+  export const Fragment = Symbol.for('react.fragment');
+  export function forwardRef(fn) { return fn; }
+  export function createElement(type, props, ...children) { return { type, props: { ...props, children } }; }
   export function useEffect(fn, deps) {
     const ref = useRef(undefined);
     effectSlots.add(ref);
@@ -27,6 +33,7 @@ const fixtureSource = `
     const slot = ref.current = { deps, cleanup: undefined };
     pending.push(() => { slot.cleanup = fn(); });
   }
+  export const useLayoutEffect = useEffect;
   globalThis.beginRender = () => { cursor = 0; };
   globalThis.cleanupEffects = () => {
     for (const ref of effectSlots) {
@@ -49,7 +56,7 @@ async function bundleHook(entry: string): Promise<string> {
     plugins: [{
       name: 'hook-runner',
       setup(build) {
-        build.onResolve({ filter: /^react$/ }, () => ({ path: 'react', namespace: 'fixture' }));
+        build.onResolve({ filter: /^react(?:\/jsx(?:-dev)?-runtime)?$/ }, () => ({ path: 'react', namespace: 'fixture' }));
         build.onLoad({ filter: /.*/, namespace: 'fixture' }, () => ({ loader: 'js', contents: fixtureSource }));
       },
     }],

@@ -1,8 +1,8 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/mobilerun-dark.png" />
-    <source media="(prefers-color-scheme: light)" srcset="assets/mobilerun.png" />
-    <img src="assets/mobilerun.png" alt="Mobilerun" height="44" />
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/droidrun/mobilerun-react/main/assets/mobilerun-dark.png" />
+    <source media="(prefers-color-scheme: light)" srcset="https://raw.githubusercontent.com/droidrun/mobilerun-react/main/assets/mobilerun.png" />
+    <img src="https://raw.githubusercontent.com/droidrun/mobilerun-react/main/assets/mobilerun.png" alt="Mobilerun" height="44" />
   </picture>
 </p>
 
@@ -15,34 +15,46 @@
 
 <div align="center">
 
-<a href="https://docs.mobilerun.ai">📕 Documentation</a>
-·
-<a href="https://cloud.mobilerun.ai">☁️ Mobilerun Cloud</a>
+<a href="https://docs.mobilerun.ai/partners">🤝 Partner guide</a> · <a href="https://docs.mobilerun.ai">📕 Documentation</a> · <a href="https://cloud.mobilerun.ai">☁️ Mobilerun Cloud</a>
 
 [![npm](https://img.shields.io/npm/v/@mobilerun/react.svg?color=cb3837&logo=npm)](https://www.npmjs.com/package/@mobilerun/react)
-[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](./LICENSE)
-[![mobilerun.ai](https://img.shields.io/badge/mobilerun.ai-white)](https://mobilerun.ai)
 [![React](https://img.shields.io/badge/React-18%20%7C%2019-149eca.svg)](https://react.dev)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/droidrun/mobilerun-react/blob/main/LICENSE)
 [![Discord](https://img.shields.io/discord/1360219330318696488?color=white&label=Discord&logo=discord&logoColor=white)](https://discord.gg/ZZbKEZZkwK)
+
+**React** · [Android](https://github.com/droidrun/mobilerun-android) · [iOS](https://github.com/droidrun/mobilerun-swift) · [Flutter](https://github.com/droidrun/mobilerun-flutter)
 
 </div>
 
-<p align="center">
-  <img src="assets/preview.png" alt="@mobilerun/react dev playground" width="760" />
-</p>
+> **Building Mobilerun phones into your platform?** Start with the [Partner guide](https://docs.mobilerun.ai/partners). It walks through the API key, one phone per user, stream tokens and live viewing step by step.
 
-## ✨ What you get
+<table>
+<tr>
+<td width="280" valign="top">
+  <img src="https://raw.githubusercontent.com/droidrun/mobilerun-react/main/assets/preview.png" alt="@mobilerun/react dev playground" width="260" />
+</td>
+<td valign="top">
+<strong>In this package</strong>
+<ul>
+  <li><code>DeviceStream</code> — video, touch, keyboard control and automatic reconnects.</li>
+  <li><code>useDeviceStream</code> — stream URL and device state, with boot polling.</li>
+  <li><code>TaskApproval</code> / <code>useTaskApproval</code> — approval cards and decisions.</li>
+  <li><code>NavigationBar</code> / <code>StreamStatusPill</code> — stream controls and status.</li>
+  <li><code>RemoteControl</code> — lower-level stream and input control.</li>
+  <li>Prebuilt stylesheet — themeable with CSS variables.</li>
+</ul>
+<p>Lower-level hooks and scrcpy helpers: see <a href="https://github.com/droidrun/mobilerun-react/blob/main/docs/default-ui.md#lower-level-exports">docs/</a>.</p>
+<strong>Requirements</strong>
+<ul>
+  <li>React and React DOM 18 or 19, in a browser with WebRTC.</li>
+  <li><code>@mobilerun/sdk &gt;=2.0.0</code>; object helpers need 6.2+, webhook example 6.2.1+, stream-token examples 6.3.0+.</li>
+  <li>A Mobilerun API key on your server.</li>
+</ul>
+</td>
+</tr>
+</table>
 
-Drop a live, controllable cloud device (iOS/ Android) into any React app:
-
-- 📺 **`<DeviceStream />`** — WebRTC video with touch, swipe and keyboard control, plus automatic reconnects with exponential backoff and a retry UI once attempts are exhausted.
-- 🪝 **`useDeviceStream()`** — resolves a device's stream credentials from [`@mobilerun/sdk`](https://www.npmjs.com/package/@mobilerun/sdk), polling while it boots.
-- ✅ **`<TaskApproval />`** + **`useTaskApproval()`** — show a task's pending human approval (e.g. "enter payment card X into app Y") with a countdown and Approve/Deny buttons. See [Task approvals](#-task-approvals).
-- 🧭 **`<NavigationBar />`**, **`<StreamStatusPill />`**, **`<RemoteControl />`** — the surrounding chrome and a lower-level escape hatch.
-- 🎨 **Prebuilt stylesheet** — no Tailwind setup required, themeable via CSS variables.
-- 📦 **Typed** — ships its own `.d.ts`; React and the SDK are peer dependencies.
-
-## 📦 Install
+## Install
 
 ```sh
 npm install @mobilerun/react @mobilerun/sdk react react-dom
@@ -50,291 +62,126 @@ npm install @mobilerun/react @mobilerun/sdk react react-dom
 
 `react`, `react-dom` and `@mobilerun/sdk` are peer dependencies.
 
-## 🚀 Quick start
+## Quick start
 
-The object API helpers (`MobilerunSDK`, `devices.fromId`, `verifyWebhook`) require `@mobilerun/sdk` 6.2 or later. The `{ client, deviceId }` hook form works with older SDKs; the peer dependency range remains `>=2.0.0`.
+1. Your server mints a short-lived stream token for one device with your API key
+   using `client.streamTokens.create` from `@mobilerun/sdk` 6.3.0+. Follow the [Partner guide](https://docs.mobilerun.ai/partners).
+2. Your app's `tokenProvider` asks your server for a stream token before each connection.
+3. The SDK opens the stream with that token, one token per connection, and reconnects with a fresh one.
 
-Keep the API key on your backend. The browser's SDK calls your backend for the device's stream credentials, and `useDeviceStream` refreshes them when the stream reconnects.
-
-> ⚠️ **`MOBILERUN_API_KEY` is a secret API key — never ship it to the browser.** Only the server reads it. The device endpoint returns only `id`, `state`, `streamUrl`, and `streamToken` to the browser, with missing values set to `null`. The stream token is short-lived and scoped to that device; the browser SDK uses a placeholder key to call your backend.
-
-On your backend, register this handler for `GET /api/v1/devices/:id`, passing the routed device ID:
+Use this Node backend helper with `@mobilerun/sdk` 6.3.0 or later. It reads
+`MOBILERUN_API_KEY` on the server;
+see [Stream tokens](https://github.com/droidrun/mobilerun-react/blob/main/docs/stream-tokens.md) for route setup, metadata fetching and error handling.
 
 ```ts
 import { MobilerunSDK } from '@mobilerun/sdk';
-
-const sdk = new MobilerunSDK(); // reads MOBILERUN_API_KEY, server only
-
-export async function getDevice(id: string): Promise<Response> {
-  // Authenticate the caller and check the device belongs to them before returning stream credentials.
-  const device = await sdk.devices.get(id);
-  return Response.json({
-    id: device.info?.id ?? null,
-    state: device.info?.state ?? null,
-    streamUrl: device.info?.streamUrl ?? null,
-    streamToken: device.info?.streamToken ?? null,
-  });
+const client = new MobilerunSDK({ logLevel: 'off' }); // reads MOBILERUN_API_KEY on the Node server
+export async function mintStreamToken(deviceId: string): Promise<Response> {
+  // Authenticate your user and check they own the device before minting.
+  const { key, keyId, expiresAt } = await client.streamTokens.create({
+    deviceId,
+    ttlSeconds: 120,
+    allowedOrigins: ['https://partner.example'], // replace with your browser app's origin
+  }, { maxRetries: 0 });
+  return Response.json({ key, keyId, expiresAt }, { status: 201, headers: { 'Cache-Control': 'no-store' } });
 }
 ```
 
-In your client component, point the SDK at that backend route, as in the example app:
+REST fallback: `POST /v1/identity/stream-keys` with the same body and your server-held API key.
+
+Revoke a token on the server with `await client.streamTokens.delete(keyId)`.
+
+Pass a stream URL fetched through your backend and a callback that calls your mint route:
 
 ```tsx
-'use client';
-
-import { useMemo } from 'react';
-import { MobilerunSDK } from '@mobilerun/sdk';
-import { DeviceStream, useDeviceStream } from '@mobilerun/react';
+import { DeviceStream } from '@mobilerun/react';
 import '@mobilerun/react/styles.css';
-
-export function DevicePanel({ deviceId }: { deviceId: string }) {
-  const sdk = useMemo(() => new MobilerunSDK({
-    apiKey: 'example-sdk-helper', // placeholder, not a Mobilerun API key
-    baseURL: typeof window === 'undefined' ? '/api/v1' : `${window.location.origin}/api/v1`, // SSR placeholder; the hook only fetches in the browser
-  }), []);
-  const { streamUrl, streamToken, state, refetch } = useDeviceStream({
-    device: sdk.devices.fromId(deviceId), // no request yet
-  });
-
-  return (
-    <div style={{ width: 360, height: 780 }}>
-      <DeviceStream
-        streamUrl={streamUrl}
-        streamToken={streamToken}
-        hasControl
-        placeholderLabel={state}
-        onStreamHealed={refetch}
-      />
-    </div>
-  );
+export function DevicePanel({ deviceId, streamUrl }: { deviceId: string; streamUrl: string }) {
+  const tokenProvider = async () => {
+    const res = await fetch(`/api/v1/devices/${encodeURIComponent(deviceId)}/stream-key`, { method: 'POST', cache: 'no-store' });
+    if (!res.ok) throw new Error('Stream token request failed');
+    return (await res.json()).key;
+  };
+  return <div style={{ width: 360, height: 780 }}><DeviceStream streamUrl={streamUrl} tokenProvider={tokenProvider} hasControl /></div>;
 }
 ```
 
-### Without the hook
+Never log or cache stream tokens. Your backend must authenticate callers and authorize the device.
+The [full example](https://github.com/droidrun/mobilerun-react/blob/main/docs/stream-tokens.md) also shows `useDeviceStream` and device token (legacy) compatibility.
 
-Already have the device? Feed its fields straight in — no hook required:
+`tokenProvider` runs before every connection attempt, the first one and each reconnect, and the SDK
+never reuses a token it returns. **Use it: stream tokens are single-use, so only a provider can reconnect.**
 
-```tsx
-const device = await sdk.devices.get(deviceId);
+The legacy `streamToken` prop (device token) is **deprecated** and an explicit exception to that rule: it is kept until the
+device token (legacy) is removed, and the SDK passes the same value again on every reconnect. A single-use stream token
+given this way is rejected on the second attempt, so the stream ends in the Retry state
+(`connection_refused`). The component logs one console warning per mount.
 
-<DeviceStream streamUrl={device.info?.streamUrl} streamToken={device.info?.streamToken} hasControl />;
-```
-
-`useDeviceStream` also still accepts `{ client, deviceId }` with a plain `Mobilerun` client, so existing code keeps working.
-
-## ✅ Task approvals
-
-A task can pause and wait for a human to approve a step, for example entering a payment card into an app. `useTaskApproval()` loads the pending approval and `<TaskApproval />` renders it with a countdown and Approve/Deny buttons.
-
-**The decision goes through your backend.** The API key that may approve is a secret and must never reach the browser, so the browser only talks to your own routes. The Mobilerun API owns the approval state and decides: the component renders what it is given and forwards the decision, and the countdown is display only. A 404/409 from the decide call (unknown, already resolved or expired) comes back as an error and triggers a refetch.
-
-### 1. Subscribe a webhook
-
-In your Mobilerun webhook settings, point an endpoint at your backend and filter it to the two approval events: `task.run.approval_requested` and `task.run.approval_resolved`. Events only tell the browser to reload; the fetched approval is the source of truth.
-
-Each delivery carries `X-Mobilerun-Timestamp` (Unix ms) and `X-Mobilerun-Signature: sha256=<hex>`, an HMAC-SHA256 of `"{timestamp}.{rawBody}"` with the endpoint secret. `verifyWebhook` from `@mobilerun/sdk` checks the signature and the 5-minute timestamp window and returns the parsed payload; pass it the body bytes exactly as received. SDK 6.2.1 or later distinguishes `invalid_json` (a signed but unparsable body), which the handler answers with HTTP 400.
-
-### 2. Backend sketch
-
-```ts
-import { MobilerunSDK, verifyWebhook, WebhookVerificationError } from '@mobilerun/sdk';
-
-const sdk = new MobilerunSDK(); // reads MOBILERUN_API_KEY
-const APPROVAL_EVENTS = new Set(['task.run.approval_requested', 'task.run.approval_resolved']);
-const ID = /^[A-Za-z0-9_-]+$/;
-
-// Device credentials: return only the fields needed for streaming.
-app.get('/api/v1/devices/:id', async (c) => {
-  const id = c.req.param('id');
-  // Authenticate the caller and check the device belongs to them before returning stream credentials.
-  const device = await sdk.devices.get(id);
-  return c.json({
-    id: device.info?.id ?? null,
-    state: device.info?.state ?? null,
-    streamUrl: device.info?.streamUrl ?? null,
-    streamToken: device.info?.streamToken ?? null,
-  });
-});
-
-// 1. Webhook: verify the raw bytes, then push a change signal to the user's browser (SSE, ...)
-app.post('/webhooks/mobilerun', async (c) => {
-  const secret = process.env.MOBILERUN_WEBHOOK_SECRET;
-  if (!secret) return c.json({ error: 'missing_webhook_secret' }, 500);
-  const bytes = new Uint8Array(await c.req.arrayBuffer());
-  let event;
-  try {
-    event = await verifyWebhook({
-      body: bytes,
-      headers: c.req.raw.headers,
-      secret,
-    }) as { type?: string; data?: { taskId?: string } } | null;
-  } catch (err) {
-    if (err instanceof WebhookVerificationError) {
-      if (err.reason === 'invalid_json') return c.json({ error: 'invalid_json' }, 400);
-      return c.json({ error: 'invalid_signature' }, 401);
-    }
-    throw err;
-  }
-  const taskId = event?.data?.taskId;
-  if (taskId && APPROVAL_EVENTS.has(event?.type ?? '')) push({ taskId });
-  return c.body(null, 204);
-});
-
-// 2. Pending approval: GET /tasks/{id} → task.pendingApproval (null when none)
-app.get('/api/tasks/:id', async (c) => {
-  const id = c.req.param('id');
-  if (!ID.test(id)) return c.json({ error: 'invalid_id' }, 400);
-  // Authenticate the caller and check the task belongs to their user/org first.
-  const { task } = await sdk.api.get<{ task?: { pendingApproval?: unknown } }>(`/tasks/${encodeURIComponent(id)}`);
-  return c.json({ pendingApproval: task?.pendingApproval ?? null });
-});
-
-// 3. Decision: POST /tasks/{id}/approvals/{approvalId} { decision: 'approve' | 'deny' }
-app.post('/api/tasks/:id/approvals/:approvalId', async (c) => {
-  const id = c.req.param('id');
-  const approvalId = c.req.param('approvalId');
-  if (!ID.test(id) || !ID.test(approvalId)) return c.json({ error: 'invalid_id' }, 400);
-  const { decision } = await c.req.json();
-  if (decision !== 'approve' && decision !== 'deny') return c.json({ error: 'invalid_decision' }, 422);
-  // Authenticate the caller and check the task belongs to their user/org first.
-  const url = `/tasks/${encodeURIComponent(id)}/approvals/${encodeURIComponent(approvalId)}`;
-  await sdk.api.post(url, { body: { decision } });
-  return c.body(null, 204);
-});
-```
-
-Authenticate every route and check that the task belongs to the signed-in user or organization before forwarding. A delivery can be replayed within the 5-minute window; that is harmless here because events only trigger a refetch. Dedupe on the event `id` if your handler does more.
-
-`bun run example` runs a working version of all three plus an SSE endpoint. It is for local use only: it binds to `127.0.0.1` and its task and SSE routes are unauthenticated.
-
-### 3. Client
+React to failures and white-label the texts:
 
 ```tsx
-import { TaskApproval, useTaskApproval, type PendingApproval } from '@mobilerun/react';
-import '@mobilerun/react/styles.css';
-
-export function Approval({ taskId }: { taskId: string }) {
-  const { approval, decide, isDeciding, decision, error } = useTaskApproval({
-    taskId,
-    fetchApproval: async (id) => {
-      const res = await fetch(`/api/tasks/${encodeURIComponent(id)}`);
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      return ((await res.json()) as { pendingApproval: PendingApproval | null }).pendingApproval;
-    },
-    decide: async ({ taskId, approvalId, decision }) => {
-      const url = `/api/tasks/${encodeURIComponent(taskId)}/approvals/${encodeURIComponent(approvalId)}`;
-      const res = await fetch(url, {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ decision }),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    },
-    // Optional push: reload when your backend signals a change. Without it the hook polls every 3 s.
-    subscribe: (taskId, onChange) => {
-      const source = new EventSource(`/api/events?taskId=${encodeURIComponent(taskId)}`);
-      source.onmessage = onChange;
-      return () => source.close();
-    },
-  });
-
-  return (
-    <TaskApproval
-      approval={approval}
-      onDecide={decide}
-      isPending={isDeciding}
-      decision={decision}
-      error={error}
-      // device={<DeviceStream … />}  // optional live device next to the details
-    />
-  );
-}
-```
-
-`<TaskApproval />` renders an inline card (wrap it in your own dialog if you want one) and nothing when `approval` is `null`. When you pass `device`, the card shows it next to the details from `md` up; below `md` a Details/Device switch toggles between the two while the device stays mounted, so a live stream never reconnects. The device slot has a fixed height and clips overflow, so the device element should fill it (`height: 100%`). For an unknown `kind` or unexpected `details` it shows a generic "Waiting for approval" body with the same buttons.
-
-### Show it as a bottom sheet
-
-The host owns the sheet or dialog; the library ships only the card. Render `<TaskApproval>` inside your own wrapper while `approval` is non-null. The CSS below turns the wrapper into a sheet below `md` (767px) and leaves it unstyled above:
-
-```tsx
-{approval && (
-  <div className="sheet-backdrop">
-    <div className="sheet" role="dialog" aria-modal="true" aria-label="Task approval">
-      <TaskApproval approval={approval} onDecide={decide} isPending={isDeciding} decision={decision} error={error} />
-    </div>
-  </div>
-)}
-```
-
-```css
-@media (max-width: 767px) {
-  .sheet-backdrop { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; background: rgba(0,0,0,.45); }
-  .sheet { width: 100%; max-height: 92vh; overflow-y: auto; border-radius: 24px 24px 0 0; background: var(--background); animation: sheet-up .35s cubic-bezier(.2,.7,.2,1); }
-  @keyframes sheet-up { from { transform: translateY(100%); } }
-  @media (prefers-reduced-motion: reduce) { .sheet { animation: none; } }
-}
-```
-
-As a modal, the host moves focus into the sheet and makes the page behind it inert, or uses its own dialog component.
-
-For dark mode put `.dark` on any ancestor, or override the CSS variables (`--background`, `--card`, `--destructive`, …).
-
-### Labels and i18n
-
-Every user-visible string can be replaced through the `labels` prop; see `TaskApprovalLabels` for all keys. `{time}` in `timeLeft` is replaced with the remaining time.
-
-```tsx
-<TaskApproval
-  approval={approval}
-  onDecide={decide}
-  labels={{ approve: 'Freigeben', deny: 'Ablehnen', timeLeft: 'Noch {time}' }}
+<DeviceStream
+  streamUrl={streamUrl}
+  tokenProvider={tokenProvider}
+  hasControl
+  onError={({ reason, attempt, final }) => report(reason, attempt, final)}
+  labels={{ connecting: 'Starting…', disconnected: 'Reconnecting', unavailable: 'Phone unavailable', retry: 'Try again' }}
 />
 ```
 
-## 🧪 Try it locally
+`reason` is `credentials_unavailable` (your provider threw or took longer than 10 s),
+`connection_refused` (the socket closed before it opened: a used, expired or wrong stream token, a wrong
+device or a refused origin; browsers cannot see the HTTP status), `disconnected` (an open session
+dropped, including the 30-minute server cap) or `unknown`. `final: true` means retries stopped and
+the Retry button is showing. `labels` replaces every text the component renders.
 
-The repo ships the playground shown above — paste an API key + device id, or a raw `streamUrl` + `streamToken`, and stream a real device:
+## Microphone and camera publishing
 
-```sh
-bun install
-bun run example     # serves the playground at http://localhost:3000
-```
+Pass your backend's per-device `publishCapabilities` snapshot to enable microphone injection
+(and camera injection when supported). A floating pill over the stream provides both toggles;
+active inputs show red. Set `hidePublishControls` for your own controls and use a
+`DeviceStreamHandle` ref's `startPublish({ audio: true, video: true })`, `stopPublish()` and
+`getPublishState()`. Audio is required; the SDK never silently starts a video-only session.
 
-In SDK mode the example server exposes one narrow helper endpoint backed by `@mobilerun/sdk` (`sdk.devices.get(id)`) so the API key can stay server-side while retrieving `streamUrl` and `streamToken`. The stream WebSocket itself is opened directly by the browser against `streamUrl`; the component appends `streamToken` as `?token=`. The same server also demonstrates [task approvals](#-task-approvals) (set `MOBILERUN_WEBHOOK_SECRET` for the webhook route). The server binds to `127.0.0.1` and its task and SSE routes are unauthenticated by design. If you need webhooks delivered to your machine, expose only `/webhooks/mobilerun` (for example through a tunnel that forwards just that path), never the whole server.
+`onPublishStateChange` observes this separate state. Publish errors carry `operation: 'publish'`
+in `onError`; an explicit server `forbidden` maps to `publish_not_allowed`, while a silent server
+maps to `publish_unsupported` after 5 seconds. Permission prompts happen only after the device accepts an explicit start; the 30-second active
+window includes the prompt. Refused or silent requests never capture.
+Stopping or reconnecting releases capture; publication never resumes automatically.
+See [Publishing inputs](https://github.com/droidrun/mobilerun-react/blob/main/docs/publish.md)
+for capabilities, permissions, ref types and labels.
 
-## 🎨 Styling & theming
+## Theming
 
-Import the prebuilt stylesheet once, anywhere:
+The stylesheet defines no unprefixed CSS variable, so it cannot clash with your own `--background`. Set
+these on any ancestor of the component or on its root (`.mobilerun-device-stream`):
+`--mr-background`, `--mr-foreground`, `--mr-card`, `--mr-card-foreground`, `--mr-muted`,
+`--mr-muted-foreground`, `--mr-border`, `--mr-ring`, `--mr-primary`, `--mr-primary-foreground`,
+`--mr-accent`, `--mr-accent-foreground`, `--mr-destructive`.
 
-```ts
-import '@mobilerun/react/styles.css';
-```
-
-It bundles the design tokens, only the Tailwind utilities the components use, the animations, and the structural CSS. It does **not** include Tailwind's preflight/reset, so it won't touch your base styles — and you don't need Tailwind installed.
-
-Retheme by overriding the CSS variables on an ancestor (e.g. `--background`, `--card`, `--muted-foreground`, `--border`, `--primary`), or add a `.dark` ancestor for the bundled dark palette:
+Each color resolves in this order: `--mr-<name>`, then the old unprefixed `--<name>` (kept for one more
+minor release, so a host theme that already defines `--background` keeps working), then the bundled
+default. Add `.dark` to an ancestor, or to the component root, for the bundled dark defaults.
 
 ```css
-:root {
-  --primary: oklch(0.55 0.18 268);
-  --background: oklch(0.985 0.004 85);
-}
+.mobilerun-device-stream { --mr-primary: oklch(0.55 0.18 268); --mr-background: oklch(0.985 0.004 85); }
 ```
 
-## 🛠 Building locally
+## Guides
 
-```sh
-bun install
-bun run build       # tsup (JS + d.ts) + Tailwind (styles.css) → dist/
-bun run typecheck
-bun test
-```
+Coding agents: [Mobilerun device stream skill](https://github.com/droidrun/mobilerun-react/blob/main/skills/mobilerun-device-stream/SKILL.md).
 
-## 🧬 Conformance
+| Guide | Covers |
+| --- | --- |
+| [Stream tokens](https://github.com/droidrun/mobilerun-react/blob/main/docs/stream-tokens.md) | Server routes, device metadata, `tokenProvider`, retries and device tokens (legacy). |
+| [Components and styling](https://github.com/droidrun/mobilerun-react/blob/main/docs/default-ui.md) | Components, prebuilt CSS, theme variables and dark mode. |
+| [Task approvals](https://github.com/droidrun/mobilerun-react/blob/main/docs/task-approvals.md) | Webhooks, backend decisions, cards, bottom sheets and labels. |
 
-The control messages, signalling frames, reconnect policy and input routing are replayed against the shared [conformance fixtures](https://github.com/droidrun/mobilerun-sdk-conformance) that the native SDKs also pass. The vendored copy lives in `conformance/fixtures` (release tag in `conformance/VERSION`) and runs with `bun test`. To move to another release, run `scripts/sync-conformance.sh TAG`.
+## Contributing
 
-## 📄 License
+See [CONTRIBUTING.md](https://github.com/droidrun/mobilerun-react/blob/main/CONTRIBUTING.md) for builds, tests, conformance fixtures and the example app.
+Report vulnerabilities privately as described in [SECURITY.md](https://github.com/droidrun/mobilerun-react/blob/main/SECURITY.md).
 
-[Apache-2.0](./LICENSE)
+## License
+
+[Apache-2.0](https://github.com/droidrun/mobilerun-react/blob/main/LICENSE)

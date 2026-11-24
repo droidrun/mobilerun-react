@@ -15,6 +15,7 @@ import {
   type ApprovalDecision,
   type PendingApproval,
   type RemoteControlHandle,
+  type StreamError,
 } from '../src/index';
 // Prebuilt themed stylesheet (run `bun run build:css` once to generate it).
 import '../dist/styles.css';
@@ -28,9 +29,10 @@ import logoUrl from '../assets/mobilerun-logo.png';
 const HARNESS_CSS = `
   *, *::before, *::after { box-sizing: border-box; }
   html, body { margin: 0; }
-  /* Cloud app theme tokens. Uses the SAME variable names the package reads
-   * (--background, --card, --muted-foreground, --border, --primary, ...), so
-   * the embedded DeviceStream/NavigationBar pick up the cloud palette too. */
+  /* Cloud app theme tokens. The package reads --mr-<token> first and then these
+   * unprefixed names (--background, --card, --muted-foreground, ...), which stay
+   * supported for one more minor release, so the embedded DeviceStream and
+   * NavigationBar pick up the cloud palette too. New code sets --mr-<token>. */
   .app {
     --background: oklch(0.985 0.004 85); --foreground: oklch(0.26 0.008 65);
     --card: oklch(0.995 0.005 85); --card-foreground: oklch(0.26 0.008 65);
@@ -183,12 +185,13 @@ interface Status {
   isLoading: boolean;
   error?: unknown;
   connected: boolean;
+  streamError?: StreamError;
 }
 
 /**
  * Drives streaming from a device id via @mobilerun/sdk. `useDeviceStream`
- * resolves the device's `streamUrl` + `streamToken`; the component connects the
- * WebSocket directly (the token rides in the URL).
+ * resolves the device's URL/state; tokenProvider mints through our server
+ * immediately before each direct WebSocket attempt.
  */
 function SdkStream({
   apiKey,
@@ -211,9 +214,19 @@ function SdkStream({
     [apiKey, baseURL],
   );
   // `fromId` makes no request; a fresh handle each render is fine, the hook keys by id.
-  const { streamUrl, streamToken, state, error, isLoading, refetch } = useDeviceStream({
+  const { streamUrl, state, error, isLoading, refetch } = useDeviceStream({
     device: sdk.devices.fromId(deviceId),
   });
+
+  const getFreshStreamToken = useCallback(async () => {
+    const res = await fetch(`/api/v1/devices/${encodeURIComponent(deviceId)}/stream-key`, {
+      method: 'POST',
+      cache: 'no-store',
+    });
+    if (!res.ok) throw await readError(res);
+    const minted = await res.json() as { key: string };
+    return minted.key;
+  }, [deviceId]);
 
   React.useEffect(() => onStatus({ state, error, isLoading }), [state, error, isLoading, onStatus]);
 
@@ -224,12 +237,14 @@ function SdkStream({
       <DeviceStream
         ref={streamRef}
         streamUrl={streamUrl}
-        streamToken={streamToken}
+        tokenProvider={getFreshStreamToken}
         hasControl={hasControl}
         muted={muted}
         placeholderLabel={state ?? (isLoading ? 'loading…' : 'connecting')}
         onStreamHealed={refetch}
-        onConnectionStateChange={(c) => onStatus({ connected: c })}
+        // `reason` tells a refused stream token from a dropped session; `final` means the Retry button is showing.
+        onError={(streamError) => onStatus({ streamError })}
+        onConnectionStateChange={(c) => onStatus({ connected: c, ...(c ? { streamError: undefined } : {}) })}
       />
     </DeviceChrome>
   );
@@ -239,17 +254,23 @@ type Mode = 'sdk' | 'manual';
 
 function StatusLine({ s, active }: { s: Status; active: boolean }) {
   const errText = s.error ? (s.error as { message?: string })?.message ?? String(s.error) : null;
+  const streamError = active && !s.connected ? s.streamError : undefined;
   let tone: 'idle' | 'warn' | 'ok' | 'err' = 'idle';
   let text = 'idle';
   if (errText) {
     tone = 'err';
     text = 'error';
+  } else if (streamError?.final) {
+    tone = 'err';
+    text = `stream failed: ${streamError.reason}`;
   } else if (active && s.connected) {
     tone = 'ok';
     text = 'live';
   } else if (active) {
     tone = 'warn';
-    text = s.state ? `${s.state}…` : s.isLoading ? 'loading…' : 'connecting…';
+    text = streamError
+      ? `retrying after ${streamError.reason} (attempt ${streamError.attempt})`
+      : s.state ? `${s.state}…` : s.isLoading ? 'loading…' : 'connecting…';
   }
   return (
     <div>
@@ -424,9 +445,8 @@ function ApprovalSection() {
 function App() {
   const [mode, setMode] = useState<Mode>('sdk');
 
-  // SDK mode uses the local server endpoint only to retrieve stream credentials
-  // without exposing the API key. The WebSocket itself opens the returned streamUrl
-  // directly in the browser with streamToken appended as ?token=.
+  // SDK mode retrieves URL/state and mints per connection through the local server.
+  // The parent API key stays server-side; stream WebSockets connect directly.
   const apiKey = '';
   const baseURL = typeof window === 'undefined' ? '/api/v1' : `${window.location.origin}/api/v1`;
   const [deviceId, setDeviceId] = useState('');
@@ -434,7 +454,7 @@ function App() {
   const [status, setStatus] = useState<Status>({ isLoading: false, connected: false });
   const onStatus = useCallback((p: Partial<Status>) => setStatus((s) => ({ ...s, ...p })), []);
 
-  // Manual mode: paste a streamUrl + streamToken directly.
+  // Device token (legacy) diagnostic mode: pasted tokens cannot renew single-use stream tokens on retries.
   const [streamUrl, setStreamUrl] = useState('');
   const [streamToken, setStreamToken] = useState('');
   const [applied, setApplied] = useState<{ url?: string; token?: string }>({});
@@ -497,7 +517,7 @@ function App() {
                 SDK
               </button>
               <button data-on={mode === 'manual'} onClick={() => setMode('manual')}>
-                Manual URL
+                Manual URL (legacy)
               </button>
             </div>
 
@@ -544,7 +564,7 @@ function App() {
                   <input value={streamUrl} onChange={(e) => setStreamUrl(e.target.value)} placeholder="wss://…" />
                 </div>
                 <div className="field">
-                  <label>streamToken</label>
+                  <label>Device token (legacy)</label>
                   <input value={streamToken} onChange={(e) => setStreamToken(e.target.value)} placeholder="token…" />
                 </div>
                 <div className="row">

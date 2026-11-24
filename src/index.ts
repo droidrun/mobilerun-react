@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 // Components
-export { DeviceStream } from './components/device-stream';
+export type { DeviceStreamHandle } from './components/remote-control';
+export { PublishError } from './lib/publish';
+export type { PublishOptions, PublishKind, PublishPhase, PublishFailureReason, PublishFailure, PublishState, DevicePublishCapabilities } from './lib/publish';
+export { DeviceStream, type DeviceStreamProps } from './components/device-stream';
 export {
   RemoteControl,
   type RemoteControlHandle,
@@ -25,6 +28,7 @@ export type {
 export { useTaskApproval } from './hooks/use-task-approval';
 export type { UseTaskApprovalOptions, UseTaskApprovalResult } from './hooks/use-task-approval';
 export type { PendingApproval, ApprovalDecision } from './lib/task-approval';
+export type { DeviceStreamLabels, StreamError, StreamErrorReason } from './lib/stream-error';
 export { useStreamReconnect } from './hooks/use-stream-reconnect';
 export {
   STREAM_RECONNECT_MAX_ATTEMPTS,

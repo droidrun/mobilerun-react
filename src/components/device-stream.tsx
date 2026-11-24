@@ -2,18 +2,50 @@
 // Copyright 2026 Mobilerun
 // SPDX-License-Identifier: Apache-2.0
 
-import { RotateCw, Smartphone, WifiOff } from 'lucide-react';
-import { forwardRef, useCallback, useEffect, useMemo } from 'react';
+import { Smartphone } from 'lucide-react';
+import { forwardRef, useCallback, useEffect, useMemo, useRef, useState, useImperativeHandle } from 'react';
 import { cn } from '../lib/cn';
+import {
+  reconnectPillLabel,
+  resolveDeviceStreamLabels,
+  type DeviceStreamLabels,
+  type StreamError,
+} from '../lib/stream-error';
 import { STREAM_RECONNECT_MAX_ATTEMPTS } from '../lib/stream-reconnect';
-import { RemoteControl, type RemoteControlHandle } from './remote-control';
+import { RemoteControl, type DeviceStreamHandle, type RemoteControlHandle } from './remote-control';
+import { PublishControls } from './publish-controls';
+import { INITIAL_PUBLISH_STATE, PublishError, publishCapabilitiesKey, type PublishKind, type DevicePublishCapabilities, type PublishState, type PublishErrorEvent } from '../lib/publish';
 import { StreamStatusPill } from './stream-status-pill';
-import { Button } from './ui/button';
+import { StreamUnavailable } from './stream-unavailable';
+import { useStaticTokenWarning } from '../hooks/use-static-token-warning';
 import { useStreamReconnect } from '../hooks/use-stream-reconnect';
 
-interface DeviceStreamProps {
+export interface DeviceStreamProps {
+  /** Device capability snapshot supplied by your backend; changed values renew the viewer connection. */
+  publishCapabilities?: DevicePublishCapabilities;
+  onPublishStateChange?: (state: PublishState) => void;
+  /** Hide the built-in floating microphone/camera pill. Headless ref methods remain available. */
+  hidePublishControls?: boolean;
   streamUrl?: string;
+  /**
+   * @deprecated Device token (legacy). Use `tokenProvider` for a fresh stream token
+   * on every connection attempt. Logs one console warning per mount.
+   */
   streamToken?: string;
+  /**
+   * Called before every WebSocket attempt, the first connect and each reconnect, and returns
+   * a fresh stream token minted by your backend (`POST /v1/identity/stream-keys`). A stream token is never
+   * reused for a second connect. A throw, a rejection, an empty stream token or no answer within 10 s
+   * fails the attempt with reason `credentials_unavailable`. Wins over `streamToken`.
+   */
+  tokenProvider?: () => Promise<string>;
+  /**
+   * Called once per failed connection attempt with the reason, the attempt number and whether
+   * the SDK stopped retrying (`final`). The Retry button stays available after a final error.
+   */
+  onError?: (error: StreamError) => void;
+  /** Replaces the built-in English texts. Every key is optional. */
+  labels?: Partial<DeviceStreamLabels>;
   hasControl: boolean;
   onHasControlChange?: (hasControl: boolean) => void;
   onConnectionStateChange?: (connected: boolean) => void;
@@ -45,10 +77,16 @@ interface DeviceStreamProps {
   onPeerConnectionChange?: (pc: RTCPeerConnection | null) => void;
 }
 
-export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(function DeviceStream(
+export const DeviceStream = forwardRef<DeviceStreamHandle | RemoteControlHandle, DeviceStreamProps>(function DeviceStream(
   {
+    publishCapabilities,
+    onPublishStateChange,
+    hidePublishControls = false,
     streamUrl,
     streamToken,
+    tokenProvider,
+    onError,
+    labels: labelOverrides,
     hasControl,
     onHasControlChange: setHasControl = () => {},
     onConnectionStateChange,
@@ -60,6 +98,54 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
   }: DeviceStreamProps,
   ref,
 ) {
+  const remoteRef = useRef<DeviceStreamHandle | null>(null);
+  const [publishState, setPublishState] = useState<PublishState>(INITIAL_PUBLISH_STATE);
+  const [connected, setConnected] = useState(false);
+  const [offeredKinds, setOfferedKinds] = useState<PublishKind[]>([]);
+  const observers = useRef({ onError, onPublishStateChange });
+  observers.current = { onError, onPublishStateChange };
+  const publishStateRef = useRef(publishState);
+  const disposed = useRef(false);
+  useEffect(() => {
+    disposed.current = false;
+    return () => {
+      const state = publishStateRef.current;
+      if (['capturing', 'starting', 'accepted', 'active'].includes(state.phase)) {
+        const failure = { reason: 'disconnected' as const, message: 'Publishing connection closed' };
+        publishStateRef.current = Object.freeze({ ...state, phase: 'error', ...failure });
+        observers.current.onPublishStateChange?.(publishStateRef.current);
+        observers.current.onError?.({ ...failure, operation: 'publish', attempt: attemptIndex.current, final: true,
+          ...(state.mediaSessionId ? { mediaSessionId: state.mediaSessionId } : {}) });
+      }
+      disposed.current = true;
+    };
+  }, []);
+  const attemptIndex = useRef(1);
+  const onPublishError = (error: PublishErrorEvent) => {
+    if (!disposed.current) onError?.({ ...error, operation: 'publish', attempt: attemptIndex.current, final: true });
+  };
+  const updatePublishState = (state: PublishState) => {
+    if (disposed.current) return;
+    publishStateRef.current = state;
+    setPublishState(state);
+    onPublishStateChange?.(state);
+  };
+  useImperativeHandle(ref, () => ({
+    openUrl: url => remoteRef.current?.openUrl(url),
+    sendKeyEvent: event => remoteRef.current?.sendKeyEvent(event),
+    sendSystemKey: button => remoteRef.current?.sendSystemKey(button),
+    screenshot: () => remoteRef.current?.screenshot() ?? Promise.reject(new Error('The viewer is not connected')),
+    getPublishState: () => publishStateRef.current,
+    stopPublish: () => remoteRef.current?.stopPublish() ?? Promise.resolve(),
+    startPublish: options => {
+      if (disposed.current) return Promise.reject(new PublishError({ reason: 'disconnected', message: 'The session is closed', detail: 'session_closed' }));
+      if (remoteRef.current) return remoteRef.current.startPublish(options);
+      const failure = { reason: 'disconnected' as const, message: 'The viewer is not connected', detail: 'not_connected' };
+      updatePublishState({ phase: 'error', mediaSessionId: null, kinds: [], ...failure });
+      onPublishError(failure);
+      return Promise.reject(new PublishError(failure));
+    },
+  }));
   // The reconnect manager pins which URL/token the mounted stream uses:
   // fresh credentials arriving mid-backoff must not restart the connection
   // early (RemoteControl reconnects in place on a url prop change), so
@@ -68,20 +154,34 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
   const {
     streamKey,
     activeTarget,
+    allowOffline,
     status,
     attempt,
     onConnectionStateChange: onReconnectConnectionChange,
     onConnectionFailed,
+    onConnectionAttemptStarted,
     retry,
   } = useStreamReconnect({
     onHeal: onStreamHealed,
+    onError,
     target,
     targetKey: `${streamUrl ?? ''}|${streamToken ?? ''}`,
     enabled: !!streamUrl,
+    watchdogFromSocket: true,
   });
+
+  const capabilitiesKey = publishCapabilitiesKey(publishCapabilities);
+
+  useEffect(() => {
+    const state = remoteRef.current?.getPublishState() ?? INITIAL_PUBLISH_STATE;
+    publishStateRef.current = state;
+    setPublishState(state);
+    setConnected(false);
+  }, [streamKey, streamUrl, capabilitiesKey]);
 
   const handleConnectionStateChange = useCallback(
     (connected: boolean) => {
+      setConnected(connected);
       onReconnectConnectionChange(connected);
       onConnectionStateChange?.(connected);
     },
@@ -95,46 +195,54 @@ export const DeviceStream = forwardRef<RemoteControlHandle, DeviceStreamProps>(f
     }
   }, [streamUrl, setHasControl]);
 
-  const reconnectLabel =
-    attempt > 1 ? `reconnecting (${attempt}/${STREAM_RECONNECT_MAX_ATTEMPTS})` : 'reconnecting';
+  const labels = resolveDeviceStreamLabels(labelOverrides);
+
+  useStaticTokenWarning(!!streamToken && !tokenProvider);
+
+  const reconnectLabel = reconnectPillLabel(labels.disconnected, attempt, STREAM_RECONNECT_MAX_ATTEMPTS);
 
   return (
     <div
       className={cn(
-        'relative w-full h-full flex items-center justify-center bg-background overflow-hidden',
+        'mobilerun-device-stream relative w-full h-full flex items-center justify-center bg-background overflow-hidden',
         className,
       )}
     >
       {!streamUrl ? (
         <>
           <Smartphone className="w-12 h-12 text-muted-foreground/30" />
-          <StreamStatusPill label={placeholderLabel ?? 'connecting'} />
+          <StreamStatusPill label={placeholderLabel ?? labels.connecting} />
         </>
       ) : status === 'unavailable' ? (
-        <div className="flex flex-col items-center justify-center gap-3 text-muted-foreground">
-          <WifiOff className="h-10 w-10 opacity-50" />
-          <span className="text-xs font-medium">device stream unavailable</span>
-          <Button variant="outline" onClick={retry}>
-            <RotateCw className="mr-1.5 h-3.5 w-3.5" />
-            Retry
-          </Button>
-        </div>
+        <StreamUnavailable labels={labels} onRetry={retry} />
       ) : (
         <>
           <div className="device-stream-wrapper w-full h-full flex items-center justify-center relative">
             <RemoteControl
-              ref={ref}
+              ref={remoteRef}
+              publishCapabilities={publishCapabilities}
+              onPublishStateChange={updatePublishState}
+              onPublishError={onPublishError}
+              onPublishKindsChange={setOfferedKinds}
               key={streamKey}
               url={activeTarget.url ?? streamUrl}
               token={activeTarget.token}
+              tokenProvider={tokenProvider}
+              allowOffline={allowOffline}
               className="w-full h-full"
               onConnectionStateChange={handleConnectionStateChange}
               onConnectionFailed={onConnectionFailed}
-              placeholderLabel={status === 'reconnecting' ? reconnectLabel : placeholderLabel}
+              onConnectionAttemptStarted={() => { attemptIndex.current = attempt + 1; onConnectionAttemptStarted(); }}
+              placeholderLabel={status === 'reconnecting' ? reconnectLabel : (placeholderLabel ?? labels.connecting)}
               muted={muted}
               onPeerConnectionChange={onPeerConnectionChange}
             />
           </div>
+
+          <PublishControls capabilities={publishCapabilities} offeredKinds={offeredKinds} hidden={hidePublishControls} connected={connected && status === 'connected'}
+            state={publishState} labels={labels}
+            start={options => remoteRef.current!.startPublish(options)}
+            stop={() => remoteRef.current?.stopPublish() ?? Promise.resolve()} />
 
           {/* Overlay block when controls are disabled (toggled via header switch) */}
           {!hasControl && (

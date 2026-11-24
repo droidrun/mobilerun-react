@@ -5,6 +5,9 @@
 import { clsx } from 'clsx';
 import { forwardRef, useEffect, useImperativeHandle, useMemo, useRef } from 'react';
 import { StreamStatusPill } from './stream-status-pill';
+import { resolveDeviceStreamLabels, type DeviceStreamLabels, type StreamFailure } from '../lib/stream-error';
+
+import type { DevicePublishCapabilities, PublishState, PublishOptions, PublishErrorEvent, PublishKind } from '../lib/publish';
 
 import { ANDROID_KEYS, codeMap } from '../constants';
 import { createInjectKeycodeMessage, createScreenshotRequest } from '../webrtc-messages';
@@ -18,11 +21,19 @@ declare global {
 }
 
 interface RemoteControlProps {
+  publishCapabilities?: DevicePublishCapabilities;
+  onPublishStateChange?: (state: PublishState) => void;
+  onPublishError?: (error: PublishErrorEvent) => void;
+  onPublishKindsChange?: (kinds: PublishKind[]) => void;
   // url is the URL of the instance to connect to.
   url: string;
 
-  // token is used to authenticate the connection to the instance.
+  /** @deprecated Device token (legacy). Use tokenProvider to acquire a fresh stream token for each connection attempt. */
   token?: string;
+  /** Resolves a fresh stream token before each WebSocket attempt. Overrides token. */
+  tokenProvider?: () => Promise<string>;
+  /** Permit one explicitly requested Retry mount despite advisory offline. */
+  allowOffline?: boolean;
 
   // className is the class name to apply to the component
   // on top of the default styles.
@@ -50,13 +61,18 @@ interface RemoteControlProps {
   // negotiation threw, peer connection 'failed'/'closed') — never on
   // intentional teardown. Lets a reconnect manager retry without waiting
   // out a connect watchdog.
-  onConnectionFailed?: () => void;
+  // Receives the reason of the failure.
+  onConnectionFailed?: (failure: StreamFailure) => void;
+  /** Fired when a socket is allocated, after any token provider resolves. */
+  onConnectionAttemptStarted?: () => void;
 
   // Override label for the corner pill shown while the WebRTC stream is
   // not yet connected. Defaults to "connecting". Pass a device-state-derived
   // label (e.g. "migrating", "resetting") when the underlying device isn't
   // ready, so the user sees the real reason the video isn't there yet.
   placeholderLabel?: string;
+  /** Text of the pill when no `placeholderLabel` is given. Defaults to English. */
+  labels?: Partial<Pick<DeviceStreamLabels, 'connecting'>>;
 
   // When false, the device's audio track (if the backend publishes one) is
   // played back. Defaults to true. Consumers must only flip this to false in
@@ -101,6 +117,12 @@ export interface RemoteControlHandle {
   screenshot: () => Promise<ScreenshotData>;
 }
 
+export interface DeviceStreamHandle extends RemoteControlHandle {
+  startPublish: (options: PublishOptions) => Promise<PublishState>;
+  stopPublish: () => Promise<void>;
+  getPublishState: () => PublishState;
+}
+
 const debugLog = (...args: any[]) => {
   if (window.debugRemoteControl) {
     // eslint-disable-next-line no-console -- opt-in debug channel (window.debugRemoteControl)
@@ -114,17 +136,25 @@ const debugWarn = (...args: any[]) => {
   }
 };
 
-export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>(
+export const RemoteControl = forwardRef<DeviceStreamHandle | RemoteControlHandle, RemoteControlProps>(
   (
     {
+      publishCapabilities,
+      onPublishStateChange,
+      onPublishError,
+      onPublishKindsChange,
       className,
       url,
       token,
+      tokenProvider,
+      allowOffline,
       sessionId: propSessionId,
       openUrl,
       onConnectionStateChange,
       onConnectionFailed,
+      onConnectionAttemptStarted,
       placeholderLabel,
+      labels,
       muted = true,
       onPeerConnectionChange,
     }: RemoteControlProps,
@@ -141,6 +171,7 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
     );
 
     const {
+      publisher,
       wsRef,
       dataChannelRef,
       hoverChannelRef,
@@ -148,13 +179,20 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
       pendingScreenshotResolversRef,
       pendingScreenshotRejectersRef,
     } = useWebRtcConnection({
+      publishCapabilities,
+      onPublishStateChange,
+      onPublishError,
+      onPublishKindsChange,
       url,
       token,
+      tokenProvider,
+      allowOffline,
       sessionId,
       openUrl,
       videoRef,
       onConnectionStateChange,
       onConnectionFailed,
+      onConnectionAttemptStarted,
       onPeerConnectionChange,
     });
 
@@ -189,6 +227,9 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
 
     // Expose sendOpenUrlCommand via ref
     useImperativeHandle(ref, () => ({
+      startPublish: publisher.start,
+      stopPublish: publisher.stop,
+      getPublishState: publisher.getState,
       openUrl: (newUrl: string) => {
         if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
           debugWarn('WebSocket not open, cannot send open_url command via ref.');
@@ -351,7 +392,7 @@ export const RemoteControl = forwardRef<RemoteControlHandle, RemoteControlProps>
             }
           }}
         />
-        {!isConnected && <StreamStatusPill label={placeholderLabel ?? 'connecting'} />}
+        {!isConnected && <StreamStatusPill label={placeholderLabel ?? resolveDeviceStreamLabels(labels).connecting} />}
       </div>
     );
   },

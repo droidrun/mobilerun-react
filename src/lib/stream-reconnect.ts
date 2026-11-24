@@ -1,16 +1,19 @@
 // Copyright 2026 Mobilerun
 // SPDX-License-Identifier: Apache-2.0
 
+import type { StreamError, StreamFailure } from './stream-error';
+
 /**
  * Pure reconnect state machine for a single device stream. Framework-free so
  * the timing/backoff logic is unit-testable; `use-stream-reconnect` wires it
  * into React (remounts via key bump, snapshot into state).
  *
  * Lifecycle contract with the hook:
- *  - `attemptMounted()` is called after every mount/remount of the underlying
- *    stream component (and on enable). It arms the connect watchdog.
- *  - `onRemount()` asks the hook to bump the mount epoch; the resulting mount
- *    calls `attemptMounted()` back.
+ *  - `attemptMounted(false)` prepares a provider phase without a watchdog;
+ *    `attemptMounted()` starts the watchdog when its socket allocates.
+ *    The default keeps existing mount-driven callers unchanged.
+ *  - `onRemount()` asks the hook to bump the mount epoch and prepare the next
+ *    attempt; its socket allocation then starts the connect watchdog.
  *  - `handleConnected`/`handleDisconnected` mirror the WebRTC connection
  *    state; `handleFailure` is the terminal-failure signal (WS died, peer
  *    connection failed, negotiation threw).
@@ -22,7 +25,7 @@
  *  - Holding a connection for STABILITY_MS refills the retry budget, so the
  *    known server-side ~2min disconnect loop (DRO-2705) keeps reconnecting
  *    quickly forever instead of escalating into `unavailable`.
- *  - `handleWake` (tab visible / back online) short-circuits a pending
+ *  - `handleWake` (tab visible) short-circuits a pending
  *    backoff wait, and starts a fresh retry cycle when unavailable.
  */
 
@@ -39,6 +42,8 @@ export interface StreamReconnectSnapshot {
 }
 
 export const STREAM_RECONNECT_MAX_ATTEMPTS = 6;
+// Key acquisition precedes socket allocation and has its own independent budget.
+export const STREAM_TOKEN_PROVIDER_TIMEOUT_MS = 10_000;
 // Connection-layer phase budgets, enforced in use-webrtc-connection: how long
 // the signaling WebSocket may take to open, and how long the RTCConfiguration
 // reply may take after that. Each phase rejects (→ onConnectionFailed) when
@@ -72,23 +77,28 @@ export interface StreamReconnectSchedule {
 
 export interface StreamReconnectControllerOptions {
   /** Bump the mount epoch — remounts the stream component. */
-  onRemount(): void;
+  onRemount(allowOffline?: boolean): void;
   /** Status/attempt changed. */
   onSnapshot(snapshot: StreamReconnectSnapshot): void;
   /** A reconnect attempt is being scheduled — refetch stream credentials. */
   onHeal(): void;
+  /** One call per counted failure, with the reason and whether retries stopped. */
+  onError?(error: StreamError): void;
   schedule?: StreamReconnectSchedule;
   random?: () => number;
+  /** Unknown connectivity is optimistic; false pauses acquisition and retry timing. */
+  networkAvailable?: boolean;
 }
 
 export interface StreamReconnectController {
-  /** The stream component (re)mounted; arm the connect watchdog. */
-  attemptMounted(): void;
+  /** Begin an attempt; false defers the watchdog. fromSocket marks actual socket allocation. */
+  attemptMounted(startWatchdog?: boolean, allowOffline?: boolean, fromSocket?: boolean): void;
   /** No stream target anymore (URL gone) — stop timers, reset counters. */
   setDisabled(): void;
   handleConnected(): void;
   handleDisconnected(): void;
-  handleFailure(): void;
+  /** Terminal failure of the current attempt; `failure` names why (default `unknown`). */
+  handleFailure(failure?: StreamFailure): void;
   /**
    * Whether a stream-target change (URL/token rotation) must be held back
    * instead of applied right now. True while waiting out a backoff (an
@@ -98,9 +108,11 @@ export interface StreamReconnectController {
    * disabled — the new target applies immediately.
    */
   shouldDeferTargetChange(): boolean;
-  /** Tab became visible / browser back online. */
+  /** Observe connectivity; initial commit only seeds a still-fresh connecting attempt. */
+  setNetworkAvailable(available: boolean, initialCommit?: boolean): void;
+  /** Tab became visible. */
   handleWake(): void;
-  /** Manual retry (Unavailable-state button). */
+  /** Manual retry; explicitly overrides advisory offline for one fresh attempt. */
   retry(): void;
   dispose(): void;
   getSnapshot(): StreamReconnectSnapshot;
@@ -110,11 +122,16 @@ export function createStreamReconnectController({
   onRemount,
   onSnapshot,
   onHeal,
+  onError,
   schedule = { setTimeout: (fn, ms) => setTimeout(fn, ms), clearTimeout: (id) => clearTimeout(id) },
   random = Math.random,
+  networkAvailable = true,
 }: StreamReconnectControllerOptions): StreamReconnectController {
   let enabled = false;
-  let status: StreamReconnectStatus = 'connecting';
+  let disposed = false;
+  let forcedAttempt = false;
+  let socketStarted = false;
+  let status: StreamReconnectStatus = networkAvailable ? 'connecting' : 'unavailable';
   let attempt = 0;
   // Whether the current mount epoch ever reached 'connected'. Gates
   // handleDisconnected: the peer connection reports non-connected states
@@ -147,26 +164,40 @@ export function createStreamReconnectController({
     stabilityTimer = clearTimer(stabilityTimer);
   };
 
-  const startAttempt = () => {
-    onRemount();
+  const reportError = (failure: StreamFailure, final: boolean) => {
+    // A consumer callback must never break the reconnect machine.
+    try {
+      onError?.({ reason: failure.reason, message: failure.message, attempt, final });
+    } catch {
+      // Ignored on purpose.
+    }
+  };
+
+  const startAttempt = (allowOffline = false) => {
+    if (!enabled || (!networkAvailable && !allowOffline) || disposed) return;
+    onRemount(allowOffline);
     // The resulting mount calls attemptMounted(), which arms the watchdog.
   };
 
-  const countFailure = () => {
+  const countFailure = (failure: StreamFailure) => {
     // A wait is already scheduled (or we already gave up) — e.g. a stale
     // watchdog armed by a StrictMode double-mount. Never stack timers.
     if (backoffTimer !== null || status === 'unavailable') return;
+    if (!networkAvailable && !everConnectedThisEpoch && !forcedAttempt) return;
+    forcedAttempt = false;
     failureLatched = true;
     watchdogTimer = clearTimer(watchdogTimer);
     stabilityTimer = clearTimer(stabilityTimer);
     attempt += 1;
-    if (attempt > STREAM_RECONNECT_MAX_ATTEMPTS) {
+    if (!networkAvailable || attempt > STREAM_RECONNECT_MAX_ATTEMPTS) {
       status = 'unavailable';
       emit();
+      reportError(failure, true);
       return;
     }
     status = 'reconnecting';
     emit();
+    reportError(failure, false);
     // Refetch credentials once per recovery cycle, not per attempt: consumer
     // onHeal callbacks trigger network refetches (grids share one full-fleet
     // refetch across every card), so per-attempt heals would multiply into a
@@ -187,7 +218,9 @@ export function createStreamReconnectController({
     );
   };
 
-  const freshCycle = () => {
+  const freshCycle = (allowOffline = false) => {
+    forcedAttempt = allowOffline;
+    socketStarted = false;
     attempt = 0;
     failureLatched = false;
     everConnectedThisEpoch = false;
@@ -197,12 +230,21 @@ export function createStreamReconnectController({
     status = 'reconnecting';
     emit();
     onHeal();
-    startAttempt();
+    startAttempt(allowOffline);
   };
 
   return {
-    attemptMounted() {
+    attemptMounted(startWatchdog = true, allowOffline = false, fromSocket = false) {
+      forcedAttempt = allowOffline;
+      socketStarted = fromSocket;
       enabled = true;
+      disposed = false;
+      if (!networkAvailable && !forcedAttempt) {
+        clearAllTimers();
+        status = 'unavailable';
+        emit();
+        return;
+      }
       // Mid-wait mounts are stale (StrictMode remount): the scheduled
       // attempt owns the next watchdog.
       if (backoffTimer !== null || status === 'unavailable') return;
@@ -216,14 +258,17 @@ export function createStreamReconnectController({
         status = 'connecting';
         emit();
       }
+      if ((!networkAvailable && !forcedAttempt) || !startWatchdog) return;
       watchdogTimer = schedule.setTimeout(() => {
         watchdogTimer = null;
-        countFailure();
+        countFailure({ reason: 'unknown', message: 'Connection attempt timed out' });
       }, STREAM_CONNECT_TIMEOUT_MS);
     },
 
     setDisabled() {
+      forcedAttempt = false;
       enabled = false;
+      disposed = false;
       clearAllTimers();
       everConnectedThisEpoch = false;
       failureLatched = false;
@@ -263,13 +308,13 @@ export function createStreamReconnectController({
       if (!enabled) return;
       if (!everConnectedThisEpoch) return;
       if (failureLatched) return;
-      countFailure();
+      countFailure({ reason: 'disconnected', message: 'The stream connection dropped' });
     },
 
-    handleFailure() {
+    handleFailure(failure = { reason: 'unknown', message: 'Connection failed' }) {
       if (!enabled) return;
       if (failureLatched) return;
-      countFailure();
+      countFailure(failure);
     },
 
     shouldDeferTargetChange() {
@@ -280,8 +325,31 @@ export function createStreamReconnectController({
       return backoffTimer !== null || status === 'unavailable';
     },
 
+    setNetworkAvailable(available, initialCommit = false) {
+      if (disposed || available === networkAvailable) return;
+      networkAvailable = available;
+      if (forcedAttempt && socketStarted) return;
+      watchdogTimer = clearTimer(watchdogTimer);
+      backoffTimer = clearTimer(backoffTimer);
+      if (!available) {
+        if (status !== 'connected' && !forcedAttempt) {
+          status = 'unavailable';
+          emit();
+        }
+        return;
+      }
+      if (status === 'connected') return;
+      if (initialCommit && attempt === 0) {
+        status = 'connecting';
+        emit();
+        return;
+      }
+      if (enabled) freshCycle();
+      else onHeal(); // No target yet: its existing owner resumes discovery.
+    },
+
     handleWake() {
-      if (!enabled) return;
+      if (!enabled || !networkAvailable) return;
       if (status === 'unavailable') {
         freshCycle();
         return;
@@ -296,10 +364,16 @@ export function createStreamReconnectController({
 
     retry() {
       if (!enabled) return;
-      if (status === 'unavailable') freshCycle();
+      if (!networkAvailable && (status === 'connected' || forcedAttempt)) return;
+      if (!networkAvailable || status === 'unavailable') {
+        clearAllTimers();
+        freshCycle(!networkAvailable);
+      }
     },
 
     dispose() {
+      forcedAttempt = false;
+      disposed = true;
       enabled = false;
       clearAllTimers();
     },
