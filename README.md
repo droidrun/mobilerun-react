@@ -47,7 +47,7 @@
 <strong>Requirements</strong>
 <ul>
   <li>React and React DOM 18 or 19, in a browser with WebRTC.</li>
-  <li><code>@mobilerun/sdk &gt;=2.0.0</code>; object helpers need 6.2+, webhook example 6.2.1+.</li>
+  <li><code>@mobilerun/sdk &gt;=2.0.0</code>; object helpers need 6.2+, webhook example 6.2.1+, stream-token examples 6.3.0+.</li>
   <li>A Mobilerun API key on your server.</li>
 </ul>
 </td>
@@ -65,27 +65,31 @@ npm install @mobilerun/react @mobilerun/sdk react react-dom
 ## Quick start
 
 1. Your server mints a short-lived stream token for one device with your API key
-   (`POST /v1/identity/stream-keys`). Follow the [Partner guide](https://docs.mobilerun.ai/partners).
+   using `client.streamTokens.create` from `@mobilerun/sdk` 6.3.0+. Follow the [Partner guide](https://docs.mobilerun.ai/partners).
 2. Your app's `tokenProvider` asks your server for a stream token before each connection.
 3. The SDK opens the stream with that token, one token per connection, and reconnects with a fresh one.
 
-The current wire routes still use `stream-key` / `stream-keys` and return `key` / `keyId` during
-the stream-token naming transition. Use these existing routes until the identity API cutover.
-
-Keep `MOBILERUN_API_KEY` on your server. This mint handler excerpt uses the SDK's `/v1` base URL;
+Use this Node backend helper with `@mobilerun/sdk` 6.3.0 or later. It reads
+`MOBILERUN_API_KEY` on the server;
 see [Stream tokens](https://github.com/droidrun/mobilerun-react/blob/main/docs/stream-tokens.md) for route setup, metadata fetching and error handling.
 
 ```ts
 import { MobilerunSDK } from '@mobilerun/sdk';
-const sdk = new MobilerunSDK({ logLevel: 'off' }); // server only
+const client = new MobilerunSDK({ logLevel: 'off' }); // reads MOBILERUN_API_KEY on the Node server
 export async function mintStreamToken(deviceId: string): Promise<Response> {
   // Authenticate your user and check they own the device before minting.
-  const { key, keyId, expiresAt } = await sdk.api.post<{ key: string; keyId: string; expiresAt: string }>(
-    '/identity/stream-keys', { body: { deviceId, ttlSeconds: 120 }, maxRetries: 0 },
-  );
+  const { key, keyId, expiresAt } = await client.streamTokens.create({
+    deviceId,
+    ttlSeconds: 120,
+    allowedOrigins: ['https://partner.example'], // replace with your browser app's origin
+  }, { maxRetries: 0 });
   return Response.json({ key, keyId, expiresAt }, { status: 201, headers: { 'Cache-Control': 'no-store' } });
 }
 ```
+
+REST fallback: `POST /v1/identity/stream-keys` with the same body and your server-held API key.
+
+Revoke a token on the server with `await client.streamTokens.delete(keyId)`.
 
 Pass a stream URL fetched through your backend and a callback that calls your mint route:
 

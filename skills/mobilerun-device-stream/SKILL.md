@@ -13,14 +13,14 @@ Use a browser with WebRTC. Keep device authorization and token minting on your b
 
 ## Backend: mint one token per connect
 
-Call `POST https://api.mobilerun.ai/v1/identity/stream-keys` with the server's API key from
-`MOBILERUN_API_KEY`. The body is `{ deviceId, ttlSeconds, allowedOrigins? }` and the response is
-`{ key, keyId, expiresAt }` (HTTP 201). `ttlSeconds` defaults to 120 seconds (range 60–300).
+On your Node backend, use `client.streamTokens.create({ deviceId, ttlSeconds, allowedOrigins })`
+from `@mobilerun/sdk` 6.3.0 or later. The client reads the server's `MOBILERUN_API_KEY`; the method
+returns `{ key, keyId, expiresAt }`. `ttlSeconds` defaults to 120 seconds (range 60–300).
 Tokens start with `dr_st_`; `dr_sk_` can appear during the prefix transition. Treat both as opaque.
 Each token is single-use. `allowedOrigins` binds browser use to the listed sites, for example
 `['https://partner.example']`; configure the list on the server.
 
-The following server-only helper uses `MobilerunSDK` from `@mobilerun/sdk` 6.2+.
+The following server-only helper uses `MobilerunSDK` from `@mobilerun/sdk` 6.3.0+.
 Register it behind your application's authenticated
 `POST /api/v1/devices/:id/stream-key` route. **Before calling it, authorize the caller for that
 device.** This helper is not an authentication implementation.
@@ -28,19 +28,14 @@ device.** This helper is not an authentication implementation.
 ```ts
 import { MobilerunSDK } from '@mobilerun/sdk';
 
-const sdk = new MobilerunSDK({ logLevel: 'off' }); // reads MOBILERUN_API_KEY on the server
+const client = new MobilerunSDK({ logLevel: 'off' }); // reads MOBILERUN_API_KEY on the Node server
 
 export async function mintStreamToken(deviceId: string): Promise<Response> {
-  const { key, keyId, expiresAt } = await sdk.api.post<{
-    key: string; keyId: string; expiresAt: string;
-  }>('/identity/stream-keys', {
-    body: {
-      deviceId,
-      ttlSeconds: 120,
-      allowedOrigins: ['https://partner.example'], // replace with your browser app's origin
-    },
-    maxRetries: 0,
-  });
+  const { key, keyId, expiresAt } = await client.streamTokens.create({
+    deviceId,
+    ttlSeconds: 120,
+    allowedOrigins: ['https://partner.example'], // replace with your browser app's origin
+  }, { maxRetries: 0 });
   return Response.json({ key, keyId, expiresAt }, {
     status: 201,
     headers: { 'Cache-Control': 'no-store' },
@@ -48,8 +43,10 @@ export async function mintStreamToken(deviceId: string): Promise<Response> {
 }
 ```
 
-The SDK base URL already includes `/v1`; pass `/identity/stream-keys` to `sdk.api.post`.
-The route and response fields still use the transitional `stream-keys`, `key` and `keyId` names.
+Revoke a token on the server with `await client.streamTokens.delete(keyId)`.
+
+REST fallback: `POST /v1/identity/stream-keys` with the same body, or `DELETE /v1/identity/stream-keys/{keyId}`, authenticated with your server-held API key.
+
 Handle mint errors in your route without exposing upstream credential details.
 
 ## Client: a fresh token for every connection

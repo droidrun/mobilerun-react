@@ -2,7 +2,7 @@
 
 # Stream tokens
 
-The object API helpers (`MobilerunSDK`, `devices.fromId`, `verifyWebhook`) require `@mobilerun/sdk` 6.2 or later. The `{ client, deviceId }` hook form works with older SDKs; the peer dependency range remains `>=2.0.0`.
+The object API helpers (`MobilerunSDK`, `devices.fromId`, `verifyWebhook`) require `@mobilerun/sdk` 6.2 or later. The backend stream-token helpers below require `@mobilerun/sdk` 6.3.0 or later on Node. The `{ client, deviceId }` hook form works with older SDKs; the peer dependency range remains `>=2.0.0`.
 
 Keep the API key on your backend. Use `useDeviceStream` for the URL and device state, and supply a
 `tokenProvider` that calls your backend for a fresh single-use stream token before every WebSocket
@@ -18,11 +18,11 @@ On your backend, register this handler for `GET /api/v1/devices/:id`, passing th
 ```ts
 import { MobilerunSDK } from '@mobilerun/sdk';
 
-const sdk = new MobilerunSDK({ logLevel: 'off' }); // reads MOBILERUN_API_KEY, server only
+const client = new MobilerunSDK({ logLevel: 'off' }); // reads MOBILERUN_API_KEY on the Node server
 
 export async function getDevice(id: string): Promise<Response> {
   // Authenticate the caller and check the device belongs to them before returning device metadata.
-  const device = await sdk.devices.get(id);
+  const device = await client.devices.get(id);
   return Response.json({
     id: device.info?.id ?? null,
     state: device.info?.state ?? null,
@@ -34,11 +34,11 @@ export async function getDevice(id: string): Promise<Response> {
 export async function mintStreamToken(deviceId: string): Promise<Response> {
   // Authenticate the caller and authorize this device in your application first.
   try {
-    const minted = await sdk.api.post<{ key: string; keyId: string; expiresAt: string }>(
-      '/identity/stream-keys',
-      { body: { deviceId, ttlSeconds: 120 }, maxRetries: 0 },
-    );
-    const { key, keyId, expiresAt } = minted;
+    const { key, keyId, expiresAt } = await client.streamTokens.create({
+      deviceId,
+      ttlSeconds: 120,
+      allowedOrigins: ['https://partner.example'], // replace with your browser app's origin
+    }, { maxRetries: 0 });
     return Response.json({ key, keyId, expiresAt }, {
       status: 201,
       headers: { 'Cache-Control': 'no-store' },
@@ -54,16 +54,14 @@ export async function mintStreamToken(deviceId: string): Promise<Response> {
 }
 ```
 
-During the naming transition, the existing wire routes retain `stream-key` / `stream-keys`
-and the DTO retains `key` / `keyId`. These examples use the currently available API; a route/DTO
-cutover follows the identity API separately.
+`client.streamTokens.create({ deviceId, ttlSeconds, allowedOrigins })` returns
+`{ key, keyId, expiresAt }`. TTL is 60–300 seconds, default 120. Configure `allowedOrigins` on
+the server with your browser app's exact origins. Each stream token is single-use and device-scoped.
+Revoke it on the server with `await client.streamTokens.delete(keyId)`. `expiresAt` is diagnostic
+metadata, not a browser permission or validity check. Do not log or cache stream tokens.
 
-The public mint API is `POST /v1/identity/stream-keys`, authenticated with your server-held API key.
-Its body is `{ deviceId, ttlSeconds? }`; TTL is 60–300 seconds, default 120. It returns HTTP 201
-with `{ key, keyId, expiresAt }` and `Cache-Control: no-store`. The SDK base URL already ends in
-`/v1`, so use `/identity/stream-keys` with `sdk.api.post`. Revoke with
-`DELETE /v1/identity/stream-keys/{keyId}`. Each stream token is single-use and device-scoped. `expiresAt`
-is diagnostic metadata, not a browser permission or validity check. Do not log or cache stream tokens.
+REST fallback: `POST /v1/identity/stream-keys` with the same body, or `DELETE /v1/identity/stream-keys/{keyId}`, authenticated with your server-held API key.
+
 Your backend must authenticate callers and authorize the requested device; never accept an arbitrary
 target URL or owner from the browser. Propagate mint refusal without returning upstream credential details.
 
